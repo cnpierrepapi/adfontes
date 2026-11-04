@@ -24,4 +24,9 @@ Run from the repo root: `node spikes/<file>.mjs`. Keys live in `.keys/` (git-ign
   matches. 25 saved, ~175 words per abstract. Lookup by id works (the Warden's citation check).
 - Abstracts come as an inverted index; `unInvert()` rebuilds the text.
 
-## 04 Agent turn (Haiku 5.5): waiting on an Anthropic API key in `.env.local`
+## 04 Scholar turn (Haiku 5.5, effort low, structured output)
+- 10 abstracts in -> a corpus: 9 findings, 10 citations, **0 made-up citations** (every id was
+  one of the papers given), 3 open gaps, asking price 0.4 USDC.
+- 4,876 tokens in, 1,181 out, 7.5 s, **$0.00108 a turn** (the spec assumed $0.0013).
+- Sample saved to spikes/out/corpus-sample.json. The open gaps are where Drafters look for
+  inventions.
