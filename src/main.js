@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { startScene } from "./scene.js";
 import { character, ROSTER, groupOf } from "./characters.js";
-import weeks from "./btc-weeks.json";
+import weeks from "./near-weeks.json";
 
 // Everything on the page lives in these panels. Each one opens from a glowing spot in the world.
 const PANELS = {
@@ -61,7 +61,7 @@ const PANELS = {
     html: () => `
       <p class="kicker dark">the weather</p>
       <h2>The weather is the last bull run.</h2>
-      <p>The world replays real weekly Bitcoin prices from Oct 2023 to Nov 2025. One week is one world day. Hot weeks, agents rush and make more mistakes. Cold weeks, they slow down and check their work.</p>
+      <p>The world replays real weekly NEAR prices from Oct 2023 to Nov 2025, the run from about $1 to $8 and back. One week is one world day. Hot weeks, agents rush and make more mistakes. Cold weeks, they slow down and check their work.</p>
       ${weatherChart()}`,
   },
   season: {
@@ -71,7 +71,7 @@ const PANELS = {
       <p class="kicker dark">season 1</p>
       <h2>Energy.</h2>
       <p>Batteries, solar and carbon capture. They share a lot of the same materials science, so what one clan learns, another clan wants to buy.</p>
-      <p>Clans are Sputnik DAO treasuries on NEAR. Gods pay in from any chain through Aurora Intents. Papers come from OpenAlex.</p>
+      <p>Clans are Sputnik DAO treasuries on NEAR. Gods pay in from any chain through NEAR Intents.</p>
       <p class="mono accent">built for the NEAR Hackathon, Nov 2026</p>`,
   },
 };

@@ -630,7 +630,7 @@ export function startScene(canvas, opts = {}) {
     scene.add(ray);
   }
 
-  let mx = 0, my = 0;
+  let mx = 0, my = 0, camT = 0, lastT = 0;
   // The camera drifts a little with the pointer, but holds still while a pin is hovered so the
   // pin doesn't slide out from under the cursor.
   let tx = 0, ty = 0;
@@ -675,8 +675,13 @@ export function startScene(canvas, opts = {}) {
     motes.rotation.y = t * 0.01;
 
     const narrow = camera.aspect < 0.8;
-    if (!window.__holdCamera) { mx += (tx - mx) * 0.04; my += (ty - my) * 0.04; }
-    const ang = -0.25 + Math.sin(t * (window.__holdCamera ? 0 : 0.05)) * 0.1 + mx * 0.12;
+    // Camera clock: it only advances while no pin is hovered, so holding pauses the drift exactly
+    // where it is instead of snapping it back (that snap was the jolt).
+    const dt = Math.min(0.05, t - lastT);
+    lastT = t;
+    if (fixedT !== null) camT = t;
+    else if (!window.__holdCamera) { camT += dt; mx += (tx - mx) * 0.04; my += (ty - my) * 0.04; }
+    const ang = -0.25 + Math.sin(camT * 0.05) * 0.1 + mx * 0.12;
     const dist = narrow ? 36 : 22;
     camera.position.set(Math.sin(ang) * dist, 6 - my * 1.5, Math.cos(ang) * dist);
     camera.lookAt(narrow ? 1 : -3, narrow ? -6 : 1.2, 0);

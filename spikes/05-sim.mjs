@@ -28,8 +28,8 @@ const CFG = {
   reward: 3, punish: 2, // USDC a god adds per good gift / clan loses per bad one
 };
 
-// Real weather: weekly BTC closes from Kraken, Oct 2023 onward; 1 world day = 1 week.
-const ohlc = Object.values(JSON.parse(fs.readFileSync("spikes/out/btc-weekly-kraken.json", "utf8")).result)[0];
+// Real weather: weekly NEAR closes from Kraken, Oct 2023 onward; 1 world day = 1 week.
+const ohlc = Object.values(JSON.parse(fs.readFileSync("spikes/out/near-weekly-kraken.json", "utf8")).result)[0];
 const closes = ohlc.map((r) => Number(r[4]));
 const WEEKS = Math.min(110, closes.length - 1); // Oct 2023 to the Oct 2025 top
 const weather = Array.from({ length: WEEKS }, (_, i) => closes[i + 1] / closes[i] - 1); // weekly change
@@ -164,7 +164,7 @@ for (let r = 0; r < RUNS; r++) {
 const avg = (a) => (a.reduce((x, y) => x + y, 0) / a.length).toFixed(2);
 const sd = (a) => { const m = a.reduce((x, y) => x + y, 0) / a.length; return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length).toFixed(2); };
 const topShare = (o) => (Math.max(...Object.values(o)) / RUNS * 100).toFixed(1) + "%";
-console.log(`variant=${VARIANT} runs=${RUNS} weeks=${WEEKS} (BTC ${closes[0]} -> ${closes[WEEKS]})`);
+console.log(`variant=${VARIANT} runs=${RUNS} weeks=${WEEKS} (NEAR ${closes[0]} -> ${closes[WEEKS]})`);
 console.log("wins by god style:", JSON.stringify(winsByGod));
 console.log("most frequent winning clan slot:", topShare(winsBySlot), "| distinct winning slots:", Object.keys(winsBySlot).length);
 console.log("distinct dominant MBTI types among winners:", Object.keys(winnerTypes).length, "| top type share:", topShare(winnerTypes));
