@@ -1,0 +1,227 @@
+[
+  {
+    "id": "https://openalex.org/W3119914513",
+    "doi": "https://doi.org/10.1021/acsenergylett.0c02314",
+    "title": "Visualizing Lithium Dendrite Formation within Solid-State Electrolytes",
+    "year": 2021,
+    "cited": 133,
+    "source": "ACS Energy Letters",
+    "abstract": "Solid-state electrolyte (SSE) is promising for application in all-solid-state lithium metal batteries because of its reliable safety and longevity. The failure of SSE to suppress dendrite formation of Li metal anodes has been conventionally explained by uneven Li deposition at Li/SSE interfaces and its subsequent dendritic growth. While Li deposition within SSE has been recently proposed as another key cause for SSE failure, little is known regarding the Li growth details inside the SSE itself. In this work, we performed in situ microscopic observation of Li deposition inside the SSE and obtained visualized evidence regarding the dynamic process of Li dendrite formation and growth. Li is seen to directly nucleate and propagate within the SSE, leading to its structural cracking. Such behavior should be caused by the presence of P- and S-based crystalline defects in Li 3 PS 4 SSE, which is consistent with the cryo-transmission electron microscopy observations and theoretical calculations. This observation provides important insights into the growth mechanisms of Li dendrites within a working lithium battery."
+  },
+  {
+    "id": "https://openalex.org/W3215620398",
+    "doi": "https://doi.org/10.1038/s41467-021-27311-7",
+    "title": "Growth of lithium-indium dendrites in all-solid-state lithium-based batteries with sulfide electrolytes",
+    "year": 2021,
+    "cited": 310,
+    "source": "Nature Communications",
+    "abstract": "Abstract All-solid-state lithium batteries (ASSLBs) using sulfide solid electrolytes (SSEs) offer an attractive option for energy storage applications. Lithium anode is the ultimate goal for ASSLBs, but lithium-indium (Li-In) alloy anode is more widely utilized in lab testing owing to the quite stable interface and elimination for the risk of short circuit. However, vigorous growth of Li-In dendrites in SSE is discovered in the present work when a full cell (LiNbO3 coated LiNi0.6Co0.2Mn0.2O2//Li6PS5Cl//Li-In) is cycled in high loading and high rate. Our study demonstrates that Li-In anode is unstable towards SSEs at high current, which induces Li-In dendrite growth enclosing electrolyte particles and eventually results in cell death after a long cycling. The morphology and growth mechanism of Li-In dendrites are revealed by scanning transmission electron microscopy-electron energy loss spectroscopy (STEM-EELS) analysis and density function theory (DFT) calculations. Moreover, the differences between Li and Li-In dendrites are systematically compared."
+  },
+  {
+    "id": "https://openalex.org/W4200169245",
+    "doi": "https://doi.org/10.1016/j.xcrp.2021.100706",
+    "title": "Suppressing lithium dendrites within inorganic solid-state electrolytes",
+    "year": 2021,
+    "cited": 104,
+    "source": "Cell Reports Physical Science",
+    "abstract": "The Li metal anode possesses the high specific capacity and the minimum reduction potential known as the renaissance of high-energy-density battery. However, the security problems brought by uncontrolled Li dendrites have hindered its development. Integrating the Li metal anode with non-flammable solid-state electrolytes (SSEs) provides a promising approach to solve the problem of Li dendrites and achieve safe Li metal batteries. However, recent studies indicate that Li dendrites still occur in the interior of inorganic SSEs, although the high mechanical strength of inorganic SSEs can resist dendrite growth in theory. In this review, the main causes of Li dendrites within inorganic SSEs are summarized. Combined with advanced characterization techniques and theoretical calculations, theoretical models of Li dendrite growth within SSEs are clarified. Furthermore, various strategies for suppressing Li dendrites are comprehensively summarized. Finally, the research prospects of dendrite-free all-solid-state Li metal batteries are evaluated."
+  },
+  {
+    "id": "https://openalex.org/W4402592477",
+    "doi": "https://doi.org/10.1038/s41467-024-52412-4",
+    "title": "Understanding the origin of lithium dendrite branching in Li6.5La3Zr1.5Ta0.5O12 solid-state electrolyte via microscopy measurements",
+    "year": 2024,
+    "cited": 56,
+    "source": "Nature Communications",
+    "abstract": "Abstract Lithium dendrite growth in inorganic solid-state electrolytes acts as a main stumbling block for the commercial development of all-solid-state lithium batteries. Indeed, Li dendrites often lead to solid-state electrolyte fractures, undermining device integrity and safety. Despite the significance of these issues, the mechanisms driving the solid-state electrolyte fracture process at the microscopic level remain poorly understood. Here, via operando optical and ex situ dark field X-ray microscopy measurements of LiSn∣single-crystal Li 6.5 La 3 Zr 1.5 Ta 0.5 O 12 ∣LiSn symmetric cells, we provide insights into solid-state electrolyte strain patterns and lattice orientation changes associated with dendrite growth. We report the observation of dislocations in the immediate vicinity of dendrite tips, including one instance where a dislocation is anchored directly to a tip. This latter occurrence in single-crystalline ceramics suggests an interplay between dendrite proliferation and dislocation formation. We speculate that the mechanical stress induced by dendrite expansion triggers dislocation generation. These dislocations seem to influence the fracture process, potentially affecting the directional growth and branching observed in lithium dendrites."
+  },
+  {
+    "id": "https://openalex.org/W3126644371",
+    "doi": "https://doi.org/10.1038/s43246-021-00177-4",
+    "title": "Blocking lithium dendrite growth in solid-state batteries with an ultrathin amorphous Li-La-Zr-O solid electrolyte",
+    "year": 2021,
+    "cited": 100,
+    "source": "Communications Materials",
+    "abstract": "Abstract Lithium dendrites have become a roadblock in the realization of solid-state batteries with lithium metal as high-capacity anode. The presence of surface and bulk defects in crystalline electrolytes such as the garnet Li 7 La 3 Zr 2 O 12 (LLZO) facilitates the growth of these hazardous lithium filaments. Here we explore the amorphous phase of LLZO as a lithium dendrite shield owing to its grain-boundary-free microstructure, stability against lithium metal, and high electronic insulation. By tuning the lithium stoichiometry, the ionic conductivity can be increased by 4 orders of magnitude while retaining a negligible electronic conductivity. In symmetric cells, plating-stripping shows no signs of lithium penetration up to 3.2 mA cm −2 . The dense conformal nature of the films enables microbatteries with an electrolyte thickness of only 70 nm, which can be cycled at 10C for over 500 cycles. The application of this material as a coating on crystalline LLZO lowers the interface resistance and increases the critical current density. The effectiveness of the amorphous Li-La-Zr-O as dendrite blocking layer can accelerate the development of better solid-state batteries."
+  },
+  {
+    "id": "https://openalex.org/W2982213785",
+    "doi": "https://doi.org/10.1002/aenm.201970155",
+    "title": "Lithium Dendrites: Inside or Outside: Origin of Lithium Dendrite Formation of All Solid‐State Electrolytes (Adv. Energy Mater. 40/2019)",
+    "year": 2019,
+    "cited": 4,
+    "source": "Advanced Energy Materials",
+    "abstract": "The critical step for development of all-solid-state lithium metal batteries lies in revealing the origin of lithium dendrite formation in the electrolyte. In article number 1902123, Yun Song, Dalin Sun and co-workers use the representative electrolyte, LiBH4 to demonstrate that lithium dendrites directly form inside the bulk solid-state electrolyte, which is like the process in which plants break through a soil bed and rise into the air."
+  },
+  {
+    "id": "https://openalex.org/W4391952772",
+    "doi": "https://doi.org/10.1002/adma.202313456",
+    "title": "Liquid Metal Loaded Molecular Sieve: Specialized Lithium Dendrite Blocking Filler for Polymeric Solid‐State Electrolyte",
+    "year": 2024,
+    "cited": 80,
+    "source": "Advanced Materials",
+    "abstract": "All-solid-state lithium metal batteries (LMBs) are currently one of the best candidates for realizing the yearning high-energy-density batteries with high safety. However, even polyethylene oxide (PEO), the most popular polymeric solid-state electrolyte (SSE) with the largest ionic conductivity in the category so far, has significant challenges due to the safety issues of lithium dendrites, and the insufficient ionic conductivity. Herein, molecular sieve (MS) is integrated into the PEO as an inert filler with the liquid metal (LM) as a functional module, forming an \"LM-MS-PEO\" composite as both SSE with enhanced ionic conductivity, and protection layer against lithium dendrites. As demonstrated by theoretical and experimental investigations, LM released from MS can be uniformly and efficiently distributed in PEO, which could avoid agglomeration, enable the effective blocking of lithium dendrites, and regulate the mass transport of Li ions, thus achieving even deposition of lithium during charge/discharge. Moreover, MS could reduce the crystallinity of PEO, improve lithium-ion conductivity, and reduce operating temperature. Benefiting from the introduction of the functional MS/LM, the LM-MS-PEO electrolyte exhibits fourfold higher lithium ionic conductivity than the pristine PEO at 40 °C, while the as-assembled all-solid-state LMBs have four to five times longer stable cycle life."
+  },
+  {
+    "id": "https://openalex.org/W4367186005",
+    "doi": "https://doi.org/10.1149/1945-7111/acd0da",
+    "title": "Screening of Electrolyte-Anode Buffers to Suppress Lithium Dendrite Growth in All-Solid-State Batteries",
+    "year": 2023,
+    "cited": 17,
+    "source": "Journal of The Electrochemical Society",
+    "abstract": "Dendritic growth of lithium (Li) metal is a leading cause of degradation and catastrophic failure of all-solid-state batteries (ASSBs) with Li anode. Insertion of a buffer layer between the Li-metal and the solid electrolyte is known to ameliorate this phenomenon; yet the identification of an optimal buffer material, and the design of ASSBs that can be manufactured at scale, remains elusive and largely driven by trial-and-error experimentation. Our analysis seeks to accelerate the buffer-materials discovery by elucidating the conditions under which the buffer’s presence stabilizes electrodeposition on the Li anode in ASSBs. The analysis quantifies the interfacial instability associated with dendrite formation in terms of the battery’s operating conditions and the electrochemical and physical properties of the buffer material and solid electrolyte. The model predicts that, among several prospective buffer materials, Ag, Al, Sn and antiperovskite super ionic conductor, Li3S(BF4)0.5Cl0.5, are effective in stabilizing electrodeposition and suppressing dendrite growth. Our model’s predictions of the dendrite suppression abilities of different buffer materials are consistent with the published experimental findings. The model can be used to guide experimental and computational discovery of new buffer materials that match a particular electrolyte."
+  },
+  {
+    "id": "https://openalex.org/W3131542250",
+    "doi": "https://doi.org/10.1149/1945-7111/abe3a1",
+    "title": "Solid-State Dendrite Suppressing Glass-Ceramic Electrolyte for Enabling Lithium Metal Anode",
+    "year": 2021,
+    "cited": 3,
+    "source": "Journal of The Electrochemical Society",
+    "abstract": "Lithium metal anodes have long been sought to be incorporated into lithium-ion batteries (LiB) in order to increase the energy density and consequently lower the cost of LiB technology. However, Lithium metal is highly reactive and unstable with many known electrolytes. For those electrolytes stable with Lithium, there is also a risk of Lithium dendrite formation during cycling which will lead to an eventual short and catastrophic failure of the battery. In this work, we’ve developed a patented proprietary ternary glass-ceramic system, Li 2 CO 3 −Li 3 BO 3 −Li 2 SO 4 (Patent number: US10566611B2), via molten synthesis that is stable with Lithium. This can suppress dendrite growth during cycling. The bulk crystalline system exhibits lower conductivity of 2 × 10 −6 s cm −1 at room temperature. Using rapid quenching of the system to achieve a semi-crystalline or glass phase improves the conductivity to a modest 2 × 10 −5 s cm −1 at room temperature. This method allows ultra-thin deposition of the solid electrolyte to reduce its area specific resistance (ASR) contribution to below 30 Ω·cm 2 . Lithium symmetric half-cell cycling of a glass sheet shows stable, dendrite free cycling for at least 350 cycles. These characteristics make this material ideal to use as a solid-state electrolyte (SSE) separator in full cell testing."
+  },
+  {
+    "id": "https://openalex.org/W2999375150",
+    "doi": "https://doi.org/10.48550/arxiv.2001.06276",
+    "title": "An interlayer with low solubility for lithium enhances tolerance to dendrite growth in solid state electrolytes",
+    "year": 2020,
+    "cited": 3,
+    "source": "arXiv (Cornell University)",
+    "abstract": "All solid state Li-ion batteries employing metallic lithium as an anode offer higher energy densities while also being safer than conventional liquid electrolyte based Li-ion batteries. However, the growth of tiny filaments of lithium (dendrites) across the solid state electrolyte layer leads to premature shorting of cells and limits their practical viability. The microscopic mechanisms that lead to lithium dendrite growth in solid state cells are still unclear. Using garnet based lithium ion conductor as a model solid state electrolyte, we show that interfacial void growth during lithium dissolution precedes dendrite nucleation and growth. Using a simple electrostatic model, we show that current density at the edges of the voids could be amplified by as much as four orders of magnitude making the cells highly susceptible to dendrite growth after void formation. We propose the use of metallic interlayers with low solubility and high nucleation overpotential for lithium to delay void growth. These interlayers increase dendrite growth tolerance in solid state electrolytes without the undue necessity for high stack pressures."
+  },
+  {
+    "id": "https://openalex.org/W3213822608",
+    "doi": "https://doi.org/10.1016/j.xcrp.2021.100644",
+    "title": "Physicochemically dendrite-suppressed three-dimensional fluoridation solid-state electrolyte for high-rate lithium metal battery",
+    "year": 2021,
+    "cited": 30,
+    "source": "Cell Reports Physical Science",
+    "abstract": "Naturally structural and chemical interface instability between solid-state electrolyte (SSE) and Li anode is still a bottleneck for the suppression of Li dendrites to date. Herein, we design the 3D in situ-fluorinated perovskite-type electrolyte hybridized with poly (ethylene oxide) fibers ([email protected]) for the synergistically enhanced physicochemical-interface stability. The rapidly Li-ions-transporting and high shear modulus 3D skeleton-structured SSE can physically suppress Li dendrite growth, while the LiF-rich solid-state electrolyte interface (SEI) layer of the in situ fluoridated SSE can chemically eliminate the security risk of Li dendrites. This unique SSE exhibits a high ionic conductivity of 5 × 10−4 S cm−1 at 25°C. Based on the above, the as-developed solid-state lithium metal batteries (SSLMBs) possess excellent rate-capability of 95 mAh g−1 @ 5 C and cycling stability over 80% after 100 cycles at 90°C. Evidently, this physicochemically dendrite-suppressed strategy will open a previously unexplored opportunity in developing safe, high-performance SSLMBs."
+  },
+  {
+    "id": "https://openalex.org/W3038563298",
+    "doi": "https://doi.org/10.1093/nsr/nwaa150",
+    "title": "Hybrid solid electrolyte enabled dendrite-free Li anodes for high-performance quasi-solid-state lithium-oxygen batteries",
+    "year": 2020,
+    "cited": 62,
+    "source": "National Science Review",
+    "abstract": "Abstract The dendrite growth of Li anodes severely degrades the performance of lithium-oxygen (Li-O2) batteries. Recently, hybrid solid electrolyte (HSE) has been regarded as one of the most promising routes to tackle this problem. However, before this is realized, the HSE needs to simultaneously satisfy contradictory requirements of high modulus and even, flexible contact with Li anode, while ensuring uniform Li+ distribution. To tackle this complex dilemma, here, an HSE with rigid Li1.5Al0.5Ge1.5(PO4)3 (LAGP) core@ultrathin flexible poly (vinylidene fluoride-hexafluoropropylene) (PVDF-HFP) shell interface has been developed. The introduced large amount of nanometer-sized LAGP cores can not only act as structural enhancer to achieve high Young's modulus but can also construct Li+ diffusion network to homogenize Li+ distribution. The ultrathin flexible PVDF-HFP shell provides soft and stable contact between the rigid core and Li metal without affecting the Li+ distribution, meanwhile suppressing the reduction of LAGP induced by direct contact with Li metal. Thanks to these advantages, this ingenious HSE with ultra-high Young's modulus of 25 GPa endows dendrite-free Li deposition even at a deposition capacity of 23.6 mAh. Moreover, with the successful inhibition of Li dendrites, the HSE-based quasi-solid-state Li-O2 battery delivers a long cycling stability of 146 cycles, which is more than three times that of gel polymer electrolyte-based Li-O2 battery. This new insight may serve as a starting point for further designing of HSE in Li-O2 batteries, and can also be extended to various battery systems such as sodium-oxygen batteries."
+  },
+  {
+    "id": "https://openalex.org/W4409085490",
+    "doi": "https://doi.org/10.21656/1000-0887.450096",
+    "title": "Morphology Control and Suppression of Lithium Dendrite Growth in Solid-State Electrolytes Based on Phase-Field Simulation",
+    "year": 2025,
+    "cited": 0,
+    "source": "应用数学和力学",
+    "abstract": "The safety concerns regarding the flammability and explosivity of traditional liquid electrolyte (LE) lithium batteries have spurred the development of all-solid-state lithium batteries with solid-state electrolytes (SSE). However, the issue of lithium dendrite growth remains a critical challenge to be urgently addressed to commercialize solid-state lithium batteries. Hence, a thorough investigation of the morphology control mechanisms and suppression strategies for lithium dendrite growth within solid-state electrolytes is crucial for improving the cycle life of solid-state lithium batteries and promoting their widespread application. Based on the phase-field method, a multi-physical fields coupling model integrating mechanics and electrochemistry, was constructed to dynamically demonstrate the morphology and mechanical behavior of lithium dendrite growth. Then the model parameters and different conditions were explored to regulate and suppress the morphology of lithium dendrite. The results indicate that, a low-level interfacial reaction rate coefficient can effectively slow down the growth rate of lithium dendrite, while also significantly narrowing the high mechanical stress range at the dendrite root. With the change of the lithium-ion anisotropic diffusion degree within solid-state electrolyte materials, the transition of dendrite morphology from fibrous to flat can be achieved. The polycrystalline nucleation exhibits inhibitory effects on the lateral branches close to each other, with the maximum stress being 3 to 5 times higher than that of single-crystal nucleation. Solid-state electrolytes with a high elastic modulus exert notable mechanical inhibitory effects on lithium dendrite growth. This work can serve as a valuable reference for the optimization design of solid-state electrolytes to suppress dendrite growth in solid-state lithium metal batteries."
+  },
+  {
+    "id": "https://openalex.org/W4405536216",
+    "doi": "https://doi.org/10.1088/2752-5724/ada0cc",
+    "title": "Electrochemically stable and ultrathin polymer-based solid electrolytes for dendrite-free all-solid-state lithium-metal batteries",
+    "year": 2024,
+    "cited": 21,
+    "source": "Materials Futures",
+    "abstract": "Abstract Polymer-based composite solid electrolytes (PCSEs) are increasingly studied in all-solid-state lithium-metal batteries (ASSLMBs) due to the combined advantages of better flexibility of polymer and higher ion conductivity of ceramic electrolytes. However, most reported PCSEs are overly thick, increasing internal resistances. Besides, the poor stability at the Li metal–electrolyte interfaces often leads to severe lithium dendrite formation and reduced cycling stability. Here, we fabricate an ultrathin PCSE with a thickness of 12.4 μ m, incorporating polyacrylonitrile (PAN) nanofibers as the structural matrix, and a filler with polyethylene oxide and Li 6.5 La 3 Zr 1.5 Ta 0.5 O 12 (LLZTO). Due to the formation of the LiCN layer on the surface of the lithium metal and the Li-ion transport pathways induced by the dehydrocyanation reaction at the LLZTO/PAN interfaces, the PCSE exhibits a high critical current density of 1.8 mA cm −2 and a low energy barrier of 0.278 eV for Li-ion transfer, accommodating the fast Li-ion migration to avoid Li-dendrite growth. In addition, the stable nitrile groups and the dehydrocyanation reaction ensure the electrochemical stability of the PCSE with a high oxidation voltage of 5.5 V and an exceptional cycling stability (2100 h) in Li||PCSE||Li symmetric cells. Additionally, the Li||PCSE||LiFePO 4 full cells demonstrate a high volumetric energy density of 338.3 Wh L −1 at 0.1 C and a robust stability over 100 cycles at 0.5 C. The study offers a new approach for fabricating ultrathin PCSEs and provides insights into the mechanisms of dendrite-free formation, guiding the development of high-performance PCSEs for ASSLMBs."
+  },
+  {
+    "id": "https://openalex.org/W4416817375",
+    "doi": "https://doi.org/10.61558/2993-074x.3594",
+    "title": "Regulating Lithium Metal Nucleation and Growth for Dendrite Suppression: from Liquid-Electrolyte to Solid-State Batteries",
+    "year": 2025,
+    "cited": 11,
+    "source": "Journal of Electrochemistry",
+    "abstract": "Lithium metal anodes, with a theoretical capacity of up to 3860 mAh·g−1, are regarded as the cornerstone for developing next-generation high-energy-density batteries. However, several key challenges hinder their practical applications, including dendrite formation, unstable solid electrolyte interphase (SEI), side reactions with electrolytes, and associated safety risks. This review systematically explores the mechanisms of lithium nucleation, growth, and stripping in both liquid and solid-state battery systems, analyzing critical theoretical concepts like heterogeneous nucleation thermodynamics, surface diffusion kinetics, space charge effects, and SEI-induced nucleation, which are crucial for understanding the genesis of dendrite growth. Additionally, the review discusses the electrochemical-mechanical coupling failures that lead to SEI degradation and the formation of dead lithium. For liquid systems, the review proposes strategies to mitigate dendrite formation and SEI instability, which include electrolyte optimization, artificial SEI design, and electrode framework design. In solidstate batteries, the review offers a granular analysis of the interface challenges associated with polymer, sulfide, and halide electrolytes and summarizes different solutions for different solid-state electrolytes. Meanwhile, the review emphasizes the importance of advanced characterization techniques and computational modeling in understanding and regulating the interface between lithium metal and electrolytes. Looking ahead, the review highlights future research directions that emphasize the integration of cross-disciplinary approaches to tackle these interconnected challenges. By addressing these issues, the path will be clear for the rapid commercialization and widespread application of lithium metal batteries, bringing us closer to realizing stable, high-energy-density batteries that can satisfy the escalating demands of modern energy storage applications across various industries."
+  },
+  {
+    "id": "https://openalex.org/W7151835479",
+    "doi": "https://doi.org/10.70675/08ac7ab7z1201z40cbzb4a0z23e812390511",
+    "title": "Mixed sulfide solid-state electrolytes for suppressing lithium dendrite penetration in all-solid-state lithium batteries",
+    "year": 2024,
+    "cited": 0,
+    "source": null,
+    "abstract": "Électrolytes mixtes à base de sulfures pour supprimer la pénétration des dendrites dans les batteries lithium tout-solide Les batteries au lithium métal à l'état solide ont fait l'objet d'une grande attention en raison de leur potentiel en termes de densité énergétique et de sécurité. Cependant, la faible compatibilité du lithium avec l'interface des électrolytes solides et la pénétration des dendrites de lithium pendant le cyclage les empêchent d'atteindre des densités de courant susceptibles d'être commercialisées.Dans ce travail, un électrolyte solide à base de sulfure métastable au lithium et un composé solide instable au lithium ont été mélangés pour obtenir un électrolyte solide à structure mixte. En particulier, Li5.5PS4.5Cl1.5 ou Li7P3S11 agit comme matrice compatible avec le lithium, et Li10GeP2S12, Li10SnP2S12 ou le naphtalène comme inhibiteur de dendrite. La synergie entre les deux génère une interface stable avec l'anode de lithium et supprime efficacement la pénétration des dendrites de lithium. Les cellules symétriques au lithium peuvent fonctionner de manière stable pendant plus de 200 heures à une densité de courant de 0,5 mA cm-2 à température ambiante. À une densité de courant de 5 mA cm-2, le surpotentiel est inférieur à 0,3 V. Les batteries à l'état solide Li/SSEs/Li4Ti5O12 présentent une capacité élevée de 174 mAh g-1 à 0,2 C et 148 mAh g-1 à 2 C. Une rétention de capacité élevée de 96,6 % est observée après 100 cycles à 2 C et une rétention de capacité de 64,4 % après 1 000 cycles à 1C. Ce travail met en évidence les avantages de l'électrolyte mixte et fournit une nouvelle stratégie pour supprimer les dendrites de lithium et améliorer ainsi la durée de vie des ASSLMB."
+  },
+  {
+    "id": "https://openalex.org/W4381661881",
+    "doi": "https://doi.org/10.1039/d3sc01647a",
+    "title": "Composite polymer electrolytes with ionic liquid grafted-Laponite for dendrite-free all-solid-state lithium metal batteries",
+    "year": 2023,
+    "cited": 26,
+    "source": "Chemical Science",
+    "abstract": "A composite polymer electrolyte with ionic liquid grafted-LAP exhibits high conductivity and mechanical strength, contributing to dendrite-free all-solid-state lithium metal batteries."
+  },
+  {
+    "id": "https://openalex.org/W2957908098",
+    "doi": "https://doi.org/10.1002/adfm.201970196",
+    "title": "Solid‐State Lithium Batteries: Intercalated Electrolyte with High Transference Number for Dendrite‐Free Solid‐State Lithium Batteries (Adv. Funct. Mater. 28/2019)",
+    "year": 2019,
+    "cited": 6,
+    "source": "Advanced Functional Materials",
+    "abstract": "In article number 1901047, Li-Zhen Fan, Qiang Zhang, and co-workers describe an intercalated composite solid electrolyte that presents high ionic conductivity and ionic transference number. The synergistic effect of high transference number intercalated electrolytes and 3D lithium anode effectively suppresses lithium dendrites. The assembled batteries deliver a high cycling performance, demonstrating a promising strategy for ambient-temperature solid-state lithium metal batteries."
+  },
+  {
+    "id": "https://openalex.org/W4394511580",
+    "doi": "https://doi.org/10.6084/m9.figshare.15021981",
+    "title": "Growth of Lithium-Indium Dendrites in All-Solid-State Lithium-based Batteries with Sulfide Electrolyte",
+    "year": 2021,
+    "cited": 1,
+    "source": "Figshare",
+    "abstract": "Raw data produced and analyzed in the study \" Growth of lithium-indium dendrites in high energy and power all-solid-state lithium batteries\"."
+  },
+  {
+    "id": "https://openalex.org/W4410798210",
+    "doi": "https://doi.org/10.26599/nr.2025.94907631",
+    "title": "Phase-regulated ultrathin PVDF-based electrolytes for dynamic dendrite suppression in solid-state lithium metal batteries",
+    "year": 2025,
+    "cited": 11,
+    "source": "Nano Research",
+    "abstract": "The pursuit for safer batteries has driven significant research efforts toward solid-state lithium metal cells. To achieve an energy density comparable to that of liquid electrolyte-based cells, the development of ultrathin and lightweight solid electrolytes with superior performance is essential. However, fabricating solid electrolytes with thicknesses comparable to those of commercial separators (~10 μm) used in liquid systems remains challenging because of the increased risk of short circuits caused by dendrite growth. In this study, we present a polymer-based solid-state electrolyte composed of a 7.3-μm-thick ultrathin poly(vinylidene fluoride) (PVDF) film embedded with highly oriented Ti3C2Tx nanoflakes. Functionalized nanoflakes induce PVDF β-phase formation through hydrogen bonding, significantly improving dielectric and piezoelectric properties. These improvements enable a Li+-transfer number of 0.83 and ∼10-fold enhancement in piezoelectric response. A high Li+-transfer number reduces polarization by suppressing space-charge formation during Li plating. Simultaneously, when the electrolyte senses strain accumulation from inevitable Li protrusions, the piezoelectric-induced electric field promptly alleviates the localized overpotential, dynamically promoting uniform Li deposition. Consequently, these electrolytes exhibit exceptional compatibility with Li anode, enabling long-term cycling under various conditions. The symmetric Li||Li cells demonstrate stable operation for over 3000 hours without any micro-short circuits, whereas the LiFePO4||Li full cells maintain high Coulombic efficiency (>99.7%) and good stability through 300 cycles at 1 C."
+  },
+  {
+    "id": "https://openalex.org/W3015079369",
+    "doi": "https://doi.org/10.1021/acsomega.9b04133",
+    "title": "Microporous Metal–Organic Framework (MOF)-Based Composite Polymer Electrolyte (CPE) Mitigating Lithium Dendrite Formation in All-Solid-State-Lithium Batteries",
+    "year": 2020,
+    "cited": 92,
+    "source": "ACS Omega",
+    "abstract": "Abstract Poly(ethylene oxide) (PEO)-based composite polymer electrolytes (CPEs) containing the amine-functionalized, zirconium-based metal–organic framework @silica (UiO-66-NH2@SiO2) and lithium, LiN(CF3SO2)2 salt (LiTFSI) are prepared using a simple hot press method. The electrochemical properties such as compatibility of the electrolyte with the Li metal anode, Li transference number, and ionic conductivity are investigated for the different systems containing different relative concentrations of the additives. The incorporation of UiO-66-NH2@SiO2 in the PEO-LiTFSI matrix not only enhanced ionic conductivity by one order of magnitude but also offered better compatibility and suppressed the formation of lithium dendrites appreciably. X-ray photoelectron spectroscopy studies on post-cycled materials revealed the formation of lithium alkoxide (RO–Li) on the cathode and Li2O on the anode. The coin cell (2032-type) consisting of LiFePO4/CPE/Li with UiO-66-NH2@SiO2 as filler provided a discharge capacity of 151 mA h g–1 at 0.1 C-rate at 60 °C, measurably higher than control experiments utilizing SiO2 and UiO-66-NH2. The notable enhancement of electrochemical properties when incorporating the UiO-66-NH2@SiO2 at the CPE was attributed to formation of more uniform ion conduction pockets and channels within the PEO matrix, facilitated by the presence of the microporous UiO-66-NH2@SiO2. The enhanced distribution of microporous channels, where Li ions are assumed to percolate through within the matrix, is assumed to desirably reduce formation of Li dendrites by increasing diffusion channels and therefore reducing crystallization and growth of dendrites at the electrode surface."
+  },
+  {
+    "id": "https://openalex.org/W4415299854",
+    "doi": "https://doi.org/10.1021/cbmi.5c00129",
+    "title": "Composite Solid Electrolytes Inhibit Dendrite Penetration for Stable All-Solid-State Lithium Batteries Revealed by 3D EPR Imaging",
+    "year": 2025,
+    "cited": 4,
+    "source": "Chemical & Biomedical Imaging",
+    "abstract": "High Resolution Image Download MS PowerPoint Slide The practical application of all-solid-state lithium metal batteries (ASSLBs) based on Li 6 PS 5 Cl (LPSC) is severely hindered by uncontrolled lithium (Li) dendrite penetration, which ultimately leads to soft short circuits and catastrophic battery failure. To address this critical challenge, this work proposes a Li 10 GeP 2 S 12 –Li 6 PS 5 Cl (LGPS-LPSC) composite solid electrolyte interlayer between the composite cathode layer and the LPSC bulk layer, which effectively prevents lithium dendrites from penetrating the electrolyte and then enhances the long-term cycling stability. Electrochemically, Li|Li symmetric cells integrated with this composite electrolyte achieve stable operation for 2000 h at a current density of 0.5 mA cm –2, while Li|LiCoO 2 full cells with composite electrolyte exhibit excellent cycling stability, retaining 69.51% of their initial capacity after 900 cycles at a rate of 1 C. Via 3D electron paramagnetic resonance (EPR) imaging, in situ 2D EPR imaging, and nanoindentation measurements, it is revealed that the LGPS-LPSC composite electrolyte exerts a dual function: it not only enhances the mechanical strength of the electrolyte system to physically block Li dendrite penetration but also tailors ionic conductivity pathways to facilitate uniform Li plating at the Li metal anode interface."
+  },
+  {
+    "id": "https://openalex.org/W4405880222",
+    "doi": "https://doi.org/10.1002/smll.202410471",
+    "title": "Constructing Garnet Electrolytes with Internal 3‐D Electronic Insulation Network for Dendrite‐Free Solid‐State Lithium Metal Batteries",
+    "year": 2024,
+    "cited": 6,
+    "source": "Small",
+    "abstract": "Abstract Garnet‐type solid‐state lithium metal batteries (SSLMBs), with high energy density and superior safety performance, have been recognized as one of the most promising next‐generation energy storage technologies. However, the severe lithium dendrite penetration issue of garnet‐type electrolytes significantly impedes the practical application of SSLMBs. Herein, garnet‐type electrolyte Li6.4La3Zr1.4Ta0.6O12 (LLZTO) with high dendrite‐suppressing ability is fabricated by constructing a 3‐D continuous electronic insulation network at the grain boundaries of LLZTO with glass electrolyte 50Li2O‐38B2O3‐12SiO2 (LBS). The selected LBS, with low melting temperature, moderate lithium‐ion conductivity, and extremely low electronic conductivity (≈1.7 × 10−10 S cm−1), significantly facilitates the densification of LLZTO and by existing at the grain boundaries in the form of amorphous glass, impedes the transport of electrons within the electrolytes and ultimately prevents the growth of lithium dendrite during battery cycling. As a result, the fabricated Li|LLZTO‐LBS|Li symmetric cells show a high critical current density of 1.1 mA cm−2 and a stable lithium plating/stripping performance for over 1000 h at 0.2 mA cm−2. Moreover, the constructed Li|LLZTO‐LBS|LiFePO4 full cells deliver a high initial specific capacity of 141.8 mA h g−1 at 1.0C and can be cycled stably for over 100 cycles at 0.2C."
+  },
+  {
+    "id": "https://openalex.org/W4392189273",
+    "doi": "https://doi.org/10.3390/nano14050433",
+    "title": "In Situ Construction of Elastic Solid-State Polymer Electrolyte with Fast Ionic Transport for Dendrite-Free Solid-State Lithium Metal Batteries",
+    "year": 2024,
+    "cited": 7,
+    "source": "Nanomaterials",
+    "abstract": "Solid-state lithium metal batteries (LMBs) have been extensively investigated owing to their safer and higher energy density. In this work, we prepared a novel elastic solid-state polymer electrolyte based on an in situ-formed elastomer polymer matrix with ion-conductive plasticizer crystal embedded with Li6.5La3Zr1.5Ta0.5O12 (LLZTO) nanoparticles, denoted as LZT/SN-SPE. The unique structure of LZT/SN-SPE shows excellent elasticity and flexibility, good electrochemical oxidation tolerance, high ionic conductivity, and high Li+ transference number. The role of LLZTO filler in suppressing the side reactions between succinonitrile (SN) and the lithium metal anode and propelling the Li+ diffusion kinetics can be affirmed. The Li symmetric cells with LZT/SN-SPE cycled stably over 1100 h under a current density of 5 mA cm−2, and Li||LiFePO4 cells realized an excellent rate (92.40 mAh g−1 at 5 C) and long-term cycling performance (98.6% retention after 420 cycles at 1 C). Hence, it can provide a promising strategy for achieving high energy density solid-state LMBs."
+  },
+  {
+    "id": "https://openalex.org/W7133119064",
+    "doi": "https://doi.org/10.1021/cbe.6c00001",
+    "title": "Self-Healable and Superrobust Supramolecular Elastomer-Bound Sulfide Electrolyte Films for Dendrite-Free All-Solid-State Lithium Batteries",
+    "year": 2026,
+    "cited": 5,
+    "source": "Chem & Bio Engineering",
+    "abstract": "High Resolution Image Download MS PowerPoint Slide The commercialization of all-solid-state lithium batteries (ASSLBs) is hindered by the lack of advanced binders for sulfide solid-state electrolyte (SSE) films, as current binders often fail to achieve cohesion and adhesion balance, resulting in agglomeration or insufficient mechanical strength. Herein, we introduce a self-healable supramolecular poly(urethane-urea) (SPU) binder for sulfide SSE films, leveraging dynamic hydrogen bonds to achieve a balance between adhesion and cohesion. The SPU binder enables the fabrication of free-standing Li 6 PS 5 Cl (LPSCl) films at a low binder content of 3 wt %, achieving an ionic conductivity of 1.5 mS cm –1 and a highly densified morphology. The resulting lithium symmetric cell exhibits a critical current density (CCD) of 1.8 mA cm –2 and cycling stability over 3500 h at 0.1 mA cm –2, and lithium dendrite growth is revealed to be largely mitigated in the LPSCl film. Furthermore, ASSLBs incorporating SPU-bound LPSCl films demonstrate enhanced rate capability (140.6 mAh g –1 at 1C) and cycling performance (78.8% capacity retention after 400 cycles). This work highlights the potential of self-healable binders in addressing the mechanical and electrochemical challenges of sulfide SSE films, paving the way for scalable ASSLB development."
+  }
+]
