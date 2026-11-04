@@ -1,0 +1,7 @@
+.env
+.env.*
+.keys/
+spikes/
+scripts/
+stills/
+node_modules/
