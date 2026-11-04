@@ -6,3 +6,6 @@ CLAUDE.md
 .claude/
 dist
 stills
+
+.vercel
+.env*
