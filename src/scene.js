@@ -47,102 +47,192 @@ function mesh(geo, color, jitter) {
   return new THREE.Mesh(facetColors(geo, color, jitter), flatMat);
 }
 
-// One floating island: faceted grass top, a jagged rock cone below, a little town on top.
+// One floating island: a grass cap with an overhanging lip, a cliff band, and a layered rock
+// underside (strata) tapering to a point, with boulders and hanging crystals.
 function island(radius, opts = {}) {
   const g = new THREE.Group();
   const grass = opts.grass ?? pick(PAL.grass);
   const rock = opts.rock ?? pick(PAL.rock);
-
-  const top = new THREE.CylinderGeometry(radius, radius * 0.92, radius * 0.28, 9, 1);
-  top.translate(0, -radius * 0.14, 0);
-  const topPos = top.attributes.position;
-  for (let i = 0; i < topPos.count; i++) {
-    const y = topPos.getY(i);
-    if (y > -radius * 0.05) topPos.setY(i, y + range(-0.04, 0.06) * radius);
-  }
-  g.add(mesh(top, grass, 0.12));
-
-  const under = new THREE.ConeGeometry(radius * 0.95, radius * 2.1, 9, 4);
-  under.rotateX(Math.PI);
-  under.translate(0, -radius * 1.3, 0);
-  const up = under.attributes.position;
-  for (let i = 0; i < up.count; i++) {
-    const y = up.getY(i);
-    if (y > -radius * 2.3 && y < -radius * 0.35) {
-      up.setX(i, up.getX(i) * range(0.8, 1.2));
-      up.setZ(i, up.getZ(i) * range(0.8, 1.2));
+  const seg = 14;
+  const jag = Array.from({ length: seg }, () => range(0.9, 1.08));
+  const shape = (geo, yMin, yMax, amt) => {
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i);
+      const a = (Math.atan2(z, x) + Math.PI * 2) % (Math.PI * 2);
+      const k = jag[Math.round((a / (Math.PI * 2)) * seg) % seg];
+      if (y >= yMin && y <= yMax) { pos.setX(i, x * (1 + (k - 1) * amt)); pos.setZ(i, z * (1 + (k - 1) * amt)); }
     }
-  }
-  g.add(mesh(under, rock, 0.16));
+  };
 
-  // Small hanging crystals under the rock.
-  for (let i = 0; i < 4; i++) {
-    const c = mesh(new THREE.OctahedronGeometry(radius * range(0.07, 0.13), 0), pick([0xffffff, 0xbff8ff, 0xffd6f0]), 0.1);
+  // Grass cap: gently domed top, lip slightly wider than the cliff below.
+  const cap = new THREE.CylinderGeometry(radius * 1.04, radius * 1.0, radius * 0.16, seg, 2);
+  cap.translate(0, -radius * 0.08, 0);
+  shape(cap, -10, 10, 1);
+  const cp = cap.attributes.position;
+  for (let i = 0; i < cp.count; i++) {
+    const y = cp.getY(i), r = Math.hypot(cp.getX(i), cp.getZ(i)) / radius;
+    if (y > -radius * 0.01) cp.setY(i, y + (1 - r * r) * radius * 0.05 + range(-0.012, 0.02) * radius);
+  }
+  const capM = mesh(cap, grass, 0.1);
+  capM.receiveShadow = true;
+  g.add(capM);
+
+  // Cliff band just under the grass, lighter earth.
+  const band = new THREE.CylinderGeometry(radius * 0.98, radius * 0.9, radius * 0.22, seg, 1);
+  band.translate(0, -radius * 0.27, 0);
+  shape(band, -10, 10, 1);
+  g.add(mesh(band, 0xffe0b0, 0.08));
+
+  // Rock underside in three strata of shifting colour.
+  const tones = [rock, new THREE.Color(rock).offsetHSL(0.02, 0, -0.06).getHex(), new THREE.Color(rock).offsetHSL(-0.02, 0.05, -0.12).getHex()];
+  const layers = [[0.9, 0.6, 0.42], [0.6, 0.28, 0.5], [0.28, 0.0, 0.7]];
+  let y0 = -radius * 0.38;
+  layers.forEach(([rTop, rBot, h], i) => {
+    const hh = h * radius;
+    const geo = new THREE.CylinderGeometry(radius * rTop, Math.max(0.001, radius * rBot), hh, seg, 2);
+    geo.translate(0, y0 - hh / 2, 0);
+    shape(geo, -100, 100, 1.2 + i * 0.2);
+    const gp = geo.attributes.position;
+    for (let k = 0; k < gp.count; k++) gp.setX(k, gp.getX(k) + range(-0.02, 0.02) * radius);
+    g.add(mesh(geo, tones[i], 0.14));
+    y0 -= hh;
+  });
+
+  // Boulders on the grass edge and crystals hanging below.
+  for (let i = 0; i < Math.round(radius * 2); i++) {
     const a = rnd() * Math.PI * 2;
-    c.position.set(Math.cos(a) * radius * 0.45, -radius * range(0.9, 1.7), Math.sin(a) * radius * 0.45);
-    c.scale.y = 1.8;
+    const b = mesh(new THREE.DodecahedronGeometry(radius * range(0.04, 0.08), 0), pick([0xfff1e0, 0xe9d8ff, 0xffd9c2]), 0.1);
+    b.position.set(Math.cos(a) * radius * 0.9, 0.02, Math.sin(a) * radius * 0.9);
+    b.castShadow = true;
+    g.add(b);
+  }
+  for (let i = 0; i < 6; i++) {
+    const c = mesh(new THREE.OctahedronGeometry(radius * range(0.06, 0.12), 0), pick([0xffffff, 0xbff8ff, 0xffd6f0, 0xd9c8ff]), 0.1);
+    const a = rnd() * Math.PI * 2;
+    c.position.set(Math.cos(a) * radius * range(0.25, 0.5), -radius * range(0.6, 1.2), Math.sin(a) * radius * range(0.25, 0.5));
+    c.scale.y = 1.9;
     g.add(c);
   }
   g.userData.radius = radius;
   return g;
 }
 
+function shadowed(o) {
+  o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  return o;
+}
+
+// A temple: three stepped plinths, columns with capitals, an architrave ring, a dome and spire.
 function temple(h, dome) {
   const g = new THREE.Group();
-  const base = mesh(new THREE.BoxGeometry(h * 0.9, h * 0.18, h * 0.9), PAL.stone, 0.05);
-  base.position.y = h * 0.09;
-  g.add(base);
-  const n = 6;
+  [[1.0, 0.0], [0.86, 0.07], [0.74, 0.14]].forEach(([w, y]) => {
+    const step = mesh(new THREE.BoxGeometry(h * w, h * 0.07, h * w), PAL.stone, 0.04);
+    step.position.y = y * h + h * 0.035;
+    g.add(step);
+  });
+  const n = 8;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
-    const col = mesh(new THREE.CylinderGeometry(h * 0.045, h * 0.05, h * 0.62, 6), PAL.stone, 0.04);
-    col.position.set(Math.cos(a) * h * 0.32, h * 0.49, Math.sin(a) * h * 0.32);
+    const x = Math.cos(a) * h * 0.3, z = Math.sin(a) * h * 0.3;
+    const col = mesh(new THREE.CylinderGeometry(h * 0.035, h * 0.042, h * 0.56, 8), PAL.stone, 0.03);
+    col.position.set(x, h * 0.49, z);
     g.add(col);
+    const cap = mesh(new THREE.BoxGeometry(h * 0.1, h * 0.04, h * 0.1), 0xffe9c4, 0.03);
+    cap.position.set(x, h * 0.79, z);
+    g.add(cap);
   }
-  const ring = mesh(new THREE.CylinderGeometry(h * 0.4, h * 0.4, h * 0.08, 12), PAL.stone, 0.04);
-  ring.position.y = h * 0.84;
+  const inner = mesh(new THREE.CylinderGeometry(h * 0.2, h * 0.2, h * 0.56, 10), new THREE.Color(dome).offsetHSL(0, -0.2, 0.25).getHex(), 0.05);
+  inner.position.y = h * 0.49;
+  g.add(inner);
+  const ring = mesh(new THREE.CylinderGeometry(h * 0.38, h * 0.38, h * 0.09, 16), PAL.stone, 0.03);
+  ring.position.y = h * 0.85;
   g.add(ring);
-  const d = mesh(new THREE.SphereGeometry(h * 0.36, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), dome, 0.1);
-  d.position.y = h * 0.88;
+  const trim = mesh(new THREE.CylinderGeometry(h * 0.39, h * 0.39, h * 0.025, 16), dome, 0.05);
+  trim.position.y = h * 0.81;
+  g.add(trim);
+  const d = mesh(new THREE.SphereGeometry(h * 0.34, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), dome, 0.08);
+  d.position.y = h * 0.89;
   g.add(d);
-  const spire = mesh(new THREE.ConeGeometry(h * 0.05, h * 0.3, 5), 0xffe27a, 0.05);
-  spire.position.y = h * 1.36;
+  const lantern = mesh(new THREE.CylinderGeometry(h * 0.06, h * 0.07, h * 0.12, 8), PAL.stone, 0.03);
+  lantern.position.y = h * 1.26;
+  g.add(lantern);
+  const spire = mesh(new THREE.ConeGeometry(h * 0.05, h * 0.26, 6), 0xffe27a, 0.05);
+  spire.position.y = h * 1.45;
   g.add(spire);
-  return g;
+  return shadowed(g);
 }
 
+// A tower: tapered body with window slits, a balcony ring, a pointed roof and a banner.
 function tower(h, roof) {
   const g = new THREE.Group();
-  const body = mesh(new THREE.CylinderGeometry(h * 0.16, h * 0.2, h, 7), PAL.stone, 0.06);
+  const body = mesh(new THREE.CylinderGeometry(h * 0.15, h * 0.2, h, 8), PAL.stone, 0.05);
   body.position.y = h / 2;
   g.add(body);
-  const r = mesh(new THREE.ConeGeometry(h * 0.26, h * 0.45, 7), roof, 0.1);
-  r.position.y = h + h * 0.22;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    const w = mesh(new THREE.BoxGeometry(h * 0.05, h * 0.12, h * 0.02), 0x3a2a5c, 0.02);
+    const r = h * 0.165;
+    w.position.set(Math.cos(a) * r, h * (0.45 + (i % 2) * 0.25), Math.sin(a) * r);
+    w.rotation.y = -a + Math.PI / 2;
+    g.add(w);
+  }
+  const bal = mesh(new THREE.CylinderGeometry(h * 0.23, h * 0.2, h * 0.06, 10), new THREE.Color(roof).offsetHSL(0, 0, 0.15).getHex(), 0.05);
+  bal.position.y = h * 0.98;
+  g.add(bal);
+  const r = mesh(new THREE.ConeGeometry(h * 0.25, h * 0.5, 8), roof, 0.1);
+  r.position.y = h + h * 0.27;
   g.add(r);
-  return g;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(h * 0.008, h * 0.008, h * 0.25, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  pole.position.y = h * 1.62;
+  g.add(pole);
+  const fg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(h * 0.16, -h * 0.04, 0), new THREE.Vector3(0, -h * 0.09, 0)]);
+  const flag = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: pick([0xff4fa3, 0xff6f61, 0x8a5cff]), side: THREE.DoubleSide }));
+  flag.position.y = h * 1.74;
+  g.add(flag);
+  return shadowed(g);
 }
 
+// A house: walls, a door and windows, a hip roof with a small chimney.
 function house(s, roof) {
   const g = new THREE.Group();
-  const b = mesh(new THREE.BoxGeometry(s, s * 0.8, s * 0.9), pick([0xffffff, 0xfff1d6, 0xffe6f2]), 0.05);
+  const b = mesh(new THREE.BoxGeometry(s, s * 0.8, s * 0.9), pick([0xffffff, 0xfff1d6, 0xffe6f2, 0xe8f7ff]), 0.04);
   b.position.y = s * 0.4;
   g.add(b);
-  const r = mesh(new THREE.ConeGeometry(s * 0.8, s * 0.6, 4), roof, 0.1);
+  const door = mesh(new THREE.BoxGeometry(s * 0.2, s * 0.36, s * 0.02), 0xb86a3c, 0.02);
+  door.position.set(0, s * 0.18, s * 0.46);
+  g.add(door);
+  [-0.3, 0.3].forEach((x) => {
+    const w = mesh(new THREE.BoxGeometry(s * 0.16, s * 0.16, s * 0.02), 0x5ad1f0, 0.02);
+    w.position.set(x * s, s * 0.5, s * 0.46);
+    g.add(w);
+  });
+  const r = mesh(new THREE.ConeGeometry(s * 0.82, s * 0.62, 4), roof, 0.1);
   r.rotation.y = Math.PI / 4;
-  r.position.y = s * 0.8 + s * 0.3;
+  r.position.y = s * 0.8 + s * 0.31;
   g.add(r);
-  return g;
+  const ch = mesh(new THREE.BoxGeometry(s * 0.12, s * 0.3, s * 0.12), 0xfff1e0, 0.03);
+  ch.position.set(s * 0.25, s * 1.1, -s * 0.15);
+  g.add(ch);
+  return shadowed(g);
 }
 
+// A tree: trunk and two or three stacked faceted canopies in related colours.
 function tree(s) {
   const g = new THREE.Group();
-  const t = mesh(new THREE.CylinderGeometry(s * 0.06, s * 0.09, s * 0.5, 5), 0xc98a5a, 0.05);
-  t.position.y = s * 0.25;
+  const t = mesh(new THREE.CylinderGeometry(s * 0.05, s * 0.08, s * 0.55, 6), 0xc98a5a, 0.05);
+  t.position.y = s * 0.27;
   g.add(t);
-  const f = mesh(new THREE.IcosahedronGeometry(s * 0.38, 0), pick([0x4fe39a, 0x9cf06a, 0xff8fc8, 0x5ff2df]), 0.15);
-  f.position.y = s * 0.7;
-  g.add(f);
-  return g;
+  const base = pick([0x4fe39a, 0x9cf06a, 0xff8fc8, 0x5ff2df, 0xffb86b]);
+  const layers = rnd() < 0.5 ? 2 : 3;
+  for (let i = 0; i < layers; i++) {
+    const c = new THREE.Color(base).offsetHSL(0, 0, i * 0.06).getHex();
+    const f = mesh(new THREE.IcosahedronGeometry(s * (0.36 - i * 0.08), 1), c, 0.14);
+    f.position.set(range(-0.05, 0.05) * s, s * (0.62 + i * 0.22), range(-0.05, 0.05) * s);
+    f.scale.y = 0.85;
+    g.add(f);
+  }
+  return shadowed(g);
 }
 
 // A fountain: stone basin, a pillar, and a particle spray that rises and falls.
@@ -241,13 +331,22 @@ function mist(count, spread, sprays) {
 // Tiny agents walking a loop on an island top, coloured by temperament group.
 function agent(color) {
   const g = new THREE.Group();
-  const body = mesh(new THREE.ConeGeometry(0.11, 0.3, 5), color, 0.12);
-  body.position.y = 0.15;
+  const dark = new THREE.Color(color).offsetHSL(0, 0, -0.25).getHex();
+  [-0.035, 0.035].forEach((x) => {
+    const leg = mesh(new THREE.BoxGeometry(0.04, 0.12, 0.05), dark, 0.05);
+    leg.position.set(x, 0.06, 0);
+    g.add(leg);
+  });
+  const body = mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.17, 6), color, 0.12);
+  body.position.y = 0.2;
   g.add(body);
-  const head = mesh(new THREE.IcosahedronGeometry(0.08, 0), 0xffd2b0, 0.08);
+  const head = mesh(new THREE.IcosahedronGeometry(0.075, 0), pick([0xffd9bf, 0xe8b48c, 0xb97a52, 0x7f4f33]), 0.08);
   head.position.y = 0.36;
   g.add(head);
-  return g;
+  const hair = mesh(new THREE.SphereGeometry(0.078, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2.2), pick([0x3b2a4d, 0x2b1e16, 0xff6f61, 0xffe27a]), 0.05);
+  hair.position.y = 0.37;
+  g.add(hair);
+  return shadowed(g);
 }
 
 // Schools of fish-birds circling between islands (the ABZU-ish life of the sky).
@@ -281,6 +380,8 @@ export function startScene(canvas, opts = {}) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 400);
@@ -310,17 +411,34 @@ export function startScene(canvas, opts = {}) {
   scene.add(new THREE.HemisphereLight(0xdff9ff, 0xffc7a0, 1.6));
   const sunL = new THREE.DirectionalLight(0xfff0d0, 2.2);
   sunL.position.set(-8, 14, 6);
+  sunL.castShadow = true;
+  sunL.shadow.mapSize.set(2048, 2048);
+  Object.assign(sunL.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 50 });
+  sunL.shadow.bias = -0.0008;
+  sunL.shadow.normalBias = 0.02;
   scene.add(sunL);
 
   // A bright sea of cloud-water far below.
   const seaGeo = new THREE.PlaneGeometry(260, 260, 80, 80);
   seaGeo.rotateX(-Math.PI / 2);
   const seaBase = seaGeo.attributes.position.array.slice();
-  const sea = new THREE.Mesh(seaGeo, new THREE.MeshLambertMaterial({ color: PAL.sea, flatShading: true, emissive: 0x05606e, emissiveIntensity: 0.3 }));
+  const sea = new THREE.Mesh(seaGeo, new THREE.MeshPhongMaterial({ color: PAL.sea, flatShading: true, emissive: 0x05606e, emissiveIntensity: 0.3, specular: 0xffffff, shininess: 60 }));
   sea.position.y = -14;
   scene.add(sea);
 
   const sprays = [];
+
+  // A low bank of cloud between the islands and the sea, for depth.
+  const bank = new THREE.Group();
+  const puffMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xd8f6ff, emissiveIntensity: 0.7, flatShading: true, transparent: true, opacity: 0.85 });
+  for (let i = 0; i < 30; i++) {
+    const p = new THREE.Mesh(new THREE.IcosahedronGeometry(range(0.9, 1.9), 1), puffMat);
+    p.position.set(range(-10, 34), range(-13.5, -11.5), range(-34, 2));
+    p.scale.y = 0.55;
+    bank.add(p);
+  }
+  scene.add(bank);
+  sprays.push((t) => { bank.position.x = Math.sin(t * 0.03) * 2; });
   const world = new THREE.Group();
   scene.add(world);
 
@@ -353,10 +471,10 @@ export function startScene(canvas, opts = {}) {
       f.position.set(1.6, 0, 1.2);
       town.add(f);
       anchors.fountain = new THREE.Object3D();
-      anchors.fountain.position.set(1.6, 1.9, 1.2);
+      anchors.fountain.position.set(2.2, 0.9, 1.6);
       town.add(anchors.fountain);
       anchors.agents = new THREE.Object3D();
-      anchors.agents.position.set(-1.6, 1.1, 2.1);
+      anchors.agents.position.set(-2.5, 0.5, 2.4);
       town.add(anchors.agents);
       [[-1.9, 0.6, 1.4], [1.9, -1.3, 1.1], [-1.2, -1.9, 1.6]].forEach(([x, z, h]) => {
         const tw = tower(h, pick(PAL.dome));
@@ -396,6 +514,16 @@ export function startScene(canvas, opts = {}) {
       wf.position.set(Math.cos(a) * L.r * 0.96, 0.02, Math.sin(a) * L.r * 0.96);
       wf.rotation.y = -a + Math.PI / 2;
       isl.add(wf);
+      for (let k = 0; k < 4; k++) {
+        const foam = mesh(new THREE.IcosahedronGeometry(L.r * range(0.05, 0.08), 0), 0xffffff, 0.04);
+        foam.position.set(Math.cos(a) * L.r * 0.97 + range(-0.1, 0.1), 0.03, Math.sin(a) * L.r * 0.97 + range(-0.1, 0.1));
+        isl.add(foam);
+      }
+      const stream = new THREE.Mesh(new THREE.PlaneGeometry(L.r * 0.22, L.r * 0.7), new THREE.MeshBasicMaterial({ color: 0x8ff4ff }));
+      stream.rotation.x = -Math.PI / 2;
+      stream.rotation.z = -a + Math.PI / 2;
+      stream.position.set(Math.cos(a) * L.r * 0.68, 0.035, Math.sin(a) * L.r * 0.68);
+      isl.add(stream);
       const m = mist(40, L.r * 0.5, sprays);
       m.position.set(Math.cos(a) * (L.r * 1.25), -(L.r * 4 + 6) + 0.5, Math.sin(a) * (L.r * 1.25));
       isl.add(m);

@@ -7,7 +7,7 @@ import weeks from "./btc-weeks.json";
 const PANELS = {
   temple: {
     label: "What is this?",
-    color: "#ffc93c",
+    color: "#ffb21e",
     html: () => `
       <p class="kicker dark">ad fontes</p>
       <h2>Your clan reads the world's open papers. Then it invents.</h2>
@@ -18,7 +18,7 @@ const PANELS = {
   },
   fountain: {
     label: "How knowledge gets made",
-    color: "#4ff0ff",
+    color: "#00b8d9",
     html: () => `
       <p class="kicker dark">the loop</p>
       <h2>From papers to a patent draft</h2>
@@ -32,7 +32,7 @@ const PANELS = {
   },
   agents: {
     label: "Meet the clan",
-    color: "#a98bff",
+    color: "#8a5cff",
     wide: true,
     html: () => `
       <p class="kicker dark">the clan</p>
@@ -46,7 +46,7 @@ const PANELS = {
   },
   sun: {
     label: "You, the god",
-    color: "#fff3c0",
+    color: "#ff6f61",
     html: () => `
       <p class="kicker dark">you</p>
       <h2>You're the god.</h2>
@@ -56,7 +56,7 @@ const PANELS = {
   },
   weather: {
     label: "Weather",
-    color: "#ffffff",
+    color: "#2f7bff",
     wide: true,
     html: () => `
       <p class="kicker dark">the weather</p>
@@ -66,7 +66,7 @@ const PANELS = {
   },
   season: {
     label: "Season 1",
-    color: "#7ef0a0",
+    color: "#16b864",
     html: () => `
       <p class="kicker dark">season 1</p>
       <h2>Energy.</h2>
@@ -145,7 +145,7 @@ startScene(document.getElementById("world"), {
       v.project(camera);
       const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
       const visible = v.z < 1 && x > 20 && x < w - 20 && y > 60 && y < h - 20;
-      const flip = x > w * 0.62;
+      const flip = x > w * (w < 700 ? 0.62 : 0.8);
       b.classList.toggle("flip", flip);
       b.style.transform = `translate(${x}px, ${y}px)` + (flip ? " translateX(-100%)" : "");
       b.style.opacity = visible ? 1 : 0;

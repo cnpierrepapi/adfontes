@@ -20,9 +20,12 @@ const CFG = {
   draftTier: 3,
   mutate: 0.1, // chance each MBTI letter flips when an agent is born
   splitSize: 12, // a clan with this many agents and high fortune splits
-  trickAfter: 5, // days without god attention before a Trickster appears
+  // Rich / neglected, by RAW USDC gods put in (not what the clan earned). Average = total put in / clans.
+  // Rich = above the average. Neglected = under a quarter of the average.
+  richLazy: 0.4, // rich clans do this much less work (agents wait for orders)
+  neglectSlow: 0.3, // neglected clans do this much less work
+  neglectTrick: 0.3, // daily chance a Trickster moves into a neglected clan
   reward: 3, punish: 2, // USDC a god adds per good gift / clan loses per bad one
-  lazyFrom: 20, lazySpan: 50, // treasury where agents start waiting for orders, and how fast it bites
 };
 
 // Real weather: weekly BTC closes from Kraken, Oct 2023 onward; 1 world day = 1 week.
@@ -40,7 +43,7 @@ const inherit = (t) => (FULL ? [...t].map((c, i) => (rand() < CFG.mutate ? LETTE
 const GODS = ["absent", "balanced", "smothering", "harsh", "generous"];
 
 function newClan(id, god, types) {
-  return { id, god, alive: true, treasury: CFG.startTreasury, fortune: 1, idle: 0, tricksters: 0,
+  return { id, god, alive: true, treasury: CFG.startTreasury, deposited: CFG.startTreasury, fortune: 1, tricksters: 0,
     agents: types.map((t) => ({ type: t })), tier: 0, owned: new Set([0]), drafts: 0, good: 0, splits: 0, born: 0 };
 }
 
@@ -64,14 +67,21 @@ function runSeason() {
       // God behaviour this day.
       const attend = { absent: 0.1, balanced: 0.6, smothering: 1, harsh: 0.6, generous: 0.8 }[c.god];
       if (rand() < attend) {
-        c.idle = 0;
-        if (c.god === "smothering") { c.treasury += 2; c.fortune *= 0.995; } // over-funding makes agents wait for orders
-        if (c.god === "generous") c.treasury += 0.5;
-      } else c.idle++;
-      if (c.idle >= CFG.trickAfter && rand() < 0.3) c.tricksters++;
+        if (c.god === "smothering") { c.treasury += 2; c.deposited += 2; }
+        if (c.god === "generous") { c.treasury += 0.5; c.deposited += 0.5; }
+        if (c.god === "balanced" || c.god === "harsh") { c.treasury += 0.15; c.deposited += 0.15; }
+      }
+      const live = clans.filter((x) => x.alive);
+      const avgIn = live.reduce((a, x) => a + x.deposited, 0) / live.length;
+      const rich = FULL && c.deposited > avgIn;
+      const neglected = FULL && c.deposited < avgIn / 4;
+      c.rich = rich; c.neglected = neglected;
+      if (rich) c.richDays = (c.richDays || 0) + 1;
+      if (neglected) c.negDays = (c.negDays || 0) + 1;
+      if (neglected && rand() < CFG.neglectTrick) c.tricksters++;
 
-      // Too much money: agents wait for orders instead of working (0 at 20 USDC, up to 60% at 50+).
-      const lazy = FULL ? Math.max(0, Math.min(0.6, (c.treasury - CFG.lazyFrom) / CFG.lazySpan)) : 0;
+      // Rich clans wait for orders; neglected clans drag their feet.
+      const lazy = rich ? CFG.richLazy : neglected ? CFG.neglectSlow : 0;
 
       // Research: climb the knowledge tree.
       const next = c.tier + 1;
@@ -103,7 +113,7 @@ function runSeason() {
         const err = sloppy * (1 + (N - 0.5)) + c.tricksters * 0.05;
         const pass = rand() > err;
         const judgeFair = c.god !== "absent";
-        if (pass) { c.good++; if (judgeFair) { c.treasury += CFG.reward * (c.god === "generous" ? 1.5 : 1); c.fortune = Math.min(2, c.fortune * 1.08); } }
+        if (pass) { c.good++; if (judgeFair) { const r = CFG.reward * (c.god === "generous" ? 1.5 : 1); c.treasury += r; c.deposited += r; c.fortune = Math.min(2, c.fortune * 1.08); } }
         else if (c.god === "harsh" || c.god === "balanced") { c.treasury -= CFG.punish; c.fortune *= 0.9; c.tricksters = Math.max(0, c.tricksters - 1); }
         else c.fortune *= 0.97;
       }
@@ -114,9 +124,9 @@ function runSeason() {
       if (FULL && n >= CFG.splitSize && c.fortune > 1.2 && rand() < 0.1) {
         const sorted = [...c.agents].sort((a, b) => (a.type < b.type ? -1 : 1));
         const half = sorted.splice(0, Math.floor(n / 2));
-        c.agents = sorted; c.treasury /= 2; c.splits++;
+        c.agents = sorted; c.treasury /= 2; c.deposited /= 2; c.splits++;
         const child = newClan(clans.length, c.god, half.map((a) => a.type));
-        child.treasury = c.treasury; child.tier = c.tier; child.owned = new Set(c.owned);
+        child.treasury = c.treasury; child.deposited = c.deposited; child.tier = c.tier; child.owned = new Set(c.owned);
         clans.push(child);
       }
       if (c.treasury <= -2) c.alive = false;
@@ -130,10 +140,12 @@ const winsByGod = Object.fromEntries(GODS.map((g) => [g, 0]));
 const winsBySlot = {};
 const winnerTypes = {};
 const spreads = [], deaths = [], splits = [], goods = [];
+const statusByGod = Object.fromEntries(GODS.map((g) => [g, { rich: 0, neg: 0, n: 0 }]));
 const endings = new Set();
 for (let r = 0; r < RUNS; r++) {
   seed = r * 7919 + 13;
   const clans = runSeason();
+  for (const c of clans.slice(0, CFG.clans)) { const st = statusByGod[c.god]; st.rich += (c.richDays || 0) / WEEKS; st.neg += (c.negDays || 0) / WEEKS; st.n++; }
   const score = (c) => c.good * 2 + c.tier; // the race is knowledge delivered, not money held
   const ranked = [...clans].sort((a, b) => score(b) - score(a));
   const win = ranked[0];
@@ -158,3 +170,4 @@ console.log("most frequent winning clan slot:", topShare(winsBySlot), "| distinc
 console.log("distinct dominant MBTI types among winners:", Object.keys(winnerTypes).length, "| top type share:", topShare(winnerTypes));
 console.log("distinct endings (god|type|clan count|deaths):", endings.size, "of", RUNS);
 console.log(`score gap first-last: avg ${avg(spreads)} sd ${sd(spreads)} | deaths avg ${avg(deaths)} | splits avg ${avg(splits)} | clean drafts avg ${avg(goods)} sd ${sd(goods)}`);
+console.log("share of season spent rich / neglected, by god style:", JSON.stringify(Object.fromEntries(Object.entries(statusByGod).map(([g, v]) => [g, `${Math.round((v.rich / v.n) * 100)}% / ${Math.round((v.neg / v.n) * 100)}%`]))));

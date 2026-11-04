@@ -26,7 +26,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 800; letter-spacing: -0.0
 body.reading .veil { opacity: 0; }
 
 .nav { position: fixed; inset: 0 0 auto 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: 18px 4vw; }
-.brand { font-family: var(--display); font-weight: 800; font-size: 1.15rem; letter-spacing: 0.08em; text-decoration: none; color: #fff; background: rgba(29, 20, 48, 0.28); padding: 8px 14px; border-radius: 999px; backdrop-filter: blur(6px); }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 1.15rem; letter-spacing: 0.08em; text-decoration: none; color: #fff; background: rgba(29, 20, 48, 0.55); padding: 5px 16px 5px 5px; border-radius: 999px; backdrop-filter: blur(6px); }
+.brand img { display: block; border-radius: 9px; }
 .nav-cta { background: #fff; color: var(--ink); padding: 9px 16px; border-radius: 999px; font-weight: 600; text-decoration: none; }
 
 .hero-copy { position: fixed; left: 5vw; bottom: 11vh; max-width: 540px; color: #fff; z-index: 5; transition: opacity 0.3s, transform 0.3s; }
@@ -49,11 +50,13 @@ body.reading .hero-copy { opacity: 0; transform: translateY(16px); pointer-event
 /* Pins that follow the world */
 #pins { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
 .pin { position: absolute; left: 0; top: 0; pointer-events: auto; border: 0; background: none; padding: 0; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.3s; font: inherit; }
-.pin .dot { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.7), 0 0 18px 6px var(--c); animation: pulse 2.2s infinite; }
-.pin .txt { margin-top: -9px; background: rgba(255, 255, 255, 0.92); color: var(--ink); font-weight: 600; font-size: 0.88rem; padding: 6px 12px; border-radius: 999px; box-shadow: 0 6px 18px rgba(0, 80, 120, 0.25); white-space: nowrap; }
+.pin .dot { position: relative; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--c); border: 4px solid #fff; box-shadow: 0 0 0 3px var(--ink), 0 6px 16px rgba(29, 20, 48, 0.45); }
+.pin .dot::after { content: ""; position: absolute; inset: -12px; border-radius: 50%; border: 3px solid var(--c); animation: ripple 1.8s ease-out infinite; }
+@keyframes ripple { from { transform: scale(0.5); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.pin .txt { margin-top: -13px; background: var(--ink); color: #fff; font-weight: 600; font-size: 0.95rem; padding: 8px 14px; border-radius: 999px; box-shadow: 0 0 0 2px var(--c), 0 8px 20px rgba(29, 20, 48, 0.4); white-space: nowrap; }
 .pin.flip { flex-direction: row-reverse; }
-.pin.flip .dot { margin: -9px -9px 0 0; }
-.pin:hover .txt, .pin.on .txt { background: var(--ink); color: #fff; }
+.pin.flip .dot { margin: -13px -13px 0 0; }
+.pin:hover .txt, .pin.on .txt { background: var(--c); color: #fff; }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.7), 0 0 14px 4px var(--c); } 50% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.45), 0 0 26px 10px var(--c); } }
 
 /* The info panel */
