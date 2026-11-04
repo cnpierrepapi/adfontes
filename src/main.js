@@ -102,6 +102,8 @@ for (const [id, p] of Object.entries(PANELS)) {
   b.style.setProperty("--c", p.color);
   b.innerHTML = `<span class="dot"></span><span class="txt">${p.label}</span>`;
   b.addEventListener("click", () => openPanel(id));
+  b.addEventListener("pointerenter", () => (window.__holdCamera = true));
+  b.addEventListener("pointerleave", () => (window.__holdCamera = false));
   pinsEl.appendChild(b);
   pins[id] = b;
 }
@@ -144,7 +146,7 @@ startScene(document.getElementById("world"), {
       a.getWorldPosition(v);
       v.project(camera);
       const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
-      const visible = v.z < 1 && x > 20 && x < w - 20 && y > 60 && y < h - 20;
+      const visible = v.z < 1 && x > 20 && x < w - 20 && y > 20 && y < h - 20;
       const flip = x > w * (w < 700 ? 0.62 : 0.8);
       b.classList.toggle("flip", flip);
       b.style.transform = `translate(${x}px, ${y}px)` + (flip ? " translateX(-100%)" : "");

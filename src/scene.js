@@ -538,15 +538,51 @@ export function startScene(canvas, opts = {}) {
     }
   });
 
-  // Rope bridges of light between the main island and two neighbours.
-  const bridgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
-  [[0, 1], [0, 2], [0, 3]].forEach(([a, b]) => {
-    const A = new THREE.Vector3(layout[a].x, layout[a].y + 0.05, layout[a].z);
-    const B = new THREE.Vector3(layout[b].x, layout[b].y + 0.05, layout[b].z);
+  // Rope bridges between islands: two bright ropes, gold planks, and beads of light running
+  // along them (knowledge being traded between clans).
+  const ropeMats = [new THREE.MeshBasicMaterial({ color: 0xff4fa3 }), new THREE.MeshBasicMaterial({ color: 0xffc93c })];
+  const beadMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x4ff0ff, transparent: true, opacity: 0.45, depthWrite: false });
+  [[0, 2], [0, 3], [0, 1], [2, 4], [2, 6]].forEach(([ia, ib], bi) => {
+    const A0 = new THREE.Vector3(layout[ia].x, layout[ia].y, layout[ia].z);
+    const B0 = new THREE.Vector3(layout[ib].x, layout[ib].y, layout[ib].z);
+    const dir = B0.clone().sub(A0).setY(0).normalize();
+    const A = A0.clone().addScaledVector(dir, layout[ia].r * 0.92).setY(A0.y + 0.08);
+    const B = B0.clone().addScaledVector(dir, -layout[ib].r * 0.92).setY(B0.y + 0.08);
     const mid = A.clone().lerp(B, 0.5);
-    mid.y -= 0.9;
+    mid.y -= Math.max(0.6, A.distanceTo(B) * 0.12);
     const curve = new THREE.QuadraticBezierCurve3(A, mid, B);
-    world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(30)), bridgeMat));
+    const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(0.16);
+    [-1, 1].forEach((k, i) => {
+      const off = side.clone().multiplyScalar(k);
+      const rail = new THREE.QuadraticBezierCurve3(A.clone().add(off).setY(A.y + 0.22), mid.clone().add(off).setY(mid.y + 0.22), B.clone().add(off).setY(B.y + 0.22));
+      world.add(new THREE.Mesh(new THREE.TubeGeometry(rail, 40, 0.025, 5), ropeMats[i]));
+      world.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(A.clone().add(off), mid.clone().add(off), B.clone().add(off)), 40, 0.018, 4), ropeMats[i]));
+    });
+    const n = Math.round(A.distanceTo(B) / 0.22);
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      const plank = mesh(new THREE.BoxGeometry(0.38, 0.03, 0.1), i % 2 ? 0xffd36e : 0xffe9b0, 0.05);
+      plank.position.copy(curve.getPoint(t));
+      plank.lookAt(curve.getPoint(Math.min(1, t + 0.01)));
+      world.add(plank);
+    }
+    const beads = [];
+    for (let i = 0; i < 3; i++) {
+      const bead = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), beadMat);
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), glowMat);
+      bead.add(glow);
+      world.add(bead);
+      beads.push(bead);
+    }
+    sprays.push((t) => {
+      beads.forEach((bead, i) => {
+        const u = (t * 0.12 + i / 3 + bi * 0.17) % 1;
+        const fwd = bi % 2 ? u : 1 - u;
+        bead.position.copy(curve.getPoint(fwd));
+        bead.position.y += 0.12;
+      });
+    });
   });
 
   world.add(school(22, 0xffffff, sprays, 6.5, 3.2));
@@ -595,9 +631,13 @@ export function startScene(canvas, opts = {}) {
   }
 
   let mx = 0, my = 0;
+  // The camera drifts a little with the pointer, but holds still while a pin is hovered so the
+  // pin doesn't slide out from under the cursor.
+  let tx = 0, ty = 0;
   window.addEventListener("pointermove", (e) => {
-    mx = e.clientX / window.innerWidth - 0.5;
-    my = e.clientY / window.innerHeight - 0.5;
+    if (window.__holdCamera) return;
+    tx = e.clientX / window.innerWidth - 0.5;
+    ty = e.clientY / window.innerHeight - 0.5;
   });
 
   function resize() {
@@ -635,7 +675,8 @@ export function startScene(canvas, opts = {}) {
     motes.rotation.y = t * 0.01;
 
     const narrow = camera.aspect < 0.8;
-    const ang = -0.25 + Math.sin(t * 0.05) * 0.1 + mx * 0.12;
+    if (!window.__holdCamera) { mx += (tx - mx) * 0.04; my += (ty - my) * 0.04; }
+    const ang = -0.25 + Math.sin(t * (window.__holdCamera ? 0 : 0.05)) * 0.1 + mx * 0.12;
     const dist = narrow ? 36 : 22;
     camera.position.set(Math.sin(ang) * dist, 6 - my * 1.5, Math.cos(ang) * dist);
     camera.lookAt(narrow ? 1 : -3, narrow ? -6 : 1.2, 0);
