@@ -51,3 +51,7 @@ body.live { margin: 0; overflow: hidden; background: #63d9ee; touch-action: none
 .star-tip.frontier { border-left-color: #8ea4c8; }
 .star-tip.gift { border-left-color: var(--gold); }
 .star-tip.warden { border-left-color: #d12a6b; }
+/* Whole-world view: plates shrink to the name so neighbours' labels don't cover each other. */
+.plates.far .plate { padding: 5px 11px; border-radius: 11px; }
+.plates.far .plate b { font-size: 0.9rem; }
+.plates.far .plate span { display: none; }

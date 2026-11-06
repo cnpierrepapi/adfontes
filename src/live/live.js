@@ -151,7 +151,7 @@ export async function startLive(canvas, hud, opts = {}) {
     plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.points} points${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : ""}`;
     plate.addEventListener("click", () => flyTo(c.id));
     const lbl = new CSS2DObject(plate);
-    lbl.position.set(0, r * 1.3 + 2.2, 0);
+    lbl.position.set(0, r * 0.75 + 1.5, 0);
     isl.add(lbl);
     isl.userData.plate = plate;
     isl.userData.plateObj = lbl;
@@ -254,7 +254,12 @@ export async function startLive(canvas, hud, opts = {}) {
   setInterval(async () => {
     try {
       const now = await api("world");
-      for (const c of now.clans) if (!islands.has(c.id)) { W.clans.push(c); addNation(c); riseNation(c.id); loadMind(c.id); fitWorld(); }
+      for (const c of now.clans) if (!islands.has(c.id)) {
+        W.clans.push(c); addNation(c); fitWorld();
+        // Watching the whole world? Glide to the new home view (re-picked for one more island).
+        if (focusId == null && !flying) controls.setLookAt(...HOME.pos, ...HOME.target, true);
+        riseNation(c.id); loadMind(c.id);
+      }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       for (let d = lastDay + 1; d <= now.day; d++) fx.enqueue((await api(`day?d=${d}`)).records || []);
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
@@ -344,22 +349,43 @@ export async function startLive(canvas, hud, opts = {}) {
     let ext = 16;
     for (const isl of islands.values()) ext = Math.max(ext, Math.hypot(isl.position.x, isl.position.z) + isl.userData.r);
     const k = ext / 16;
-    // Pick the home angle where no island hides behind another: for each candidate azimuth,
-    // project every island onto the screen's horizontal axis and keep the angle whose closest
-    // pair is furthest apart (ties go to the original view).
-    const R = Math.hypot(22, 27) * k, H = 10 * Math.sqrt(k), pts = [...islands.values()].map((i) => i.position);
-    let best = Math.atan2(22, 27), bestScore = -1;
-    for (let deg = 0; deg < 360; deg += 5) {
-      const az = (deg * Math.PI) / 180, cx = Math.sin(az) * R, cz = Math.cos(az) * R;
-      const f = new THREE.Vector3(-cx, 2.5 - H, -cz).normalize(), right = new THREE.Vector3().crossVectors(f, new THREE.Vector3(0, 1, 0)).normalize();
-      const xs = pts.map((p) => { const v = new THREE.Vector3(p.x - cx, p.y - H, p.z - cz); return v.dot(right) / Math.max(1, v.dot(f)); }).sort((a, b) => a - b);
-      let score = Infinity;
-      for (let i = 1; i < xs.length; i++) score = Math.min(score, xs[i] - xs[i - 1]);
-      if (xs.length < 2) score = 0;
-      score -= Math.abs(angDiff(az, Math.atan2(22, 27))) * 0.004; // gentle pull toward the old view
-      if (score > bestScore + 1e-6) { bestScore = score; best = az; }
+    // Pick the home view where no island hides behind another. For each candidate angle and
+    // height, project every island with a real camera (this screen's shape) and measure the gap
+    // between the closest pair of islands ON SCREEN, both ways, allowing for each island's size
+    // (its top plus the hanging rock). Keep the view whose worst pair is furthest apart; prefer
+    // low cameras (floating, not a map) and the original angle when it's a near tie.
+    const R = Math.hypot(22, 27) * k, isls = [...islands.values()];
+    const probe = new THREE.PerspectiveCamera(46, camera.aspect || 16 / 9, 0.1, 600);
+    const tgt = new THREE.Vector3(...HOME.target), v = new THREE.Vector3();
+    let best = { az: Math.atan2(22, 27), H: 10 * Math.sqrt(k) }, bestScore = -Infinity;
+    for (const hk of [1, 1.5, 2.1]) {
+      const H = 10 * Math.sqrt(k) * hk;
+      for (let deg = 0; deg < 360; deg += 5) {
+        const az = (deg * Math.PI) / 180;
+        probe.position.set(Math.sin(az) * R, H, Math.cos(az) * R);
+        probe.lookAt(tgt);
+        probe.updateMatrixWorld();
+        const sp = isls.map((i) => {
+          const r = i.userData.r, c = v.copy(i.position).setY(i.position.y - r * 0.6).project(probe);
+          const x = c.x * probe.aspect, y = c.y;
+          const d = probe.position.distanceTo(i.position);
+          const sr = (r * 1.05) / (d * Math.tan(THREE.MathUtils.degToRad(23)));
+          return { x, y, sr, sy: sr * 1.5 }; // the hanging rock makes an island taller than wide
+        });
+        let score = isls.length < 2 ? 0 : Infinity, out = 0;
+        for (let a = 0; a < sp.length; a++) {
+          if (Math.abs(sp[a].y) > 0.8 || Math.abs(sp[a].x) > probe.aspect * 0.85) out++;
+          for (let b = a + 1; b < sp.length; b++) {
+            const dx = Math.abs(sp[a].x - sp[b].x) - (sp[a].sr + sp[b].sr);
+            const dy = Math.abs(sp[a].y - sp[b].y) - (sp[a].sy + sp[b].sy) * 0.5;
+            score = Math.min(score, Math.max(dx, dy)); // apart on either axis counts
+          }
+        }
+        score -= out * 0.5 + (hk - 1) * 0.06 + Math.abs(angDiff(az, Math.atan2(22, 27))) * 0.003;
+        if (score > bestScore + 1e-6) { bestScore = score; best = { az, H }; }
+      }
     }
-    HOME.pos = [Math.sin(best) * R, H, Math.cos(best) * R];
+    HOME.pos = [Math.sin(best.az) * R, best.H, Math.cos(best.az) * R];
     controls.maxDistance = 95 * Math.max(1, k * 0.8);
     controls.setBoundary(new THREE.Box3(new THREE.Vector3(-ext - 30, -8, -ext - 30), new THREE.Vector3(ext + 30, 30, ext + 30)));
     scene.fog.near = 55 * Math.max(1, k * 0.7);
@@ -476,6 +502,7 @@ export async function startLive(canvas, hud, opts = {}) {
     sp.needsUpdate = true;
     motes.rotation.y = t * 0.008;
     fx.setCrowd(controls.distance > 26 ? 1 : 3);
+    hud.plates.classList.toggle("far", controls.distance > 30); // world view: names only, smaller
     // A nation's sky shows only when you're looking at that nation from close in (the camera's
     // target sits over it and you're zoomed in). From the whole-world view the skies are gone.
     const px = canvas.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));

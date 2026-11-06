@@ -31,7 +31,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     el.append(inner);
     const obj = new CSS2DObject(el);
     const r = isl.userData.r;
-    obj.position.set(0, r * 1.3 + 2.2, 0);
+    obj.position.set(0, r * 0.75 + 1.5, 0);
     isl.add(obj);
     const t0 = performance.now();
     let gone = false;
