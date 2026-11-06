@@ -84,14 +84,7 @@ for (let n = 0; n < days; n++) {
       }
       const effort = w.pace * (1 - lazy) * c.fortune;
 
-      // Ruins: absorb any ruin point that matches a point this clan has reached.
-      for (const [k, v] of Object.entries(s.ruins)) {
-        if (c.owned[k] || !(c.frontier[k] || Object.keys(c.owned).includes(v.parent))) continue;
-        c.owned[k] = { depth: v.depth, parent: c.owned[v.parent] ? v.parent : Object.keys(c.owned)[0], corpus: v.corpus, how: "absorbed" };
-        delete c.frontier[k];
-        delete s.ruins[k];
-        log({ kind: "absorb", clan: oc.id, point: k, from: v.from });
-      }
+      const before = new Set(Object.keys(c.owned));
 
       // Broker: once a day, buy a corpus from another clan whose papers are tagged with one of
       // this clan's open points (OpenAlex keyword tags = the papers are really about it).
@@ -158,6 +151,11 @@ for (let n = 0; n < days; n++) {
           }
         }
       }
+
+      // Ruins: points gained today may unlock a dead clan's knowledge (and what grew from it).
+      const gained = Object.keys(c.owned).filter((k) => !before.has(k));
+      const taken = W.absorbRuins(s, c, gained);
+      if (taken.length) log({ kind: "absorb", clan: oc.id, via: gained, points: taken });
 
       // Smith: a figure kit now and then; clans about to draft buy one from another clan.
       if (able("Smith").length && chance(0.3 * effort)) {

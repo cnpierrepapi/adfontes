@@ -100,7 +100,9 @@ export function wardenDraft(draft, chainNodes) {
   }
   if (draft.figures.length < 2) problems.push("fewer than 2 figures");
   for (const fig of draft.figures) {
-    const nums = [...fig.svg.matchAll(/<text[^>]*>\s*(\d{1,3})\s*<\/text>/g)].map((m) => m[1]);
+    // Numerals may sit alone ("30") or after a step label ("Measure output 30"); skip "FIG. 2" titles.
+    const texts = [...fig.svg.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((m) => m[1].replace(/<[^>]+>/g, "").trim());
+    const nums = texts.filter((t) => !/^fig/i.test(t)).flatMap((t) => [...t.matchAll(/(?<![\w.,])(\d{1,3})(?![\w.,])/g)].map((m) => m[1]));
     if (!nums.length) problems.push(`${fig.label} has no reference numerals`);
     for (const n of new Set(nums)) if (!new RegExp(`\\(${n}\\)`).test(draft.description)) problems.push(`${fig.label}: numeral ${n} never explained`);
   }
@@ -134,4 +136,32 @@ const words = (k) => k.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length 
 export function related(a, b) {
   const wa = new Set(words(a));
   return a === b || words(b).some((w) => wa.has(w));
+}
+
+/** Ruins (SPEC §12b.11): when a clan GAINS a point today that matches a ruin (same keyword, or
+ *  the new corpus's papers are tagged with it), it absorbs that ruin point and the ruin points
+ *  that grew from it. Nothing is absorbed without a matching gain, so it happens over time. */
+export function absorbRuins(s, c, gained) {
+  const taken = [];
+  for (const g of gained) {
+    const tags = new Set([g, ...(s.corpora[c.owned[g]?.corpus]?.children || [])]);
+    const hits = Object.keys(s.ruins).filter((k) => tags.has(k));
+    for (const hit of hits) {
+      const queue = [hit];
+      while (queue.length) {
+        const k = queue.shift();
+        const v = s.ruins[k];
+        if (!v) continue;
+        // Already know this point (e.g. just researched it)? Keep ours, but still unlock what grew from it.
+        if (!c.owned[k]) {
+          c.owned[k] = { depth: v.depth, parent: c.owned[v.parent] ? v.parent : g, corpus: v.corpus, how: `absorbed from ruins of clan ${v.from}` };
+          delete c.frontier[k];
+          taken.push(k);
+        }
+        delete s.ruins[k];
+        for (const [rk, rv] of Object.entries(s.ruins)) if (rv.parent === k) queue.push(rk);
+      }
+    }
+  }
+  return taken;
 }
