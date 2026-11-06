@@ -58,12 +58,28 @@ const api = {
   // One clan's mindmap and its agents.
   async clan(q) {
     const id = Number(q.get("id"));
-    return cached(`clan:${id}`, 20_000, async () => {
-      const [s, agents] = await Promise.all([store.loadState(NET), view("list_agents", { clan_id: id, limit: 100 })]);
+    // ?d=<day> only splits the cache, so the live world can ask for the map right after a new day.
+    const d = Number(q.get("d")) || 0;
+    return cached(`clan:${id}:${d}`, 20_000, async () => {
+      const [s, agents, drafts] = await Promise.all([store.loadState(NET), view("list_agents", { clan_id: id, limit: 100 }), store.listDrafts(NET, 12, id)]);
       const st = s.clans[id];
       if (!st) return { error: "no such clan" };
-      const points = Object.entries(st.owned).map(([k, v]) => ({ point: k, parent: v.parent, depth: v.depth, how: v.how, corpus: v.corpus ? { id: v.corpus, title: s.corpora[v.corpus]?.title } : null }));
-      return { id, field: st.field, mbti: st.mbti, fortune: st.fortune, points, frontier: Object.keys(st.frontier).length, agents };
+      const dead = st.alive === false;
+      // A dead nation's points are ruins until another nation absorbs them ("taken").
+      const points = Object.entries(st.owned).map(([k, v]) => ({
+        point: k, parent: v.parent, depth: v.depth, how: v.how,
+        corpus: v.corpus ? { id: v.corpus, title: s.corpora[v.corpus]?.title } : null,
+        ...(dead && v.corpus ? { ruin: !!s.ruins?.[k] && s.ruins[k].from === id, taken: !s.ruins?.[k] } : {}),
+      }));
+      // Up to 40 points one step out (not owned yet), shallowest first: the faint edge of the map.
+      const frontier = Object.entries(st.frontier).filter(([, v]) => st.owned[v.parent])
+        .sort((a, b) => a[1].depth - b[1].depth || (a[0] < b[0] ? -1 : 1)).slice(0, 40)
+        .map(([k, v]) => ({ point: k, parent: v.parent, depth: v.depth }));
+      return {
+        id, field: st.field, mbti: st.mbti, fortune: st.fortune, alive: !dead, points, frontier,
+        frontier_total: Object.keys(st.frontier).length, line: deepestChain(st), depth: chainDepth(st),
+        drafts: drafts.map((x) => ({ id: x.id, day: x.day, passed: x.passed, title: x.title })), agents,
+      };
     });
   },
 
