@@ -19,19 +19,24 @@ export function createEffects({ scene, islands, curves, clanName }) {
     if (!isl) return;
     current.get(isl)?.();
     if (text.length > 110) text = text.slice(0, 107).replace(/\s+\S*$/, "") + "…";
+    // Anchored at the name plate and lifted in screen pixels, so it always sits just above
+    // its own plate whatever the zoom (a world-space gap shrinks to nothing far away).
     const el = document.createElement("div");
-    el.className = `bubble ${kind}`;
-    el.textContent = text;
+    el.className = "bubble-anchor";
+    const inner = document.createElement("div");
+    inner.className = `bubble ${kind}`;
+    inner.textContent = text;
+    el.append(inner);
     const obj = new CSS2DObject(el);
     const r = isl.userData.r;
-    obj.position.set(0, r * 1.3 + 4.4, 0);
+    obj.position.set(0, r * 1.3 + 2.2, 0);
     isl.add(obj);
     const t0 = performance.now();
     let gone = false;
     current.set(isl, () => { gone = true; });
     add(() => {
       const k = gone ? 1 : (performance.now() - t0) / 6000;
-      obj.position.y = r * 1.3 + 4.4 + k * 2.4;
+      inner.style.transform = `translate(-50%, ${-k * 26}px)`;
       el.style.opacity = String(k < 0.1 ? k * 10 : k > 0.75 ? Math.max(0, (1 - k) * 4) : 1);
       if (k >= 1) { isl.remove(obj); el.remove(); if (current.get(isl) && gone === false) current.delete(isl); return false; }
       return true;
