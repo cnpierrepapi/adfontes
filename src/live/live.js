@@ -69,7 +69,7 @@ export async function startLive(canvas, hud, opts = {}) {
   scene.add(sea);
 
   const sprays = [];
-  const puffMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xd8f6ff, emissiveIntensity: 0.7, flatShading: true, transparent: true, opacity: 0.85 });
+  const puffMat = new THREE.MeshLambertMaterial({ color: 0xf2fbff, emissive: 0xd8f6ff, emissiveIntensity: 0.28, flatShading: true, transparent: true, opacity: 0.85 }); // under white: clouds don't bloom
   const clouds = new THREE.Group();
   for (let i = 0; i < 70; i++) {
     const p = new THREE.Mesh(new THREE.IcosahedronGeometry(range(1.2, 2.6), 1), puffMat);

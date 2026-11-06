@@ -50,8 +50,8 @@ export function createEffects({ scene, islands, curves, clanName }) {
       curve = new THREE.QuadraticBezierCurve3(a, m, b);
       forward = true;
     }
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), new THREE.MeshBasicMaterial({ color }));
-    const trail = Array.from({ length: 7 }, (_, i) => new THREE.Mesh(new THREE.SphereGeometry(0.16 - i * 0.018, 8, 6), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 - i * 0.1 })));
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), new THREE.MeshBasicMaterial({ color }));
+    const trail = Array.from({ length: 9 }, (_, i) => new THREE.Mesh(new THREE.SphereGeometry(0.28 - i * 0.026, 8, 6), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 - i * 0.1 })));
     scene.add(head, ...trail);
     const t0 = performance.now();
     add(() => {
