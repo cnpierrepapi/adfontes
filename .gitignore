@@ -9,3 +9,5 @@ stills
 
 .vercel
 .env*
+
+contracts/*/target
