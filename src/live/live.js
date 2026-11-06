@@ -3,6 +3,12 @@
 import * as THREE from "three";
 import CameraControls from "camera-controls";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { createEffects } from "./effects.js";
 import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mesh, school, fallUniforms, range, pick } from "../scene.js";
 
 CameraControls.install({ THREE });
@@ -119,6 +125,8 @@ export async function startLive(canvas, hud, opts = {}) {
       const lbl = new CSS2DObject(plate);
       lbl.position.set(0, r * 1.3 + 2.2, 0);
       isl.add(lbl);
+      isl.userData.plate = plate;
+      isl.userData.plateObj = lbl;
     });
   }
 
@@ -126,11 +134,13 @@ export async function startLive(canvas, hud, opts = {}) {
   const beadMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0x4ff0ff, transparent: true, opacity: 0.45, depthWrite: false });
   const seen = new Set();
+  const curves = new Map();
   for (const route of T.routes) {
     const A = islands.get(route.seller), B = islands.get(route.buyer);
     if (!A || !B) continue;
     const key = [route.seller, route.buyer].sort().join("-");
     const curve = bridgeCurve(A, B);
+    curves.set(key, curve);
     if (!seen.has(key)) { world.add(bridge(curve, Math.min(3, 1 + Math.log2(1 + route.count)))); seen.add(key); }
     const beads = [];
     for (let i = 0; i < Math.min(5, route.count); i++) {
@@ -152,6 +162,19 @@ export async function startLive(canvas, hud, opts = {}) {
   const chill = Math.max(0, Math.min(1, -change * 4));
   sky.material.uniforms.chill.value = chill;
   scene.fog.color.lerp(new THREE.Color(0xb7c7d4), chill * 0.55);
+
+  // ---- events: replay the latest day, then follow new days as the engine runs ----
+  const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `clan ${id}`;
+  const fx = createEffects({ scene, islands, curves, clanName });
+  let lastDay = W.day;
+  api(`day?d=${W.day}`).then((d) => fx.enqueue(d.records || [])).catch(() => {});
+  setInterval(async () => {
+    try {
+      const now = await api("world");
+      for (let d = lastDay + 1; d <= now.day; d++) fx.enqueue((await api(`day?d=${d}`)).records || []);
+      if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
+    } catch {}
+  }, 30000);
 
   // ---- camera: damped springs, zoom to cursor, bounds, float ----
   const controls = new CameraControls(camera, renderer.domElement);
@@ -210,10 +233,24 @@ export async function startLive(canvas, hud, opts = {}) {
     if (o) flyTo(o.userData.clan.id);
   });
 
+  // ---- post: depth of field on what you're looking at + bloom on HDR effects (desktop) ----
+  const lowPower = !opts.stills && (matchMedia("(pointer: coarse)").matches || innerWidth < 900);
+  let composer = null, bokeh = null;
+  if (!lowPower) {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    bokeh = new BokehPass(scene, camera, { focus: 30, aperture: 0.00055, maxblur: 0.006 });
+    composer.addPass(bokeh);
+    // Threshold just above white: daylight stays crisp, only the >1.0 effect colours glow.
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.45, 1.05));
+    composer.addPass(new OutputPass());
+  }
+
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     renderer.setSize(w, h, false);
     labels.setSize(w, h);
+    composer?.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
@@ -221,6 +258,7 @@ export async function startLive(canvas, hud, opts = {}) {
   resize();
 
   const clock = new THREE.Clock();
+  const tmpV = new THREE.Vector3();
   let prevAz = controls.azimuthAngle, bank = 0;
   const baseFov = 46;
   function frame() {
@@ -251,12 +289,23 @@ export async function startLive(canvas, hud, opts = {}) {
     for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
     sp.needsUpdate = true;
     motes.rotation.y = t * 0.008;
-    renderer.render(scene, camera);
+    fx.update();
+    if (bokeh) bokeh.uniforms.focus.value = controls.distance;
+    if (composer) composer.render(); else renderer.render(scene, camera);
     labels.render(scene, camera);
+    // Plates fade out before they slide under the HUD bar at the top.
+    for (const isl of islands.values()) {
+      const el = isl.userData.plate;
+      if (!el) continue;
+      const v = isl.userData.plateObj.getWorldPosition(tmpV).project(camera);
+      const y = (1 - v.y) / 2 * canvas.clientHeight;
+      el.style.opacity = String(Math.max(0, Math.min(1, (y - 70) / 50)));
+      el.style.pointerEvents = y < 90 ? "none" : "auto";
+    }
     requestAnimationFrame(frame);
   }
   frame();
-  return { world: W, flyTo, home, controls, camera };
+  return { world: W, flyTo, home, controls, camera, fx };
 }
 
 // A clan's island: size from its mindmap, town from its state.
