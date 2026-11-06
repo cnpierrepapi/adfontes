@@ -15,9 +15,11 @@ export function createEffects({ scene, islands, curves, clanName }) {
 
   // One bubble per island at a time, above its name plate, one sentence long.
   const current = new Map();
+  let crowd = 3; // how many islands may show a bubble at once (1 when zoomed out: plates sit close)
   function bubble(isl, text, kind) {
     if (!isl) return;
     current.get(isl)?.();
+    while (current.size >= crowd) { const [k, kill] = current.entries().next().value; kill(); current.delete(k); }
     if (text.length > 110) text = text.slice(0, 107).replace(/\s+\S*$/, "") + "…";
     // Anchored at the name plate and lifted in screen pixels, so it always sits just above
     // its own plate whatever the zoom (a world-space gap shrinks to nothing far away).
@@ -180,5 +182,5 @@ export function createEffects({ scene, islands, curves, clanName }) {
     if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  return { play, enqueue, update, pending: () => queue.length };
+  return { play, enqueue, update, pending: () => queue.length, setCrowd: (n) => (crowd = n) };
 }

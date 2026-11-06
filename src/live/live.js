@@ -289,6 +289,7 @@ export async function startLive(canvas, hud, opts = {}) {
     for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
     sp.needsUpdate = true;
     motes.rotation.y = t * 0.008;
+    fx.setCrowd(controls.distance > 26 ? 1 : 3);
     fx.update();
     if (bokeh) bokeh.uniforms.focus.value = controls.distance;
     if (composer) composer.render(); else renderer.render(scene, camera);
