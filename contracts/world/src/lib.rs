@@ -26,6 +26,7 @@ const GIFT_WINDOW_NS: u64 = 24 * 60 * 60 * 1_000_000_000; // 24h to rule on a gi
 const STUNT_DAYS: u32 = 3;
 const GAS_DAO_CREATE: Gas = Gas::from_tgas(150);
 const GAS_CALLBACK: Gas = Gas::from_tgas(20);
+const GAS_DAO_CHECK: Gas = Gas::from_tgas(10);
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
@@ -235,7 +236,8 @@ impl World {
         let id = self.next_clan;
         self.next_clan += 1;
 
-        let dao_name = format!("adf-clan-{id}");
+        // Block height in the name: nobody can register it ahead of us to block a founding.
+        let dao_name = format!("adf-{id}-{}", env::block_height());
         let policy = json!({
             "roles": [
                 { "name": "gods", "kind": { "Group": [founder] }, "permissions": ["*:*"], "vote_policy": {} },
@@ -258,6 +260,10 @@ impl World {
             "args": Base64VecU8::from(dao_args.to_string().into_bytes())
         });
 
+        // The factory's reply can't be trusted to carry a value (on testnet it returns nothing
+        // even when the DAO is made), so we ask the new DAO itself: if get_config answers, the
+        // DAO exists. If the create failed, the factory refunds the DAO deposit to us.
+        let dao: AccountId = format!("{dao_name}.{}", self.dao_factory).parse().unwrap();
         Promise::new(self.dao_factory.clone())
             .function_call(
                 "create".to_string(),
@@ -265,6 +271,12 @@ impl World {
                 NearToken::from_yoctonear(self.dao_deposit),
                 GAS_DAO_CREATE,
             )
+            .then(Promise::new(dao).function_call(
+                "get_policy".to_string(),
+                b"{}".to_vec(),
+                NearToken::from_yoctonear(0),
+                GAS_DAO_CHECK,
+            ))
             .then(
                 Self::ext(env::current_account_id())
                     .with_static_gas(GAS_CALLBACK)
@@ -272,6 +284,9 @@ impl World {
             )
     }
 
+    /// Success = the DAO answered get_policy AND its policy is ours (gods = [founder],
+    /// world = [this contract]). A DAO that already existed under that name fails this check,
+    /// so the founder is refunded. Parsing can't panic: any surprise = refund.
     #[private]
     pub fn on_clan_founded(
         &mut self,
@@ -280,9 +295,46 @@ impl World {
         dao_name: String,
         founder: AccountId,
         deposit: U128,
-        #[callback_result] created: Result<bool, PromiseError>,
     ) -> bool {
-        if !matches!(created, Ok(true)) {
+        let created = env::promise_results_count() == 1
+            && match env::promise_result(0) {
+                near_sdk::PromiseResult::Successful(bytes) => policy_is_ours(&bytes, &founder),
+                _ => false,
+            };
+        self.finish_founding(id, name, dao_name, founder, deposit, created)
+    }
+}
+
+/// True if a Sputnik policy (JSON) has exactly our two roles with the right members.
+fn policy_is_ours(bytes: &[u8], founder: &AccountId) -> bool {
+    let Ok(p) = near_sdk::serde_json::from_slice::<near_sdk::serde_json::Value>(bytes) else {
+        return false;
+    };
+    let group = |role: &str| -> Option<Vec<String>> {
+        p.get("roles")?
+            .as_array()?
+            .iter()
+            .find(|r| r.get("name").and_then(|n| n.as_str()) == Some(role))?
+            .get("kind")?
+            .get("Group")?
+            .as_array()
+            .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+    };
+    group("gods") == Some(vec![founder.to_string()])
+        && group("world") == Some(vec![env::current_account_id().to_string()])
+}
+
+impl World {
+    fn finish_founding(
+        &mut self,
+        id: u32,
+        name: String,
+        dao_name: String,
+        founder: AccountId,
+        deposit: U128,
+        created: bool,
+    ) -> bool {
+        if !created {
             // The factory sends the DAO deposit back to us; the founder gets everything back.
             self.pay(founder, deposit.0).detach();
             env::log_str(&format!("clan {id} not founded; deposit refunded"));
@@ -322,7 +374,10 @@ impl World {
         env::log_str(&format!("clan {id} founded by {founder}, {net} yocto in"));
         true
     }
+}
 
+#[near]
+impl World {
     /// Put more NEAR into a clan. Anyone who blesses a clan becomes one of its gods.
     #[payable]
     pub fn bless(&mut self, clan_id: u32) {

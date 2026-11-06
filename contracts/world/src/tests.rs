@@ -57,7 +57,7 @@ fn found(w: &mut World, god: &str, deposit: u128) -> u32 {
     let _ = w.found_clan(format!("clan of {god}"));
     let id = w.next_clan - 1;
     set_with_result("world.adfontes.near", PromiseResult::Successful(b"true".to_vec()));
-    assert!(w.on_clan_founded(id, format!("clan of {god}"), format!("adf-clan-{id}"), acc(god), U128(deposit), Ok(true)));
+    assert!(w.finish_founding(id, format!("clan of {god}"), format!("adf-clan-{id}"), acc(god), U128(deposit), true));
     id
 }
 
@@ -94,7 +94,7 @@ fn failed_dao_means_no_clan() {
     set("god1.near", 3 * NEAR);
     let _ = w.found_clan("x".into());
     set_with_result("world.adfontes.near", PromiseResult::Failed);
-    assert!(!w.on_clan_founded(1, "x".into(), "adf-clan-1".into(), acc("god1.near"), U128(3 * NEAR), Err(PromiseError::Failed)));
+    assert!(!w.finish_founding(1, "x".into(), "adf-clan-1".into(), acc("god1.near"), U128(3 * NEAR), false));
     assert!(w.get_clan(1).is_none());
 }
 
@@ -322,4 +322,25 @@ fn liabilities_add_up() {
     let _ = w.sweep_fees();
     // A trade moves money between clans; the fee leaves the clans for the treasury.
     assert_eq!(before - w.get_totals().liabilities.0, 140 * MILLI);
+}
+
+fn policy(gods: &str, world: &str) -> Vec<u8> {
+    format!(
+        r#"{{"roles":[{{"name":"gods","kind":{{"Group":["{gods}"]}},"permissions":["*:*"],"vote_policy":{{}}}},{{"name":"world","kind":{{"Group":["{world}"]}},"permissions":[],"vote_policy":{{}}}}],"proposal_bond":"1"}}"#
+    )
+    .into_bytes()
+}
+
+#[test]
+fn founding_check_accepts_only_our_dao() {
+    set("world.adfontes.near", 0);
+    let god = acc("god1.near");
+    assert!(policy_is_ours(&policy("god1.near", "world.adfontes.near"), &god));
+    // A DAO someone registered under the name first: different god, or not our world.
+    assert!(!policy_is_ours(&policy("squatter.near", "world.adfontes.near"), &god));
+    assert!(!policy_is_ours(&policy("god1.near", "squatter.near"), &god));
+    // Garbage or an empty reply never panics; it means refund.
+    assert!(!policy_is_ours(b"", &god));
+    assert!(!policy_is_ours(b"true", &god));
+    assert!(!policy_is_ours(b"{\"roles\":42}", &god));
 }
