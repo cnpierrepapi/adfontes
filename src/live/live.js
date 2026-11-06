@@ -141,7 +141,8 @@ export async function startLive(canvas, hud, opts = {}) {
   function riseNation(id) {
     const isl = islands.get(id);
     if (!isl || isl.userData.rose) return;
-    isl.userData.rose = true;
+    isl.userData.rose = "rising";
+    showRoutesOf(id, false); // bridges wait until the island has landed
     rising.set(id, performance.now());
     const seed = new THREE.Mesh(new THREE.SphereGeometry(0.35, 14, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.3, 1.2) }));
     scene.add(seed);
@@ -170,27 +171,38 @@ export async function startLive(canvas, hud, opts = {}) {
       const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
       if (town) town.scale.set(1, Math.max(0.01, Math.min(1, (k - 0.55) / 0.35)), 1); // the town builds up
       isl.userData.plateFade = Math.max(0, Math.min(1, (k - 0.8) / 0.2));
-      if (k >= 1) { rising.delete(id); isl.userData.riseY = 0; isl.userData.plateFade = 1; isl.scale.setScalar(1); isl.rotation.y = 0; }
+      if (k >= 1) { rising.delete(id); isl.userData.rose = true; showRoutesOf(id, true); isl.userData.riseY = 0; isl.userData.plateFade = 1; isl.scale.setScalar(1); isl.rotation.y = 0; }
     }
   }
 
-  // Bridges = trade routes; beads of light run seller -> buyer.
+  // Bridges = trade routes; beads of light run seller -> buyer. Each route lives in its own group
+  // so it can be hidden while one of its islands is still rising, and new routes appear live.
   const beadMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0x4ff0ff, transparent: true, opacity: 0.45, depthWrite: false });
-  const seen = new Set();
-  const curves = new Map();
-  for (const route of T.routes) {
+  const curves = new Map(), routeGroups = new Map(), routeDirs = new Set();
+  const pairKey = (a, b) => [a, b].sort((x, y) => x - y).join("-"); // numeric, same as effects.js
+  function addRoute(route) {
     const A = islands.get(route.seller), B = islands.get(route.buyer);
-    if (!A || !B) continue;
-    const key = [route.seller, route.buyer].sort().join("-");
-    const curve = bridgeCurve(A, B);
-    curves.set(key, curve);
-    if (!seen.has(key)) { world.add(bridge(curve, Math.min(3, 1 + Math.log2(1 + route.count)))); seen.add(key); }
-    const beads = [];
+    if (!A || !B) return;
+    const key = pairKey(route.seller, route.buyer), dirKey = `${route.seller}>${route.buyer}`;
+    if (routeDirs.has(dirKey)) return;
+    routeDirs.add(dirKey);
+    let g = routeGroups.get(key);
+    if (!g) {
+      g = new THREE.Group();
+      const curve = bridgeCurve(A, B);
+      curves.set(key, curve);
+      g.add(bridge(curve, Math.min(3, 1 + Math.log2(1 + route.count))));
+      g.userData.ends = [route.seller, route.buyer];
+      world.add(g);
+      routeGroups.set(key, g);
+      if (A.userData.rose === "rising" || B.userData.rose === "rising") g.visible = false;
+    }
+    const curve = curves.get(key), beads = [];
     for (let i = 0; i < Math.min(5, route.count); i++) {
       const bead = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), beadMat);
       bead.add(new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), glowMat));
-      world.add(bead);
+      g.add(bead);
       beads.push(bead);
     }
     const ab = route.seller < route.buyer; // curve runs low-id -> high-id
@@ -200,6 +212,9 @@ export async function startLive(canvas, hud, opts = {}) {
       bead.position.y += 0.14;
     }));
   }
+  for (const route of T.routes) addRoute(route);
+  const showRoutesOf = (id, on) => { for (const g of routeGroups.values()) if (g.userData.ends.includes(id)) g.visible = on; };
+
 
   // Weather: the real week's NEAR price change tints the sky and fog.
   const change = W.weather?.change ?? 0;
@@ -216,6 +231,7 @@ export async function startLive(canvas, hud, opts = {}) {
     try {
       const now = await api("world");
       for (const c of now.clans) if (!islands.has(c.id)) { W.clans.push(c); addNation(c); riseNation(c.id); }
+      for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       for (let d = lastDay + 1; d <= now.day; d++) fx.enqueue((await api(`day?d=${d}`)).records || []);
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
     } catch {}
