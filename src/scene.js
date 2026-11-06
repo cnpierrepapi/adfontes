@@ -2,7 +2,7 @@
 // fish-birds and tiny agents. Everything is built in code (no model files).
 import * as THREE from "three";
 
-const PAL = {
+export const PAL = {
   skyTop: 0x6fe3ff,
   skyMid: 0x37c9e6,
   horizon: 0xffe2a8,
@@ -16,11 +16,11 @@ const PAL = {
 };
 
 let seed = 7;
-const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-const range = (a, b) => a + (b - a) * rnd();
-const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+export const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+export const range = (a, b) => a + (b - a) * rnd();
+export const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
 
-function facetColors(geo, base, jitter = 0.08, light = new THREE.Vector3(-0.4, 1, 0.5).normalize()) {
+export function facetColors(geo, base, jitter = 0.08, light = new THREE.Vector3(-0.4, 1, 0.5).normalize()) {
   geo = geo.toNonIndexed();
   geo.computeVertexNormals();
   const pos = geo.attributes.position;
@@ -43,13 +43,13 @@ function facetColors(geo, base, jitter = 0.08, light = new THREE.Vector3(-0.4, 1
 
 const flatMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
 
-function mesh(geo, color, jitter) {
+export function mesh(geo, color, jitter) {
   return new THREE.Mesh(facetColors(geo, color, jitter), flatMat);
 }
 
 // One floating island: a grass cap with an overhanging lip, a cliff band, and a layered rock
 // underside (strata) tapering to a point, with boulders and hanging crystals.
-function island(radius, opts = {}) {
+export function island(radius, opts = {}) {
   const g = new THREE.Group();
   const grass = opts.grass ?? pick(PAL.grass);
   const rock = opts.rock ?? pick(PAL.rock);
@@ -118,13 +118,13 @@ function island(radius, opts = {}) {
   return g;
 }
 
-function shadowed(o) {
+export function shadowed(o) {
   o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
   return o;
 }
 
 // A temple: three stepped plinths, columns with capitals, an architrave ring, a dome and spire.
-function temple(h, dome) {
+export function temple(h, dome) {
   const g = new THREE.Group();
   [[1.0, 0.0], [0.86, 0.07], [0.74, 0.14]].forEach(([w, y]) => {
     const step = mesh(new THREE.BoxGeometry(h * w, h * 0.07, h * w), PAL.stone, 0.04);
@@ -164,7 +164,7 @@ function temple(h, dome) {
 }
 
 // A tower: tapered body with window slits, a balcony ring, a pointed roof and a banner.
-function tower(h, roof) {
+export function tower(h, roof) {
   const g = new THREE.Group();
   const body = mesh(new THREE.CylinderGeometry(h * 0.15, h * 0.2, h, 8), PAL.stone, 0.05);
   body.position.y = h / 2;
@@ -194,7 +194,7 @@ function tower(h, roof) {
 }
 
 // A house: walls, a door and windows, a hip roof with a small chimney.
-function house(s, roof) {
+export function house(s, roof) {
   const g = new THREE.Group();
   const b = mesh(new THREE.BoxGeometry(s, s * 0.8, s * 0.9), pick([0xffffff, 0xfff1d6, 0xffe6f2, 0xe8f7ff]), 0.04);
   b.position.y = s * 0.4;
@@ -218,7 +218,7 @@ function house(s, roof) {
 }
 
 // A tree: trunk and two or three stacked faceted canopies in related colours.
-function tree(s) {
+export function tree(s) {
   const g = new THREE.Group();
   const t = mesh(new THREE.CylinderGeometry(s * 0.05, s * 0.08, s * 0.55, 6), 0xc98a5a, 0.05);
   t.position.y = s * 0.27;
@@ -236,7 +236,7 @@ function tree(s) {
 }
 
 // A fountain: stone basin, a pillar, and a particle spray that rises and falls.
-function fountain(s, sprays) {
+export function fountain(s, sprays) {
   const g = new THREE.Group();
   const basin = mesh(new THREE.CylinderGeometry(s, s * 1.05, s * 0.3, 10), PAL.stone, 0.04);
   basin.position.y = s * 0.15;
@@ -274,7 +274,7 @@ function fountain(s, sprays) {
 }
 
 // A waterfall: a ribbon falling off an island edge, with a scrolling striped shader and mist.
-const fallUniforms = { uTime: { value: 0 } };
+export const fallUniforms = { uTime: { value: 0 } };
 const fallMat = new THREE.ShaderMaterial({
   uniforms: fallUniforms,
   transparent: true,
@@ -296,7 +296,7 @@ const fallMat = new THREE.ShaderMaterial({
     }`,
 });
 
-function waterfall(width, height) {
+export function waterfall(width, height) {
   const g = new THREE.Group();
   const geo = new THREE.PlaneGeometry(width, height, 1, 12);
   const pos = geo.attributes.position;
@@ -310,7 +310,7 @@ function waterfall(width, height) {
   return g;
 }
 
-function mist(count, spread, sprays) {
+export function mist(count, spread, sprays) {
   const geo = new THREE.BufferGeometry();
   const p = new Float32Array(count * 3);
   const base = Array.from({ length: count }, () => [range(-spread, spread), range(0, spread * 0.6), range(-spread, spread) * 0.5]);
@@ -329,7 +329,7 @@ function mist(count, spread, sprays) {
 }
 
 // Tiny agents walking a loop on an island top, coloured by temperament group.
-function agent(color) {
+export function agent(color) {
   const g = new THREE.Group();
   const dark = new THREE.Color(color).offsetHSL(0, 0, -0.25).getHex();
   [-0.035, 0.035].forEach((x) => {
@@ -350,7 +350,7 @@ function agent(color) {
 }
 
 // Schools of fish-birds circling between islands (the ABZU-ish life of the sky).
-function school(n, color, sprays, radius, y) {
+export function school(n, color, sprays, radius, y) {
   const g = new THREE.Group();
   const fish = [];
   for (let i = 0; i < n; i++) {

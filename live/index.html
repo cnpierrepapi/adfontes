@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>AD FONTES: the live world</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#1d1430" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/live/live.css" />
+  </head>
+  <body class="live">
+    <canvas id="world"></canvas>
+    <div id="plates" class="plates"></div>
+    <div id="visor" class="visor">
+      <header class="hud-top">
+        <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
+        <div class="dial" id="dial">loading the world…</div>
+        <nav><button id="home" class="chip">Whole world</button> <a class="chip" href="/world/">Plain view</a></nav>
+      </header>
+      <aside id="panel" class="godpanel" hidden></aside>
+      <p class="hint" id="hint">drag to turn · right-drag to slide · scroll or pinch to zoom · tap an island</p>
+    </div>
+    <script type="module" src="/src/live/main.js"></script>
+  </body>
+</html>

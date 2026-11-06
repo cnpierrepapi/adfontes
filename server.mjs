@@ -43,7 +43,7 @@ const api = {
           const st = s.clans[c.id] || {};
           return {
             id: c.id, name: c.name, dao: c.dao, alive: c.alive, gods: c.gods.length,
-            play: near(c.play), reserve: near(c.reserve), clean_gifts: c.clean_gifts, whisper: c.whisper,
+            play: near(c.play), reserve: near(c.reserve), total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
             field: st.field ?? null, mbti: st.mbti ?? null, fortune: st.fortune ?? 1,
             points: Object.keys(st.owned || {}).length, depth: st.owned ? chainDepth(st) : 0,
             line: st.owned ? deepestChain(st) : [],
@@ -64,6 +64,24 @@ const api = {
       if (!st) return { error: "no such clan" };
       const points = Object.entries(st.owned).map(([k, v]) => ({ point: k, parent: v.parent, depth: v.depth, how: v.how, corpus: v.corpus ? { id: v.corpus, title: s.corpora[v.corpus]?.title } : null }));
       return { id, field: st.field, mbti: st.mbti, fortune: st.fortune, points, frontier: Object.keys(st.frontier).length, agents };
+    });
+  },
+
+  // Trade routes for the bridges: seller -> buyer counts over the last N game days.
+  async trades(q) {
+    const span = Math.min(60, Number(q.get("days") || 20));
+    return cached(`trades:${span}`, 30_000, async () => {
+      const s = await store.loadState(NET);
+      const pairs = {};
+      for (let d = Math.max(1, s.day - span + 1); d <= s.day; d++) {
+        const { records } = await store.getDay(NET, d);
+        for (const r of records) if (r.kind === "trade") {
+          const k = `${r.seller}>${r.buyer}`;
+          (pairs[k] ||= { seller: r.seller, buyer: r.buyer, count: 0, near: 0, last: 0 });
+          pairs[k].count++; pairs[k].near += r.price || 0; pairs[k].last = d;
+        }
+      }
+      return { day: s.day, span, routes: Object.values(pairs) };
     });
   },
 
