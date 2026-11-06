@@ -5,6 +5,16 @@ import { CFG } from "./config.mjs";
 
 export const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
+/** Canonical JSON: keys sorted at every level, so any copy of a record hashes the same
+ *  (Postgres jsonb reorders keys; other languages serialise differently). */
+export function canon(v) {
+  if (Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+  if (v && typeof v === "object") return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}";
+  return JSON.stringify(v);
+}
+/** A record's leaf in the day's Merkle tree. */
+export const leafOf = (r) => sha256(canon(r));
+
 const FIELDS = ["batteries", "solar cells", "carbon capture"];
 const LETTERS = [["E", "I"], ["S", "N"], ["T", "F"], ["J", "P"]];
 
@@ -99,7 +109,12 @@ export function wardenDraft(draft, chainNodes) {
 
 /** Merkle root over the day's records (sha256, last leaf doubled on odd levels). */
 export function merkleRoot(records) {
-  let level = records.map((r) => sha256(JSON.stringify(r)));
+  return rootOfLeaves(records.map(leafOf));
+}
+
+/** Root from leaf hashes (sha256, last leaf doubled on odd levels). */
+export function rootOfLeaves(leaves) {
+  let level = leaves.slice();
   if (!level.length) return sha256("empty");
   while (level.length > 1) {
     const next = [];
@@ -153,3 +168,28 @@ export function absorbRuins(s, c, gained) {
   }
   return taken;
 }
+
+/** Merkle proof for leaf i: the sibling hashes from the bottom up, and which side each sits on. */
+export function merkleProof(leaves, i) {
+  const path = [];
+  let level = leaves.slice(), idx = i;
+  while (level.length > 1) {
+    const sib = idx % 2 ? idx - 1 : idx + 1;
+    path.push({ hash: level[sib] ?? level[idx], left: idx % 2 === 1 });
+    const next = [];
+    for (let k = 0; k < level.length; k += 2) next.push(sha256(level[k] + (level[k + 1] ?? level[k])));
+    level = next;
+    idx = Math.floor(idx / 2);
+  }
+  return path;
+}
+
+/** Recompute the root from a leaf hash and its proof. */
+export function rootFromLeaf(leaf, path) {
+  let h = leaf;
+  for (const p of path) h = p.left ? sha256(p.hash + h) : sha256(h + p.hash);
+  return h;
+}
+
+/** Recompute the root from one record (canonical leaf) and its proof. */
+export const rootFromProof = (record, path) => rootFromLeaf(leafOf(record), path);

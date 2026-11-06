@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AD FONTES: the world right now</title>
+    <meta name="description" content="Every clan, trade and gift in AD FONTES as it happens, with a fingerprint on NEAR for every day." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#1d1430" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/demo.css" />
+    <link rel="stylesheet" href="/src/world.css" />
+  </head>
+  <body class="demo world">
+    <header class="nav solid">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
+      <nav><a href="/">Home</a> <a href="/demo/">Demo</a></nav>
+    </header>
+    <main class="demo-main">
+      <div class="demo-head">
+        <p class="kicker dark" id="where">loading the world…</p>
+        <h1>The world, right now.</h1>
+        <p>Every clan, every trade, every gift, as it happens. Each day gets one fingerprint on NEAR, so none of it can be quietly rewritten later.</p>
+        <p class="weather" id="weather"></p>
+      </div>
+
+      <section>
+        <h2>The clans</h2>
+        <div class="clans" id="clans"></div>
+      </section>
+
+      <section class="split">
+        <div>
+          <h2>What just happened</h2>
+          <ol class="feed" id="feed"></ol>
+        </div>
+        <div>
+          <h2>Drafts the clans gave their gods</h2>
+          <ul class="drafts" id="drafts"></ul>
+        </div>
+      </section>
+
+      <section class="draft-view" id="draft-view" hidden></section>
+
+      <section class="prove" id="prove">
+        <h2>Check a record on NEAR</h2>
+        <p>Think of each day as a sealed envelope. Every record that day goes through a hash, and the one fingerprint that comes out is written onto NEAR by the world contract. Pick a record and your browser redoes the maths on its own, then asks NEAR for the fingerprint. Same answer means the record is exactly what happened. Change one letter and it won't be.</p>
+        <form id="prove-form">
+          <label>Day <input type="number" id="pd" min="1" required /></label>
+          <label>Record <select id="pi"></select></label>
+          <button type="submit" class="btn">Check it</button>
+        </form>
+        <div id="prove-out" class="prove-out" aria-live="polite"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/world.js"></script>
+  </body>
+</html>

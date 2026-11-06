@@ -3,7 +3,7 @@
 // site can hand anyone a proof against the root stored on NEAR.
 import fs from "node:fs";
 import pg from "pg";
-import { sha256 } from "./world.mjs";
+import { sha256, leafOf } from "./world.mjs";
 
 const URL = process.env.DATABASE_URL;
 const pool = URL ? new pg.Pool({ connectionString: URL, max: 3 }) : null;
@@ -17,6 +17,7 @@ async function db() {
     create table if not exists drafts (net text, id text, clan int, day int, passed boolean, data jsonb not null, primary key (net, id));
     create table if not exists roots (net text, day int, root text not null, tx text, primary key (net, day));
     create table if not exists papers_cache (key text primary key, papers jsonb not null);
+    alter table records add column if not exists raw text;
   `);
   await ready;
   return pool;
@@ -56,7 +57,8 @@ export async function saveDay(net, day, records, root, tx) {
       await c.query("begin");
       await c.query("delete from records where net = $1 and day = $2", [net, day]);
       for (const [i, r] of records.entries()) {
-        await c.query("insert into records (net, day, idx, kind, data, leaf) values ($1,$2,$3,$4,$5,$6)", [net, day, i, r.kind, r, sha256(JSON.stringify(r))]);
+        // raw = exact text as written; leaf = canonical hash (what the day root is built from).
+        await c.query("insert into records (net, day, idx, kind, data, leaf, raw) values ($1,$2,$3,$4,$5,$6,$7)", [net, day, i, r.kind, r, leafOf(r), JSON.stringify(r)]);
       }
       await c.query("insert into roots (net, day, root, tx) values ($1,$2,$3,$4) on conflict (net, day) do update set root = $3, tx = $4", [net, day, root, tx]);
       await c.query("commit");
@@ -102,4 +104,36 @@ export async function putPapers(key, papers) {
 
 export async function close() {
   if (pool) await pool.end();
+}
+
+// ---- reads for the website API ----
+export async function getDay(net, day) {
+  const p = await db();
+  if (p) {
+    const r = await p.query("select idx, kind, data, leaf, raw from records where net = $1 and day = $2 order by idx", [net, day]);
+    const root = (await p.query("select root, tx from roots where net = $1 and day = $2", [net, day])).rows[0] ?? null;
+    return { records: r.rows.map((x) => x.data), raws: r.rows.map((x) => x.raw), leaves: r.rows.map((x) => x.leaf), root: root?.root ?? null, tx: root?.tx ?? null };
+  }
+  const f = `engine/state/${net}/day-${day}.json`;
+  if (!fs.existsSync(f)) return { records: [], leaves: [], root: null, tx: null };
+  const records = JSON.parse(fs.readFileSync(f, "utf8"));
+  const s = JSON.parse(fs.readFileSync(`engine/state/${net}.json`, "utf8"));
+  const raws = records.map((r) => JSON.stringify(r));
+  // Days written before canonical hashing used the raw text as the leaf.
+  const canonRoot = s.roots?.[day];
+  const leaves = records.map(leafOf);
+  return { records, raws, leaves, legacyLeaves: raws.map(sha256), root: canonRoot ?? null, tx: null };
+}
+
+export async function getDraft(net, id) {
+  const p = await db();
+  if (p) return (await p.query("select data from drafts where net = $1 and id = $2", [net, id])).rows[0]?.data ?? null;
+  const f = `engine/state/${net}/${id}.json`;
+  return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null;
+}
+
+export async function listDrafts(net, limit = 30) {
+  const p = await db();
+  if (p) return (await p.query("select id, clan, day, passed, data->'draft'->>'title' as title from drafts where net = $1 order by day desc, id desc limit $2", [net, limit])).rows;
+  return [];
 }

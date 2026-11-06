@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "vite build",
-    "start": "node scripts/start.mjs",
+    "start": "node server.mjs",
     "engine": "node engine/run.mjs",
     "test:warden": "node engine/test-warden.mjs"
   },

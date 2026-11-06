@@ -1,0 +1,58 @@
+.world section { margin-bottom: 8vh; }
+.world h2 { font-size: clamp(1.5rem, 2.6vw, 2.2rem); margin-bottom: 18px; }
+.world .weather { font-family: var(--mono); font-size: 0.9rem; background: #fff; display: inline-block; padding: 8px 14px; border-radius: 999px; }
+.world .weather.hot { background: #ffe1d6; }
+.world .weather.cold { background: #dcefff; }
+
+.clans { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+.clan { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 6px 20px rgba(29, 20, 48, 0.08); }
+.clan.dead { opacity: 0.55; }
+.clan h3 { font-size: 1.5rem; margin-bottom: 4px; }
+.clan .meta { font-family: var(--mono); font-size: 0.8rem; color: #6b6280; margin-bottom: 12px; }
+.clan .nums { display: flex; gap: 18px; flex-wrap: wrap; margin: 12px 0; }
+.clan .nums div { font-family: var(--display); font-weight: 800; font-size: 1.6rem; line-height: 1; }
+.clan .nums small { display: block; font-family: var(--body); font-weight: 400; font-size: 0.78rem; color: #6b6280; margin-top: 4px; }
+.clan .line { font-size: 0.86rem; line-height: 1.5; color: #3d3352; }
+.clan .line b { color: var(--violet); }
+.clan a { color: var(--violet); }
+
+.split { display: grid; grid-template-columns: 1.2fr 1fr; gap: 5vw; }
+@media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
+.feed { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.feed li { background: #fff; border-radius: 12px; padding: 10px 14px; font-size: 0.95rem; line-height: 1.45; }
+.feed li .k { font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--coral); margin-right: 8px; }
+.feed li.warden .k, .feed li.trickster .k { color: #d12a6b; }
+.feed li.trade .k { color: var(--teal); }
+.feed li.gift .k { color: #c98d00; }
+.feed .empty, .drafts .empty { background: transparent; color: #6b6280; padding: 0; }
+
+.drafts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.drafts button { all: unset; cursor: pointer; display: block; width: 100%; box-sizing: border-box; background: #fff; border-radius: 12px; padding: 12px 14px; font-weight: 600; line-height: 1.35; }
+.drafts button:hover, .drafts button:focus-visible { outline: 3px solid var(--violet); }
+.drafts .tag { font-family: var(--mono); font-size: 0.72rem; font-weight: 500; margin-left: 6px; padding: 2px 8px; border-radius: 999px; }
+.tag.ok { background: #dcfbea; color: #127a4c; }
+.tag.bad { background: #ffe1e9; color: #b0124f; }
+
+.draft-view { background: #fff; border-radius: 24px; padding: 28px; box-shadow: 0 10px 30px rgba(29, 20, 48, 0.1); }
+.draft-view h3 { font-size: 1.8rem; margin-bottom: 8px; }
+.draft-view .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 18px 0; }
+.draft-view figure { margin: 0; border: 1px solid #e6e0ef; border-radius: 12px; padding: 10px; }
+.draft-view figure img { width: 100%; height: auto; background: #fff; }
+.draft-view figcaption { font-family: var(--mono); font-size: 0.8rem; color: #6b6280; margin-top: 6px; }
+.draft-view ol li { margin-bottom: 8px; line-height: 1.5; }
+.draft-view .problems { color: #b0124f; }
+
+.prove p { max-width: 760px; line-height: 1.6; }
+.prove form { display: flex; gap: 14px; align-items: end; flex-wrap: wrap; margin: 18px 0; }
+.prove label { display: grid; gap: 4px; font-family: var(--mono); font-size: 0.8rem; }
+.prove input, .prove select { font: inherit; font-family: var(--body); font-size: 1rem; padding: 10px 12px; border-radius: 10px; border: 2px solid #d9d1e8; background: #fff; min-width: 90px; max-width: 70vw; }
+.btn { font: inherit; font-family: var(--display); font-weight: 800; font-size: 1.05rem; padding: 11px 22px; border-radius: 999px; border: 0; background: var(--coral); color: #fff; cursor: pointer; }
+.prove-out { font-family: var(--mono); font-size: 0.85rem; line-height: 1.6; background: #fff; border-radius: 14px; padding: 0; overflow-wrap: anywhere; }
+.prove-out:not(:empty) { padding: 16px 18px; }
+.prove-out .verdict { font-family: var(--display); font-weight: 800; font-size: 1.4rem; margin-bottom: 8px; }
+.prove-out .yes { color: #127a4c; }
+.prove-out .no { color: #b0124f; }
+.prove-out a { color: var(--violet); }
+.world .nav nav { display: flex; gap: 8px; }
+.world .nav nav a { color: var(--ink); background: #fff; font-family: var(--display); font-weight: 800; text-decoration: none; padding: 9px 18px; border-radius: 999px; }
+.world .weather:empty { display: none; }
