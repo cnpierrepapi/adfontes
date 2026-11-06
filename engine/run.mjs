@@ -178,7 +178,7 @@ for (let n = 0; n < days; n++) {
           }
         }
         const nodes = W.deepestChain(c).filter((k) => c.owned[k].corpus);
-        const chainC = nodes.map((k) => ({ node: k, ...s.corpora[c.owned[k].corpus] }));
+        const chainC = nodes.map((k) => ({ ...s.corpora[c.owned[k].corpus], node: k }) /* the clan's own point name wins (bought corpora carry the seller's) */);
         const draft = await draftTurn({ field: c.field, chain: chainC, gaps: chainC.at(-1).gaps.slice(0, 4) });
         // The figure kit draws each described figure in patent style.
         for (const f of draft.figures) f.svg = renderFigure(f);

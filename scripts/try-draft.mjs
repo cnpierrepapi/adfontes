@@ -8,7 +8,7 @@ import * as W from "../engine/world.mjs";
 const s = JSON.parse(fs.readFileSync("engine/state/testnet.json", "utf8"));
 const c = s.clans[process.argv[2] || 2];
 const nodes = W.deepestChain(c).filter((k) => c.owned[k].corpus).slice(0, 5);
-const chain = nodes.map((k) => ({ node: k, ...s.corpora[c.owned[k].corpus] }));
+const chain = nodes.map((k) => ({ ...s.corpora[c.owned[k].corpus], node: k }) /* the clan's own point name wins (bought corpora carry the seller's) */);
 const draft = await draftTurn({ field: c.field, chain, gaps: chain.at(-1).gaps.slice(0, 4) });
 for (const f of draft.figures) f.svg = renderFigure(f);
 const check = W.wardenDraft(draft, nodes);
