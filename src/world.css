@@ -56,3 +56,4 @@
 .world .nav nav { display: flex; gap: 8px; }
 .world .nav nav a { color: var(--ink); background: #fff; font-family: var(--display); font-weight: 800; text-decoration: none; padding: 9px 18px; border-radius: 999px; }
 .world .weather:empty { display: none; }
+.world .draft-view, .world .prove { scroll-margin-top: 100px; }
