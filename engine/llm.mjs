@@ -3,6 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "node:fs";
 import { CFG } from "./config.mjs";
+import { FIGURE_SCHEMA } from "./figures.mjs";
 
 const env = Object.fromEntries(
   (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").split(/\r?\n/).filter((l) => /^\w+=/.test(l)).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).trim()]),
@@ -77,15 +78,7 @@ const DRAFT = {
       },
     },
     description: { type: "string" },
-    figures: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["label", "caption", "svg"],
-        properties: { label: { type: "string" }, caption: { type: "string" }, svg: { type: "string" } },
-      },
-    },
+    figures: { type: "array", items: FIGURE_SCHEMA },
   },
 };
 
@@ -98,11 +91,13 @@ export function draftTurn({ field, chain, gaps }) {
     CFG.draftModel,
     "You are a Drafter agent in AD FONTES. Write a patent-style draft for an invention that fills one of the open gaps, " +
       "built only on the corpora given. Each claim lists the corpus ids (text inside square brackets) that support it. " +
-      "Write exactly 2 figures as SVG line drawings in patent style: black lines on white, no shading, viewBox 0 0 400 300, " +
-      "parts labelled with reference numerals (10, 12, 14...) written in <text> elements, each joined to its part by a thin lead line. " +
-      "In flowcharts, every box holds a short step label (2-4 words) plus its numeral. " +
-      "Every numeral used in a figure must be explained in the description " +
-      "as 'part (10)'. Keep the description under 400 words.",
+      "Describe 2 or 3 figures as data (a renderer draws them in patent style). FIG. 1 shows the physical invention itself: " +
+      "kind cross_section for layered things (list layers bottom to top, thickness 0.5-4 relative, hatch by material: diagonal=semiconductor or metal oxide, " +
+      "solid=metal contact, dots=porous or powder, cross=transparent conductor, wave=liquid or electrolyte, brick=ceramic or contact grid, none=glass or substrate; " +
+      "width 0.1-1 and offset 0-1 for parts that cover only part of a layer) or kind system for apparatus (shape tank, box, circle or diamond, links = pipes or wires). " +
+      "FIG. 2 is a flowchart of the method (shape terminal for start/end, box for steps, diamond for decisions with short yes/no link labels; step names 2-4 words). " +
+      "Every part has a unique reference numeral (10, 12, 14...; 30s for FIG. 2, 50s for FIG. 3) and a plain name. " +
+      "The description must explain every numeral as 'the absorber (14)'. Keep the description under 400 words.",
     `Field: ${field}.\n\nCorpora (a connected line of knowledge):\n\n${corpora}\n\nOpen gaps:\n- ${gaps.join("\n- ")}`,
     DRAFT,
     8000,

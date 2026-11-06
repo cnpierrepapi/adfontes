@@ -41,4 +41,11 @@ for (const n of [1, 2, 3, 5, 8]) {
 }
 t("canonical form ignores key order", canon({ b: 1, a: { d: [1, { y: 2, x: 1 }], c: "z" } }) === canon({ a: { c: "z", d: [1, { x: 1, y: 2 }] }, b: 1 }));
 t("canonical leaf survives a jsonb-style reorder", leafOf({ day: 3, kind: "trade", price: 0.02 }) === leafOf({ kind: "trade", price: 0.02, day: 3 }));
+// Figure kit: numerals come from the parts list; "80%" in a step name is not a numeral.
+const kitFig = (label, parts) => ({ label, caption: "c", kind: "flowchart", parts: parts.map(([n, name]) => ({ n, name, shape: "box", hatch: "none", thickness: 1, width: 1, offset: 0.5 })), links: [] });
+const kd = (desc, figs) => ({ claims: [{ text: "c", supported_by: ["a"] }], description: desc, figures: figs });
+t("kit figures pass when every part is explained", wardenDraft(kd("the bed (30) and the check (32)", [kitFig("FIG. 1", [[30, "bed"]]), kitFig("FIG. 2", [[32, "Uptake below 80%?"]])]), ["a"]).passed);
+t("kit: a part not in the description fails", !wardenDraft(kd("the bed (30)", [kitFig("FIG. 1", [[30, "bed"]]), kitFig("FIG. 2", [[32, "check"]])]), ["a"]).passed);
+t("kit: a bare number is not an explanation", !wardenDraft(kd("the bed 30 and the check (32)", [kitFig("FIG. 1", [[30, "bed"]]), kitFig("FIG. 2", [[32, "check"]])]), ["a"]).passed);
+t("kit: one numeral for two different parts fails", !wardenDraft(kd("(30) (30)", [kitFig("FIG. 1", [[30, "bed"]]), kitFig("FIG. 2", [[30, "valve"]])]), ["a"]).passed);
 process.exit(bad ? 1 : 0);

@@ -97,7 +97,19 @@ export function wardenDraft(draft, chainNodes) {
     if (bad.length) problems.push(`claim ${i + 1} cites outside the chain: ${bad.join(", ")}`);
   }
   if (draft.figures.length < 2) problems.push("fewer than 2 figures");
+  const seen = new Map();
   for (const fig of draft.figures) {
+    // Described figures (the figure kit): numerals come from the parts list, never from text in the drawing.
+    if (Array.isArray(fig.parts)) {
+      if (!fig.parts.length) problems.push(`${fig.label} has no parts`);
+      for (const p of fig.parts) {
+        if (!String(p.name || "").trim()) problems.push(`${fig.label}: part ${p.n} has no name`);
+        if (seen.has(p.n) && seen.get(p.n) !== p.name) problems.push(`numeral ${p.n} used for two different parts`);
+        seen.set(p.n, p.name);
+        if (!new RegExp(`\\(${p.n}\\)`).test(draft.description)) problems.push(`${fig.label}: numeral ${p.n} never explained`);
+      }
+      continue;
+    }
     // Numerals may sit alone ("30") or after a step label ("Measure output 30"); skip "FIG. 2" titles.
     const texts = [...fig.svg.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((m) => m[1].replace(/<[^>]+>/g, "").trim());
     const nums = texts.filter((t) => !/^fig/i.test(t)).flatMap((t) => [...t.matchAll(/(?<![\w.,])(\d{1,3})(?![\w.,])/g)].map((m) => m[1]));

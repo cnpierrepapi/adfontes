@@ -1,0 +1,11 @@
+// Dev helper: render sample figures to stills/figs.html for a visual check.
+import { renderFigure } from "../engine/figures.mjs";
+import fs from "node:fs";
+const L = (n, name, hatch, thickness, width = 1, offset = 0.5) => ({ n, name, shape: "layer", hatch, thickness, width, offset });
+const P = (p) => ({ hatch: "none", thickness: 1, width: 1, offset: 0.5, ...p });
+const figs = [
+  { label: "FIG. 1", caption: "Cross-section of the cell", kind: "cross_section", links: [], parts: [L(10, "glass substrate", "none", 3), L(12, "molybdenum back contact", "solid", 0.6), L(14, "BaSi2 absorber", "diagonal", 2.4), L(16, "a-Si capping layer", "dots", 0.8), L(18, "ITO window", "cross", 0.9), L(20, "silver finger", "brick", 0.7, 0.18, 0.3)] },
+  { label: "FIG. 2", caption: "Capture and regeneration cycle", kind: "flowchart", parts: [P({ n: 30, name: "Condition flue gas", shape: "terminal" }), P({ n: 32, name: "Adsorb CO2 on bed", shape: "box" }), P({ n: 34, name: "Probe micropores", shape: "box" }), P({ n: 36, name: "Uptake below 80%?", shape: "diamond" }), P({ n: 38, name: "Regenerate bed", shape: "box" }), P({ n: 40, name: "Log cycle data", shape: "terminal" })], links: [{ from: 30, to: 32, label: "" }, { from: 32, to: 34, label: "" }, { from: 34, to: 36, label: "" }, { from: 36, to: 38, label: "yes" }, { from: 36, to: 40, label: "no" }, { from: 38, to: 40, label: "" }] },
+  { label: "FIG. 3", caption: "Capture plant", kind: "system", parts: [P({ n: 50, name: "flue gas inlet", shape: "circle" }), P({ n: 52, name: "pre-conditioner", shape: "box" }), P({ n: 54, name: "sorbent bed", shape: "tank", hatch: "dots" }), P({ n: 56, name: "CO2 store", shape: "tank", hatch: "diagonal" }), P({ n: 58, name: "clean gas stack", shape: "box" })], links: [{ from: 50, to: 52, label: "" }, { from: 52, to: 54, label: "" }, { from: 54, to: 56, label: "" }, { from: 54, to: 58, label: "" }] },
+];
+fs.writeFileSync("stills/figs.html", `<body style="margin:0;display:flex;flex-wrap:wrap;gap:8px;background:#ddd;padding:8px">${figs.map((f) => `<div style="background:#fff">${renderFigure(f)}<div style="font:12px Arial;padding:4px 8px">${f.parts.map((p) => p.n + " " + p.name).join(" · ")}</div></div>`).join("")}</body>`);

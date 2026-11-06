@@ -92,7 +92,13 @@ async function showDraft(id) {
   if (d.error) return;
   const dr = d.draft;
   // Agent-made SVG is shown as an image: browsers never run scripts inside <img>.
-  const fig = (f) => el("figure", {}, el("img", { src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(f.svg), alt: f.caption }), el("figcaption", { textContent: `${f.label}: ${f.caption}` }));
+  const fig = (f) =>
+    el("figure", {},
+      el("img", { src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(f.svg), alt: f.caption }),
+      el("figcaption", { textContent: `${f.label}: ${f.caption}` }),
+      // Named-parts key (figure-kit drafts carry their parts list).
+      Array.isArray(f.parts) ? el("ul", { className: "key" }, ...f.parts.map((p) => el("li", {}, el("b", { textContent: String(p.n) }), ` ${p.name}`))) : "",
+    );
   v.replaceChildren(
     el("p", { className: "kicker dark", textContent: `draft ${d.id} · ${clanName(d.clan)} · day ${d.day}` }),
     el("h3", { textContent: dr.title }),

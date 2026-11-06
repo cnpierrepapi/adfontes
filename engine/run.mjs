@@ -13,6 +13,7 @@ import { scholarTurn, draftTurn, meter } from "./llm.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
 import * as store from "./store.mjs";
+import { renderFigure } from "./figures.mjs";
 
 const net = process.argv[2] || "testnet";
 if (net === "mainnet" && !process.argv.includes("--yes-mainnet")) throw new Error("mainnet needs --yes-mainnet");
@@ -179,6 +180,8 @@ for (let n = 0; n < days; n++) {
         const nodes = W.deepestChain(c).filter((k) => c.owned[k].corpus);
         const chainC = nodes.map((k) => ({ node: k, ...s.corpora[c.owned[k].corpus] }));
         const draft = await draftTurn({ field: c.field, chain: chainC, gaps: chainC.at(-1).gaps.slice(0, 4) });
+        // The figure kit draws each described figure in patent style.
+        for (const f of draft.figures) f.svg = renderFigure(f);
         // Rushing in hot weather (halved with a figure kit): one claim leans on something outside the chain.
         const rushRate = (w.mistake + c.tricksters * CFG.tricksterMistake) * (c.hasKit ? 0.5 : 1);
         const rushed = chance(rushRate);

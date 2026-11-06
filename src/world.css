@@ -57,3 +57,6 @@
 .world .nav nav a { color: var(--ink); background: #fff; font-family: var(--display); font-weight: 800; text-decoration: none; padding: 9px 18px; border-radius: 999px; }
 .world .weather:empty { display: none; }
 .world .draft-view, .world .prove { scroll-margin-top: 100px; }
+.draft-view figure img { max-height: 70vh; object-fit: contain; }
+.draft-view .key { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.85rem; }
+.draft-view .key b { font-family: var(--mono); color: var(--violet); }
