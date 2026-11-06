@@ -261,33 +261,41 @@ export function buildMind(data, isl, ctx) {
 
   const names = new Set(L.at.keys());
   let fade = ctx.fade ?? 0; // carried over on a rebuild, so the sky doesn't blink
+  let detail = ctx.detail ?? 0;
   return {
     group, names, layout: L,
     get fade() { return fade; },
+    get detail() { return detail; },
     /** nearK: 0 far away (only a faint shimmer) .. 1 flown in. px = pixels per world unit at distance 1. */
-    update(nearK, px) {
+    /** detailK: threads, the gold line and scrolls only for the focused nation (0..1). */
+    update(nearK, px, detailK = nearK) {
       fade += (nearK - fade) * 0.08;
+      detail += (detailK - detail) * 0.08;
+      // Unfocused skies shrink to half size round their root, so from far out each stays over its own island.
+      const sc = 0.5 + 0.5 * detail;
+      group.scale.setScalar(sc);
+      group.position.y = L.base * (1 - sc);
       const t = now();
       uniforms.uTime.value = t;
       uniforms.uPx.value = px;
       uniforms.uFade.value = fade; // far away the sky is gone; the plate already names the nation
       group.visible = fade > 0.01;
-      linkMat.opacity = fade * (dead ? 0.6 : 0.7);
-      threadMat.uniforms.uFade.value = fade * 0.75;
-      hotMat.opacity = fade * 0.95;
-      beadMat.opacity = fade;
+      linkMat.opacity = fade * (dead ? 0.6 : 0.7) * (0.45 + 0.55 * detail);
+      threadMat.uniforms.uFade.value = detail * 0.75;
+      hotMat.opacity = detail * 0.95;
+      beadMat.opacity = detail;
       if (hotCurve) beads.forEach((b, i) => b.position.copy(hotCurve.getPoint(((t * 0.12) + i / beads.length) % 1)));
       for (const s of scrolls) {
         const u = s.userData;
         s.position.copy(u.base).y += Math.sin(t * 0.9 + u.a * 3) * 0.06;
         s.rotation.y = t * 0.3 + u.a;
-        for (const m of u.mats) m.opacity = fade;
-        s.visible = fade > 0.02;
+        for (const m of u.mats) m.opacity = detail;
+        s.visible = detail > 0.02;
       }
     },
     /** What the cursor is over: a star (keyword + where it came from) or a scroll (draft). */
     pick(ray) {
-      if (fade < 0.5) return null;
+      if (detail < 0.5) return null; // hover cards only on the focused sky
       const hits = [];
       for (const p of [glowPts, stonePts]) if (p) for (const hit of ray.intersectObject(p)) hits.push({ ...hit, list: p.userData.list });
       for (const s of scrolls) for (const hit of ray.intersectObject(s, true)) hits.push({ ...hit, scroll: s });

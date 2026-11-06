@@ -8,7 +8,7 @@ const base = process.argv[2] || "http://localhost:4198";
   for (const [w, h] of [[1440, 810], [1280, 720], [1920, 1080]]) {
     const p = await b.newPage({ viewport: { width: w, height: h } });
     p.on("pageerror", (e) => errs.push(e.message));
-    await p.goto(`${base}/live/?stills`, { waitUntil: "networkidle" });
+    await p.goto(`${base}/live/?stills&theme=${process.env.THEME || "night"}`, { waitUntil: "networkidle" });
     await p.waitForTimeout(3000);
     await p.screenshot({ path: `stills/home-${w}.png` });
     await p.close();
@@ -21,7 +21,7 @@ const base = process.argv[2] || "http://localhost:4198";
     if (first) { first = false; const max = Math.max(...j.clans.map((c) => c.id)); j.clans = j.clans.filter((c) => c.id !== max); }
     await route.fulfill({ response: res, json: j });
   });
-  await p.goto(`${base}/live/?stills`, { waitUntil: "networkidle" });
+  await p.goto(`${base}/live/?stills&theme=${process.env.THEME || "night"}`, { waitUntil: "networkidle" });
   await p.waitForTimeout(3000);
   await p.screenshot({ path: "stills/new-0-before.png" });
   await p.waitForTimeout(31000);

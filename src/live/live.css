@@ -55,3 +55,15 @@ body.live { margin: 0; overflow: hidden; background: #63d9ee; touch-action: none
 .plates.far .plate { padding: 5px 11px; border-radius: 11px; }
 .plates.far .plate b { font-size: 0.9rem; }
 .plates.far .plate span { display: none; }
+
+/* Night (the default): dark glass HUD, light text. */
+body.live.night { background: #0b0f2e; }
+body.night .plate, body.night .dial, body.night .chip, body.night .godpanel, body.night .bubble, body.night .brand {
+  background: rgba(20, 18, 50, 0.74); color: #f1ecff; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35); }
+body.night .plate span, body.night .godpanel .meta, body.night .godpanel .nums small { color: #b9b2d9; }
+body.night .plate.dead { background: rgba(60, 56, 80, 0.6); }
+body.night .plate.neglected b { color: #f0c96a; }
+body.night .dial.hot { background: rgba(70, 30, 40, 0.8); }
+body.night .dial.cold { background: rgba(24, 40, 80, 0.82); }
+body.night .godpanel h2 { color: #fff; }
+body.night .hint { color: #d9d3f5; }

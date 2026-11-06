@@ -7,7 +7,7 @@ const base = process.argv[2] || "http://localhost:4198";
   const errs = [];
   p.on("pageerror", (e) => errs.push(e.message));
   p.on("console", (m) => m.type() === "error" && errs.push(m.text()));
-  await p.goto(`${base}/live/?stills`, { waitUntil: "networkidle" });
+  await p.goto(`${base}/live/?stills&theme=${process.env.THEME || "night"}`, { waitUntil: "networkidle" });
   await p.waitForTimeout(3500);
   await p.screenshot({ path: "stills/mind-0-world.png" });
   for (const id of [3, 2, 1, 4]) {

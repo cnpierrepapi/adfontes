@@ -53,22 +53,33 @@ export async function startLive(canvas, hud, opts = {}) {
     new THREE.SphereGeometry(320, 32, 16),
     new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: { top: { value: new THREE.Color(PAL.skyTop) }, mid: { value: new THREE.Color(PAL.skyMid) }, hor: { value: new THREE.Color(PAL.horizon) }, sun: { value: new THREE.Vector3(-0.5, 0.35, -0.8).normalize() }, chill: { value: 0 } },
+      uniforms: { top: { value: new THREE.Color(PAL.skyTop) }, mid: { value: new THREE.Color(PAL.skyMid) }, hor: { value: new THREE.Color(PAL.horizon) }, sun: { value: new THREE.Vector3(-0.5, 0.35, -0.8).normalize() }, sunCol: { value: new THREE.Color(1.0, 0.85, 0.55) }, disc: { value: 0 } },
       vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-      fragmentShader: `uniform vec3 top, mid, hor, sun; uniform float chill; varying vec3 vP;
+      fragmentShader: `uniform vec3 top, mid, hor, sun, sunCol; uniform float disc; varying vec3 vP;
         void main(){
           float y = vP.y;
           vec3 c = mix(hor, mid, smoothstep(-0.05, 0.25, y));
           c = mix(c, top, smoothstep(0.25, 0.8, y));
           float s = max(0.0, dot(vP, sun));
-          c += vec3(1.0, 0.85, 0.55) * (pow(s, 24.0) * 0.9 + pow(s, 4.0) * 0.25) * (1.0 - chill * 0.7);
-          c = mix(c, vec3(0.62, 0.74, 0.86), chill * 0.45);
+          c += sunCol * (pow(s, 24.0) * 0.9 * (1.0 - disc * 0.75) + pow(s, 4.0) * 0.25 * (1.0 - disc * 0.6));
+          c += vec3(0.95, 0.96, 1.0) * smoothstep(0.9993, 0.9996, s) * disc; // the moon's disc at night
           gl_FragColor = vec4(min(c, vec3(0.98)), 1.0); // never above white, so the sky never blooms
         }`,
     }),
   );
   scene.add(sky);
-  scene.add(new THREE.HemisphereLight(0xdff9ff, 0xffc7a0, 1.6));
+  const hemi = new THREE.HemisphereLight(0xdff9ff, 0xffc7a0, 1.6);
+  scene.add(hemi);
+  let theme = opts.theme === "day" ? "day" : "night"; // night by default (SPEC §12g)
+  // Night sky stars: a fixed dome of small points above the horizon (hidden by day).
+  const starG = new THREE.BufferGeometry(), sp0 = [];
+  for (let i = 0; i < 1800; i++) {
+    const u = Math.random() * Math.PI * 2, y = 0.03 + Math.pow(Math.random(), 0.7) * 0.97, rr = Math.sqrt(1 - y * y);
+    sp0.push(Math.cos(u) * rr * 300, y * 300, Math.sin(u) * rr * 300);
+  }
+  starG.setAttribute("position", new THREE.Float32BufferAttribute(sp0, 3));
+  const skyStars = new THREE.Points(starG, new THREE.PointsMaterial({ color: 0xdfe6ff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+  scene.add(skyStars);
   const sunL = new THREE.DirectionalLight(0xfff0d0, 2.2);
   sunL.position.set(-20, 30, 14);
   sunL.castShadow = true;
@@ -136,19 +147,34 @@ export async function startLive(canvas, hud, opts = {}) {
     const r = 1.8 + Math.min(2.6, Math.sqrt(c.points || 1) * 0.24);
     // A little drift inside the cell so the grid doesn't read as a grid.
     const pos = new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
-    const status = !c.alive ? "dead" : c.total_in > avgIn * 1.0001 && live.length > 1 ? "rich" : c.total_in < avgIn / 4 ? "neglected" : "ok";
+    // Neglect is the game's: gods ignored their gifts and a Trickster moved in (not just low money).
+    const status = !c.alive ? "dead" : c.seen === false ? "new" : (c.tricksters || 0) > 0 ? "neglected" : c.total_in > avgIn * 1.0001 && live.length > 1 ? "rich" : "ok";
     const isl = buildClanIsland(c, r, status, sprays);
     isl.position.copy(pos);
     isl.userData = { ...isl.userData, clan: c, baseY: pos.y, bob: hash(c.id + 7) * Math.PI * 2, r, status };
     world.add(isl);
     islands.set(c.id, isl);
+    // Night lamps: a warm light by the temple and each house (they bloom; hidden by day).
+    const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
+    if (town) {
+      const lamps = new THREE.Group(), lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.7, 0.6) });
+      for (const o of town.children) if (o.userData.lamp) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r * 0.035 + 0.04, 8, 6), lampMat);
+        const out = new THREE.Vector3(o.position.x, 0, o.position.z).normalize().multiplyScalar(r * 0.09);
+        m.position.set(o.position.x + out.x, o.userData.lamp * r, o.position.z + out.z);
+        lamps.add(m);
+      }
+      town.add(lamps);
+      lamps.visible = theme === "night";
+      isl.userData.lamps = lamps;
+    }
 
     // Floating name plate (always faces you).
     const plate = document.createElement("button");
     plate.className = `plate ${status}`;
     plate.innerHTML = `<b></b><span></span>`;
     plate.querySelector("b").textContent = c.name;
-    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.points} points${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : ""}`;
+    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.points} points${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : status === "new" ? " · new" : ""}`;
     plate.addEventListener("click", () => flyTo(c.id));
     const lbl = new CSS2DObject(plate);
     lbl.position.set(0, r * 0.75 + 1.5, 0);
@@ -240,11 +266,30 @@ export async function startLive(canvas, hud, opts = {}) {
   const showRoutesOf = (id, on) => { for (const g of routeGroups.values()) if (g.userData.ends.includes(id)) g.visible = on; };
 
 
-  // Weather: the real week's NEAR price change tints the sky and fog.
-  const change = W.weather?.change ?? 0;
-  const chill = Math.max(0, Math.min(1, -change * 4));
-  sky.material.uniforms.chill.value = chill;
-  scene.fog.color.lerp(new THREE.Color(0xb7c7d4), chill * 0.55);
+  // ---- night (default) and day (SPEC §12g). The sky no longer shows the weather; sound does. ----
+  const THEMES = {
+    day: { top: PAL.skyTop, mid: PAL.skyMid, hor: PAL.horizon, sunCol: [1.0, 0.85, 0.55], disc: 0, fog: 0xf3dfae, hemi: [0xdff9ff, 0xffc7a0, 1.6], sun: [0xfff0d0, 2.2],
+      sea: [PAL.sea, 0x05606e, 0.3], cloud: [0xf2fbff, 0xd8f6ff, 0.28], mote: [1, 0.96, 0.78], moteSize: 0.16, exposure: 1.12, stars: 0, lamps: false, seaSpec: 0x9fc4d0, seaShine: 30, cloudOpacity: 0.85 },
+    night: { top: 0x050822, mid: 0x111a4c, hor: 0x3d2f6a, sunCol: [0.55, 0.62, 0.95], disc: 1, fog: 0x231e4c, hemi: [0x6a78c8, 0x2a1a48, 1.15], sun: [0xb4c4ff, 1.15],
+      sea: [0x0b3a58, 0x06223e, 0.45], cloud: [0x575c94, 0x2a2d5c, 0.4], mote: [1.7, 1.35, 0.45], moteSize: 0.13, exposure: 1.0, stars: 0.9, lamps: true, seaSpec: 0x2a3866, seaShine: 18, cloudOpacity: 0.55 },
+  };
+  function setTheme(name) {
+    const T = THEMES[name] ?? THEMES.night;
+    theme = THEMES[name] ? name : "night";
+    const u = sky.material.uniforms;
+    u.top.value.set(T.top); u.mid.value.set(T.mid); u.hor.value.set(T.hor); u.sunCol.value.setRGB(...T.sunCol); u.disc.value = T.disc;
+    scene.fog.color.set(T.fog);
+    hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2];
+    sunL.color.set(T.sun[0]); sunL.intensity = T.sun[1];
+    sea.material.color.set(T.sea[0]); sea.material.emissive.set(T.sea[1]); sea.material.emissiveIntensity = T.sea[2];
+    sea.material.specular.set(T.seaSpec); sea.material.shininess = T.seaShine; // no tiled moon glare
+    puffMat.color.set(T.cloud[0]); puffMat.emissive.set(T.cloud[1]); puffMat.emissiveIntensity = T.cloud[2]; puffMat.opacity = T.cloudOpacity;
+    motes.material.color.setRGB(...T.mote); motes.material.size = T.moteSize; // fireflies at night (they bloom)
+    renderer.toneMappingExposure = T.exposure;
+    skyStars.material.opacity = T.stars;
+    for (const isl of islands.values()) if (isl.userData.lamps) isl.userData.lamps.visible = T.lamps;
+    document.body.classList.toggle("night", theme === "night");
+  }
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
@@ -280,7 +325,7 @@ export async function startLive(canvas, hud, opts = {}) {
       const added = old ? all.filter((n) => !old.names.has(n)) : [];
       const sameShape = old && !added.length && old.drafts === (d.drafts || []).length && old.alive === d.alive;
       if (sameShape) { old.light(light); return; } // nothing new: just light the named stars again
-      const m = buildMind(d, isl, { islands, clanName, fresh: new Set([...added, ...light]), fade: old?.fade });
+      const m = buildMind(d, isl, { islands, clanName, fresh: new Set([...added, ...light]), fade: old?.fade, detail: old?.detail });
       m.drafts = (d.drafts || []).length;
       m.alive = d.alive;
       old?.dispose();
@@ -521,8 +566,10 @@ export async function startLive(canvas, hud, opts = {}) {
     }
     for (const [id, m] of minds) {
       const isl = islands.get(id);
-      const near = id !== focusId || isl.userData.rose === "rising" ? 0 : zoomK * (1 - THREE.MathUtils.smoothstep(offOf(id), m.layout.reach + 1, m.layout.reach + 6));
-      m.update(near, px);
+      const focused = id !== focusId || isl.userData.rose === "rising" ? 0 : zoomK * (1 - THREE.MathUtils.smoothstep(offOf(id), m.layout.reach + 1, m.layout.reach + 6));
+      // At night every nation's sky can be seen dimly from the whole world; by day only the focused one.
+      const near = Math.max(focused, theme === "night" && isl.userData.rose !== "rising" ? (focusId == null ? 0.38 : 0.16) : 0);
+      m.update(near, px, focused);
     }
     if ((frameN++ & 1) === 0) hoverMinds();
     fx.update();
@@ -546,7 +593,8 @@ export async function startLive(canvas, hud, opts = {}) {
     requestAnimationFrame(frame);
   }
   frame();
-  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind };
+  setTheme(opts.theme || "night");
+  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme };
 }
 
 // A clan's island: size from its mindmap, town from its state.
@@ -567,9 +615,12 @@ function buildClanIsland(c, r, status, sprays) {
     }
     return isl;
   }
-  town.add(temple(r * 0.5, accent));
+  const tp = temple(r * 0.5, accent);
+  tp.userData.lamp = 0.16;
+  town.add(tp);
   if (c.points > 30) {
     const tw = tower(r * 0.55, accent);
+    tw.userData.lamp = 0.5;
     tw.position.set(r * 0.5, 0, -r * 0.35);
     town.add(tw);
   }
@@ -580,6 +631,7 @@ function buildClanIsland(c, r, status, sprays) {
     const a = (i / n) * Math.PI * 2 + range(0, 0.4);
     const rr = r * range(0.55, 0.82);
     const o = i < 4 ? house(r * 0.14, accent) : tree(r * range(0.22, 0.34));
+    if (i < 4) o.userData.lamp = 0.1;
     o.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
     o.rotation.y = range(0, Math.PI);
     town.add(o);

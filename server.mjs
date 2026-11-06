@@ -52,6 +52,7 @@ const api = {
             id: c.id, name: c.name, dao: c.dao, alive: c.alive, gods: c.gods.length,
             play: near(c.play), reserve: near(c.reserve), total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
             field: st.field ?? null, mbti: st.mbti ?? null, fortune: st.fortune ?? 1,
+            seen: !!s.clans[c.id], tricksters: st.tricksters ?? 0,
             points: Object.keys(st.owned || {}).length, depth: st.owned ? chainDepth(st) : 0,
             line: st.owned ? deepestChain(st) : [],
           };
