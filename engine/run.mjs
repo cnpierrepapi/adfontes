@@ -12,12 +12,13 @@ import { papersFor } from "./papers.mjs";
 import { scholarTurn, draftTurn, meter } from "./llm.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
+import * as store from "./store.mjs";
 
 const net = process.argv[2] || "testnet";
 if (net === "mainnet" && !process.argv.includes("--yes-mainnet")) throw new Error("mainnet needs --yes-mainnet");
 const days = Number(process.argv[process.argv.indexOf("--days") + 1] || 1);
 const chain = connect(net);
-const s = W.load(net);
+const s = await store.loadState(net);
 const chance = (p) => Math.random() < p;
 const turns = (x) => Math.floor(x) + (chance(x - Math.floor(x)) ? 1 : 0); // 1.4 -> 1 or 2
 
@@ -186,7 +187,7 @@ for (let n = 0; n < days; n++) {
         const id = `d${s.nextId++}`;
         const hash = W.sha256(JSON.stringify(draft));
         s.drafts[id] = { id, clan: oc.id, day, hash, draft, chain: nodes, rushed, ...check };
-        fs.writeFileSync(`engine/state/${net}/${id}.json`, JSON.stringify(s.drafts[id], null, 1));
+        await store.saveDraft(net, s.drafts[id]);
         // Top contributor = the clan whose corpora make up most of the chain.
         const by = {};
         for (const k of nodes) { const a = s.corpora[c.owned[k].corpus]?.clan; if (a) by[a] = (by[a] || 0) + 1; }
@@ -230,11 +231,11 @@ for (let n = 0; n < days; n++) {
     log({ kind: "sweep", tx: r.hash });
   }
   const root = W.merkleRoot(rec);
-  fs.writeFileSync(`engine/state/${net}/day-${day}.json`, JSON.stringify(rec, null, 1));
   const rr = await chain.setRoot(day, root);
+  await store.saveDay(net, day, rec, root, rr.hash);
   s.roots[day] = root;
   s.day = day;
-  W.save(net, s);
+  await store.saveState(net, s);
   console.log(`  root ${root.slice(0, 16)}... on chain (${rr.hash}) | LLM so far: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);
 }
 
@@ -246,3 +247,4 @@ for (const c of await chain.clans()) {
 }
 
 function pickTarget(c) { return W.pickTarget(c); }
+await store.close();

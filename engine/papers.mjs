@@ -1,12 +1,10 @@
 // Open papers from OpenAlex, with the keywords OpenAlex tags on each one (the mindmap's points).
 import fs from "node:fs";
+import { getPapers, putPapers } from "./store.mjs";
 
-const CACHE = "engine/state/papers-cache.json";
 // Free OpenAlex key = $1/day (~1,000 searches). Without one we share $0.10/day per IP address.
-const KEY = (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").match(/^OPENALEX_API_KEY=(\S+)/m)?.[1];
+const KEY = process.env.OPENALEX_API_KEY || (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").match(/^OPENALEX_API_KEY=(\S+)/m)?.[1];
 const AUTH = KEY ? { Authorization: `Bearer ${KEY}` } : {};
-let cache = fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
-const save = () => fs.writeFileSync(CACHE, JSON.stringify(cache));
 
 const unInvert = (idx) => {
   const words = [];
@@ -17,7 +15,8 @@ const unInvert = (idx) => {
 /** Papers for a search phrase: [{id, title, year, abstract, keywords[]}], cached on disk. */
 export async function papersFor(query, n = 10) {
   const key = `${query}|${n}`;
-  if (cache[key]) return cache[key];
+  const hit = await getPapers(key);
+  if (hit) return hit;
   const url = new URL("https://api.openalex.org/works");
   url.searchParams.set("search", query);
   url.searchParams.set("filter", "open_access.is_oa:true,has_abstract:true,from_publication_date:2015-01-01");
@@ -38,8 +37,7 @@ export async function papersFor(query, n = 10) {
     abstract: unInvert(w.abstract_inverted_index).slice(0, 1200),
     keywords: (w.keywords || []).map((k) => k.display_name.toLowerCase()),
   }));
-  cache[key] = papers;
-  save();
+  await putPapers(key, papers);
   return papers;
 }
 

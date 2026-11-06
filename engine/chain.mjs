@@ -12,6 +12,9 @@ const T = (t) => (BigInt(t) * 10n ** 12n).toString();
 
 function operatorAccount(net, provider) {
   const n = NETWORKS[net];
+  // On Railway the operator key comes from service variables, never from a file.
+  if (process.env.OPERATOR_ACCOUNT_ID && process.env.OPERATOR_PRIVATE_KEY)
+    return new Account(process.env.OPERATOR_ACCOUNT_ID, provider, process.env.OPERATOR_PRIVATE_KEY);
   if (n.operatorKeyFile) {
     const k = JSON.parse(fs.readFileSync(n.operatorKeyFile, "utf8"));
     return new Account(k.account_id, provider, k.private_key);

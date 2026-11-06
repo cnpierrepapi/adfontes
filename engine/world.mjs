@@ -1,21 +1,9 @@
 // World state kept off chain (Neon later; a JSON file for the testnet loop), the clan mindmap,
 // the Warden's checks and the daily provenance root.
 import crypto from "node:crypto";
-import fs from "node:fs";
 import { CFG } from "./config.mjs";
 
 export const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
-
-export function load(net) {
-  fs.mkdirSync(`engine/state/${net}`, { recursive: true });
-  const f = `engine/state/${net}.json`;
-  return fs.existsSync(f)
-    ? JSON.parse(fs.readFileSync(f, "utf8"))
-    : { day: 0, clans: {}, corpora: {}, drafts: {}, gifts: {}, tools: {}, ruins: {}, roots: {}, nextId: 1 };
-}
-export function save(net, s) {
-  fs.writeFileSync(`engine/state/${net}.json`, JSON.stringify(s, null, 1));
-}
 
 const FIELDS = ["batteries", "solar cells", "carbon capture"];
 const LETTERS = [["E", "I"], ["S", "N"], ["T", "F"], ["J", "P"]];

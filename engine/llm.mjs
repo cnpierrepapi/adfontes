@@ -5,9 +5,9 @@ import fs from "node:fs";
 import { CFG } from "./config.mjs";
 
 const env = Object.fromEntries(
-  fs.readFileSync(".env.local", "utf8").split(/\r?\n/).filter((l) => /^\w+=/.test(l)).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).trim()]),
+  (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").split(/\r?\n/).filter((l) => /^\w+=/.test(l)).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).trim()]),
 );
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY });
 const PRICE = { "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10] }; // $ per M tokens
 export const meter = { calls: 0, usd: 0 };
 
