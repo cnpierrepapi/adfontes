@@ -9,6 +9,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { createEffects } from "./effects.js";
+import { buildMind, mindBase } from "./mind.js";
 import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mesh, school, fallUniforms, range, pick } from "../scene.js";
 
 CameraControls.install({ THREE });
@@ -224,18 +225,87 @@ export async function startLive(canvas, hud, opts = {}) {
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
-  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id) });
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => mindRecord(r) });
   let lastDay = W.day;
   api(`day?d=${W.day}`).then((d) => fx.enqueue(d.records || [])).catch(() => {});
   setInterval(async () => {
     try {
       const now = await api("world");
-      for (const c of now.clans) if (!islands.has(c.id)) { W.clans.push(c); addNation(c); riseNation(c.id); }
+      for (const c of now.clans) if (!islands.has(c.id)) { W.clans.push(c); addNation(c); riseNation(c.id); loadMind(c.id); }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       for (let d = lastDay + 1; d <= now.day; d++) fx.enqueue((await api(`day?d=${d}`)).records || []);
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
     } catch {}
   }, 30000);
+
+  // ---- the mind constellations (SPEC §12f): each nation's mindmap as stars over its island ----
+  const minds = new Map(), mindQueue = new Map();
+  // One load at a time per nation, so two quick records can't both build a sky.
+  function loadMind(id, light = []) {
+    const run = (mindQueue.get(id) || Promise.resolve()).then(async () => {
+      const isl = islands.get(id);
+      if (!isl) return;
+      const d = await api(`clan?id=${id}&d=${lastDay}`).catch(() => null);
+      if (!d || d.error) return;
+      const old = minds.get(id);
+      const all = [...d.points.map((p) => p.point), ...(d.frontier || []).map((p) => p.point)];
+      const added = old ? all.filter((n) => !old.names.has(n)) : [];
+      const sameShape = old && !added.length && old.drafts === (d.drafts || []).length && old.alive === d.alive;
+      if (sameShape) { old.light(light); return; } // nothing new: just light the named stars again
+      const m = buildMind(d, isl, { islands, clanName, fresh: new Set([...added, ...light]), fade: old?.fade });
+      m.drafts = (d.drafts || []).length;
+      m.alive = d.alive;
+      old?.dispose();
+      isl.add(m.group);
+      minds.set(id, m);
+    });
+    mindQueue.set(id, run.catch(() => {}));
+    return run;
+  }
+  for (const c of W.clans) loadMind(c.id);
+  // Records that change a sky. New points light in place (star launches wait for the Scholar figures).
+  function mindRecord(r) {
+    if (r.kind === "corpus" && !r.fake) loadMind(r.clan, [r.point]);
+    else if (r.kind === "trade" && r.point) loadMind(r.buyer, [r.point]);
+    else if (r.kind === "absorb") {
+      loadMind(r.clan, r.points || []);
+      for (const [id, isl] of islands) if (isl.userData.status === "dead") loadMind(id); // their sockets empty
+    } else if (r.kind === "gift") loadMind(r.clan); // a new scroll
+  }
+  // Hover a star or a scroll: a small card with the keyword and where it came from.
+  const tip = document.createElement("div");
+  tip.className = "star-tip";
+  tip.hidden = true;
+  document.body.append(tip);
+  let hoverAt = null;
+  canvas.addEventListener("pointermove", (e) => (hoverAt = e.pointerType === "mouse" ? [e.clientX, e.clientY] : null));
+  canvas.addEventListener("pointerleave", () => (hoverAt = null));
+  let tipKey = "";
+  function hoverMinds() {
+    let found = null;
+    if (hoverAt) {
+      const rect = canvas.getBoundingClientRect();
+      ndc.set(((hoverAt[0] - rect.left) / rect.width) * 2 - 1, -((hoverAt[1] - rect.top) / rect.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      ray.params.Points.threshold = 0.22;
+      for (const m of minds.values()) { found = m.pick(ray); if (found) break; }
+      ray.params.Points.threshold = 1;
+    }
+    if (!found) { tip.hidden = true; tipKey = ""; canvas.style.cursor = ""; return; }
+    const key = found.title + found.sub;
+    if (key !== tipKey) {
+      tipKey = key;
+      tip.className = `star-tip ${found.kind}`;
+      tip.replaceChildren();
+      const b = document.createElement("b"); b.textContent = found.title;
+      const s = document.createElement("span"); s.textContent = found.sub;
+      tip.append(b, s);
+      if (found.corpus) { const c = document.createElement("i"); c.textContent = found.corpus; tip.append(c); }
+    }
+    tip.hidden = false;
+    tip.style.transform = `translate(${hoverAt[0] + 16}px, ${hoverAt[1] + 14}px)`;
+    canvas.style.cursor = "help";
+  }
 
   // ---- camera: damped springs, zoom to cursor, bounds, float ----
   const controls = new CameraControls(camera, renderer.domElement);
@@ -257,7 +327,7 @@ export async function startLive(canvas, hud, opts = {}) {
   const HOME = { pos: [22, 10, 27], target: [0, 2.5, 0] }; // low, lots of sky: floating, not a map
   controls.setLookAt(...HOME.pos, ...HOME.target, false);
 
-  let lastInput = performance.now(), flying = null;
+  let lastInput = performance.now(), flying = null, focusId = null;
   for (const ev of ["pointerdown", "wheel", "touchstart", "keydown"]) window.addEventListener(ev, () => (lastInput = performance.now()), { passive: true });
 
   // Fly to a clan on a curve; the lens widens mid-flight and settles (the "dolly" feel).
@@ -266,13 +336,18 @@ export async function startLive(canvas, hud, opts = {}) {
     if (!isl) return;
     const p = isl.position, r = isl.userData.r;
     const dir = new THREE.Vector3().subVectors(camera.position, p).setY(0).normalize();
-    const dest = p.clone().addScaledVector(dir, r * 4.4 + 6).setY(p.y + r * 1.1 + 1.6); // low arrival: horizon stays in view
-    controls.setLookAt(dest.x, dest.y, dest.z, p.x, p.y + 0.8, p.z, true);
+    // Low arrival, looking up a little: the town at the bottom of the frame, its sky above it.
+    const lookY = p.y + mindBase(r) + 1.6;
+    const fit = camera.aspect < 1 ? 1 / Math.pow(camera.aspect, 0.55) : 1; // portrait phones stand back to fit the sky
+    const dest = p.clone().addScaledVector(dir, (r * 4.4 + 10) * fit).setY(p.y + r * 0.8 + 2);
+    focusId = id;
+    controls.setLookAt(dest.x, dest.y, dest.z, p.x, lookY, p.z, true);
     flying = { t0: performance.now(), dur: 1400 };
     opts.onSelect?.(isl.userData.clan, isl.userData.status);
     lastInput = performance.now();
   }
   function home() {
+    focusId = null;
     controls.setLookAt(...HOME.pos, ...HOME.target, true);
     flying = { t0: performance.now(), dur: 1400 };
     opts.onSelect?.(null);
@@ -287,7 +362,8 @@ export async function startLive(canvas, hud, opts = {}) {
     const rect = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects([...islands.values()], true)[0];
+    const inSky = (o) => { for (; o; o = o.parent) if (o.name === "mind") return true; return false; };
+    const hit = ray.intersectObjects([...islands.values()], true).find((x) => !inSky(x.object));
     if (!hit) return;
     let o = hit.object;
     while (o && !o.userData.clan) o = o.parent;
@@ -319,8 +395,8 @@ export async function startLive(canvas, hud, opts = {}) {
   resize();
 
   const clock = new THREE.Clock();
-  const tmpV = new THREE.Vector3();
-  let prevAz = controls.azimuthAngle, bank = 0;
+  const tmpV = new THREE.Vector3(), tmpT = new THREE.Vector3();
+  let prevAz = controls.azimuthAngle, bank = 0, frameN = 0;
   const baseFov = 46;
   function frame() {
     const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
@@ -352,6 +428,28 @@ export async function startLive(canvas, hud, opts = {}) {
     sp.needsUpdate = true;
     motes.rotation.y = t * 0.008;
     fx.setCrowd(controls.distance > 26 ? 1 : 3);
+    // A nation's sky shows only when you're looking at that nation from close in (the camera's
+    // target sits over it and you're zoomed in). From the whole-world view the skies are gone.
+    const px = canvas.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    // One sky at a time: the focused nation's. Flying to a nation focuses it; zooming in near an
+    // island focuses that one; panning well past the canopy lets go. The whole-world view
+    // (camera far out) shows none.
+    controls.getTarget(tmpT);
+    const offOf = (id) => { const i = islands.get(id); return Math.hypot(tmpT.x - i.position.x, tmpT.z - i.position.z); };
+    const fitNow = camera.aspect < 1 ? 1 / Math.pow(camera.aspect, 0.55) : 1; // same stand-back as flyTo
+    const zoomK = 1 - THREE.MathUtils.smoothstep(controls.distance, 31 * fitNow, 35 * fitNow);
+    if (focusId != null && (!minds.has(focusId) || offOf(focusId) > minds.get(focusId).layout.reach + 6)) focusId = null;
+    if (focusId == null && zoomK > 0.5 && !flying) {
+      let best = null, bd = Infinity;
+      for (const [id, isl] of islands) { const o = offOf(id); if (o < isl.userData.r * 1.5 + 2 && o < bd) { bd = o; best = id; } }
+      focusId = best;
+    }
+    for (const [id, m] of minds) {
+      const isl = islands.get(id);
+      const near = id !== focusId || isl.userData.rose === "rising" ? 0 : zoomK * (1 - THREE.MathUtils.smoothstep(offOf(id), m.layout.reach + 1, m.layout.reach + 6));
+      m.update(near, px);
+    }
+    if ((frameN++ & 1) === 0) hoverMinds();
     fx.update();
     if (bokeh) bokeh.uniforms.focus.value = controls.distance;
     if (composer) composer.render(); else renderer.render(scene, camera);
@@ -373,7 +471,7 @@ export async function startLive(canvas, hud, opts = {}) {
     requestAnimationFrame(frame);
   }
   frame();
-  return { world: W, flyTo, home, controls, camera, fx, riseNation };
+  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind };
 }
 
 // A clan's island: size from its mindmap, town from its state.

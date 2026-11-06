@@ -8,7 +8,7 @@ import { says } from "../says.js";
 const HDR = (r, g, b) => new THREE.Color(r, g, b);
 const GOLD = HDR(2.2, 1.6, 0.5), RED = HDR(3.4, 0.5, 0.6), CYAN = HDR(0.8, 2.6, 3.2), WHITE = HDR(2.6, 2.6, 2.4), VIOLET = HDR(1.9, 1.1, 3.4);
 
-export function createEffects({ scene, islands, curves, clanName, onFounded }) {
+export function createEffects({ scene, islands, curves, clanName, onFounded, onRecord }) {
   const live = [];
   const add = (fx) => live.push(fx);
   const top = (isl) => isl.position.clone().add(new THREE.Vector3(0, 0.6, 0));
@@ -159,6 +159,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded }) {
 
   function play(r) {
     const text = says(r, clanName);
+    onRecord?.(r);
     switch (r.kind) {
       case "trade": comet(r.seller, r.buyer, r.tool ? VIOLET : CYAN); bubble(islands.get(r.buyer), text, "trade"); break;
       case "corpus": page(islands.get(r.clan), r.fake ? RED : WHITE); bubble(islands.get(r.clan), text, "corpus"); break;

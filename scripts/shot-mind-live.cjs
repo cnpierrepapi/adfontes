@@ -1,0 +1,30 @@
+// Live check (dev helper): a corpus record re-lights its star in place; world view has no skies; phone size.
+const { chromium } = require("playwright");
+const base = process.argv[2] || "http://localhost:4198";
+(async () => {
+  const b = await chromium.launch({ args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"] });
+  const p = await b.newPage({ viewport: { width: 1440, height: 810 } });
+  const errs = [];
+  p.on("pageerror", (e) => errs.push(e.message));
+  p.on("console", (m) => m.type() === "error" && errs.push(m.text()));
+  await p.goto(`${base}/live/?stills`, { waitUntil: "networkidle" });
+  await p.waitForTimeout(3000);
+  await p.screenshot({ path: "stills/mind-live-0-world.png" });
+  await p.evaluate(() => window.__live.flyTo(4));
+  await p.waitForTimeout(3000);
+  await p.screenshot({ path: "stills/mind-live-1-before.png" });
+  const pt = await p.evaluate(() => { const m = window.__live.minds.get(4); return [...m.layout.at.values()].filter((x) => x.node.kind === "owned").sort((a, b) => b.level - a.level)[0].node.point; });
+  await p.evaluate((point) => window.__live.fx.play({ kind: "corpus", clan: 4, scholar: "Test", point, title: "t", cites: 9, fake: 0 }), pt);
+  await p.waitForTimeout(500);
+  await p.screenshot({ path: "stills/mind-live-2-lighting.png" });
+  console.log("lit:", pt);
+  const p2 = await b.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  p2.on("pageerror", (e) => errs.push("phone: " + e.message));
+  await p2.goto(`${base}/live/`, { waitUntil: "networkidle" });
+  await p2.waitForTimeout(2500);
+  await p2.evaluate(() => window.__live.flyTo(2));
+  await p2.waitForTimeout(3000);
+  await p2.screenshot({ path: "stills/mind-live-3-phone.png" });
+  console.log("errors:", errs.length ? errs.slice(0, 5) : "none");
+  await b.close();
+})();

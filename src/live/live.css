@@ -38,3 +38,16 @@ body.live { margin: 0; overflow: hidden; background: #63d9ee; touch-action: none
 .bubble.corpus { border-left: 4px solid var(--sky); }
 .bubble.absorb, .bubble.tool { border-left: 4px solid var(--violet); }
 .plate { transition: opacity 0.15s linear; }
+
+/* Hover card for a star or a draft scroll in a nation's sky. */
+.star-tip { position: fixed; left: 0; top: 0; z-index: 5; pointer-events: none; display: grid; gap: 3px; max-width: 280px; padding: 9px 13px; border-radius: 4px 14px 14px 14px;
+  background: rgba(29, 20, 48, 0.82); backdrop-filter: blur(8px); color: #fff; font-family: var(--body); box-shadow: 0 10px 28px rgba(29, 20, 48, 0.3); border-left: 4px solid var(--sky); }
+.star-tip[hidden] { display: none; }
+.star-tip b { font-family: var(--display); font-weight: 800; font-size: 0.98rem; text-transform: capitalize; }
+.star-tip span { font-family: var(--mono); font-size: 0.68rem; color: #d9d2ea; }
+.star-tip i { font-style: normal; font-size: 0.76rem; line-height: 1.35; color: #f3eefb; opacity: 0.85; }
+.star-tip.trade { border-left-color: #fff1c9; }
+.star-tip.stone { border-left-color: #b3a99c; }
+.star-tip.frontier { border-left-color: #8ea4c8; }
+.star-tip.gift { border-left-color: var(--gold); }
+.star-tip.warden { border-left-color: #d12a6b; }
