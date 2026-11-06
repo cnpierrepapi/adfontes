@@ -568,7 +568,7 @@ export async function startLive(canvas, hud, opts = {}) {
       const isl = islands.get(id);
       const focused = id !== focusId || isl.userData.rose === "rising" ? 0 : zoomK * (1 - THREE.MathUtils.smoothstep(offOf(id), m.layout.reach + 1, m.layout.reach + 6));
       // At night every nation's sky can be seen dimly from the whole world; by day only the focused one.
-      const near = Math.max(focused, theme === "night" && isl.userData.rose !== "rising" ? (focusId == null ? 0.38 : 0.16) : 0);
+      const near = Math.max(focused, theme === "night" && isl.userData.rose !== "rising" ? (focusId == null ? 0.38 : 0) : 0); // flown in: only your nation's sky
       m.update(near, px, focused);
     }
     if ((frameN++ & 1) === 0) hoverMinds();

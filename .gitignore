@@ -12,3 +12,4 @@ stills
 
 contracts/*/target
 engine/state/
+sound-src/
