@@ -52,6 +52,7 @@ export function connect(net) {
     bounty: (clanId, near, memo) => call("bounty", { clan_id: clanId, amount: toYocto(near).toString(), memo }),
     giftDraft: (clanId, hash, passed, top) => call("gift", { clan_id: clanId, draft_hash: hash, warden_passed: passed, top_contributor: top }),
     setRoot: (day, root) => call("set_root", { day, root }),
+    getRoot: (day) => view("get_root", { day }),
     sweep: () => call("sweep_fees", {}, 60),
   };
 }

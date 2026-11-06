@@ -23,15 +23,25 @@ const s = await store.loadState(net);
 const chance = (p) => Math.random() < p;
 const turns = (x) => Math.floor(x) + (chance(x - Math.floor(x)) ? 1 : 0); // 1.4 -> 1 or 2
 
+// A redeploy or restart sends SIGTERM: finish the nation in hand, checkpoint, exit. The next run
+// resumes the same day (s.inProgress) instead of redoing nations that already had their turn.
+let stopRequested = false;
+process.on("SIGTERM", () => { stopRequested = true; console.log("  stop requested: will checkpoint after this nation"); });
+
 for (let n = 0; n < days; n++) {
   const day = s.day + 1;
   const w = weather(day);
-  const rec = []; // the day's records -> Merkle root on chain
+  // Resuming a day that was cut short? Keep its records so far and skip nations already done.
+  const resuming = s.inProgress?.day === day;
+  const rec = resuming ? (await store.getDay(net, day)).records : []; // the day's records -> Merkle root on chain
+  if (!resuming) s.inProgress = { day, done: [] };
   const log = (r) => { rec.push({ day, ...r }); console.log(`  [${r.kind}]`, JSON.stringify(r).slice(0, 220)); };
+  const checkpoint = async () => { await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
+  if (resuming) console.log(`  resuming day ${day}: ${rec.length} records kept, nations done: ${s.inProgress.done.join(",") || "none"}`);
   // Safe to re-run after a crash mid-day: only tick if the chain is behind.
   if ((await chain.config()).day < day) await chain.tick(day);
   console.log(`\nDAY ${day} | weather ${w.label} (NEAR ${w.price.toFixed(2)}, ${(w.change * 100).toFixed(1)}% wk of ${w.week}) pace x${w.pace.toFixed(2)} mistakes ${(w.mistake * 100).toFixed(0)}%`);
-  log({ kind: "weather", week: w.week, price: w.price, change: w.change, pace: w.pace });
+  if (!resuming) log({ kind: "weather", week: w.week, price: w.price, change: w.change, pace: w.pace });
 
   const onchain = await chain.clans();
   const live = onchain.filter((c) => c.alive);
@@ -48,6 +58,7 @@ for (let n = 0; n < days; n++) {
   }
 
   for (const oc of live) {
+    if (s.inProgress.done.includes(oc.id)) continue;
     const isNew = !s.clans[oc.id];
     const c = s.clans[oc.id] || W.initClan(s, oc);
     // A nation state seen for the first time: the 3D world plays its founding.
@@ -215,6 +226,9 @@ for (let n = 0; n < days; n++) {
     } catch (e) {
       log({ kind: "error", clan: oc.id, error: String(e.message || e).slice(0, 200) });
     }
+    s.inProgress.done.push(oc.id);
+    await checkpoint();
+    if (stopRequested) { console.log("  checkpointed; exiting so the next run resumes this day"); await store.close(); process.exit(0); }
   }
 
   // Gods' rulings -> fortune
@@ -236,11 +250,22 @@ for (let n = 0; n < days; n++) {
     const r = await chain.sweep();
     log({ kind: "sweep", tx: r.hash });
   }
+  await checkpoint();
   const root = W.merkleRoot(rec);
-  const rr = await chain.setRoot(day, root);
+  let rr;
+  try {
+    rr = await chain.setRoot(day, root);
+  } catch (e) {
+    // A run cut off right after set_root: the chain already holds this day's root.
+    if (!String(e.message).includes("already has a root")) throw e;
+    const onChain = await chain.getRoot(day);
+    console.log(`  root for day ${day} was already on chain (${onChain === root ? "same" : "DIFFERENT: records changed after it was set"})`);
+    rr = { hash: null };
+  }
   await store.saveDay(net, day, rec, root, rr.hash);
   s.roots[day] = root;
   s.day = day;
+  delete s.inProgress;
   await store.saveState(net, s);
   console.log(`  root ${root.slice(0, 16)}... on chain (${rr.hash}) | LLM so far: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);
 }

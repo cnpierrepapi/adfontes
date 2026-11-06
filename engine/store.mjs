@@ -60,7 +60,8 @@ export async function saveDay(net, day, records, root, tx) {
         // raw = exact text as written; leaf = canonical hash (what the day root is built from).
         await c.query("insert into records (net, day, idx, kind, data, leaf, raw) values ($1,$2,$3,$4,$5,$6,$7)", [net, day, i, r.kind, r, leafOf(r), JSON.stringify(r)]);
       }
-      await c.query("insert into roots (net, day, root, tx) values ($1,$2,$3,$4) on conflict (net, day) do update set root = $3, tx = $4", [net, day, root, tx]);
+      // root null = a checkpoint mid-day (records so far); the root row comes at the end of the day.
+      if (root) await c.query("insert into roots (net, day, root, tx) values ($1,$2,$3,$4) on conflict (net, day) do update set root = $3, tx = $4", [net, day, root, tx]);
       await c.query("commit");
     } catch (e) {
       await c.query("rollback");
