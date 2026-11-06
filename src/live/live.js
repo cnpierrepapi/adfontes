@@ -152,7 +152,6 @@ export async function startLive(canvas, hud, opts = {}) {
       controls.setTarget(t.x, t.y, t.z, true);
     }
   }
-  const easeOutBack = (x) => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
   function updateRising() {
     for (const [id, t0] of rising) {
       const isl = islands.get(id), k = (performance.now() - t0) / 6000;
@@ -162,8 +161,11 @@ export async function startLive(canvas, hud, opts = {}) {
         if (seedK >= 1) { scene.remove(isl.userData.seed); isl.userData.seed = null; }
       }
       const u = Math.max(0, Math.min(1, (k - 0.15) / 0.65)); // 0.9-4.8 s: the island rises
-      isl.userData.riseY = (1 - easeOutBack(u)) * -24;
-      isl.scale.setScalar(0.15 + 0.85 * Math.min(1, easeOutBack(u)));
+      // Slow start and finish (smoothstep) so you watch it climb out of the clouds,
+      // plus a small overshoot-and-settle in the last fifth.
+      const sm = u * u * (3 - 2 * u), settle = u > 0.8 ? Math.sin(((u - 0.8) / 0.2) * Math.PI) * 0.6 : 0;
+      isl.userData.riseY = (1 - sm) * -24 + settle;
+      isl.scale.setScalar(0.15 + 0.85 * sm);
       isl.rotation.y = (1 - u) * Math.PI * 1.5;
       const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
       if (town) town.scale.set(1, Math.max(0.01, Math.min(1, (k - 0.55) / 0.35)), 1); // the town builds up
