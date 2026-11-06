@@ -15,7 +15,7 @@ export function canon(v) {
 /** A record's leaf in the day's Merkle tree. */
 export const leafOf = (r) => sha256(canon(r));
 
-const FIELDS = ["batteries", "solar cells", "carbon capture"];
+export const FIELDS = ["batteries", "solar cells", "carbon capture"];
 const LETTERS = [["E", "I"], ["S", "N"], ["T", "F"], ["J", "P"]];
 
 /** First sight of a clan: give it a field, a temperament and a mindmap rooted at its field. */

@@ -15,6 +15,22 @@ import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mes
 CameraControls.install({ THREE });
 
 const FIELD_ANGLE = { batteries: -0.35, "solar cells": 1.75, "carbon capture": 3.85 };
+
+// Islands sit on ONE global hex grid (SPEC §12g). A cell is wider than the biggest island plus room
+// for a bridge, so no two nations can ever crowd each other. Each field owns a wedge of the grid
+// round the empty centre; nation k of a field takes the k-th nearest cell in its wedge, so a nation's
+// cell never changes when others are founded.
+const CELL = 14;
+const HEX = (() => {
+  const cells = [];
+  for (let q = -9; q <= 9; q++) for (let r = -9; r <= 9; r++) {
+    if (Math.abs(q + r) > 9 || (q === 0 && r === 0)) continue;
+    const x = CELL * (q + r / 2), z = CELL * (Math.sqrt(3) / 2) * r;
+    cells.push({ x, z, d: Math.hypot(x, z), a: Math.atan2(z, x) });
+  }
+  return cells;
+})();
+const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const FIELD_COLOR = { batteries: 0x2fa8ff, "solar cells": 0xffc93c, "carbon capture": 0x22c47e };
 
 export async function startLive(canvas, hud, opts = {}) {
@@ -101,18 +117,25 @@ export async function startLive(canvas, hud, opts = {}) {
   // Archipelagos by field. Every nation gets a PERMANENT slot: its rank by id within its field,
   // on a golden-angle spiral round the field's centre. Founding a new nation never moves others.
   const slotOf = (c) => W.clans.filter((x) => x.field === c.field && x.id < c.id).length;
-  const fieldCentre = (field) => {
-    const known = Object.keys(FIELD_ANGLE);
-    const a = FIELD_ANGLE[field] ?? (known.length + [...new Set(W.clans.map((x) => x.field))].indexOf(field)) * 2.1;
-    return { a, x: Math.cos(a) * 10, z: Math.sin(a) * 10 };
+  // Fields = the three known ones plus any new field in order of first appearance (a 4th field
+  // re-divides the wedges; that only happens when Season 2 adds one).
+  const fieldList = () => [...new Set([...Object.keys(FIELD_ANGLE), ...W.clans.map((x) => x.field).filter(Boolean)])];
+  const fieldAngle = (field) => {
+    const list = fieldList();
+    return list.length <= 3 && FIELD_ANGLE[field] != null ? FIELD_ANGLE[field] : FIELD_ANGLE.batteries + (list.indexOf(field) * Math.PI * 2) / list.length;
   };
+  function cellOf(c) {
+    const a = fieldAngle(c.field), half = Math.PI / fieldList().length;
+    const mine = HEX.filter((h) => { const d = angDiff(h.a, a); return d >= -half && d < half; })
+      .sort((p, q) => p.d - q.d || Math.abs(angDiff(p.a, a)) - Math.abs(angDiff(q.a, a)));
+    return mine[slotOf(c)] ?? mine[mine.length - 1];
+  }
   const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
   function addNation(c) {
-    const { a, x: cx, z: cz } = fieldCentre(c.field);
-    const k = slotOf(c);
+    const cell = cellOf(c);
     const r = 1.8 + Math.min(2.6, Math.sqrt(c.points || 1) * 0.24);
-    const ring = k === 0 ? 0 : 6.5 * Math.sqrt(k), b = a + k * 2.39996; // golden angle
-    const pos = new THREE.Vector3(cx + Math.cos(b) * ring, -1.5 + hash(c.id) * 4, cz + Math.sin(b) * ring);
+    // A little drift inside the cell so the grid doesn't read as a grid.
+    const pos = new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
     const status = !c.alive ? "dead" : c.total_in > avgIn * 1.0001 && live.length > 1 ? "rich" : c.total_in < avgIn / 4 ? "neglected" : "ok";
     const isl = buildClanIsland(c, r, status, sprays);
     isl.position.copy(pos);
@@ -231,7 +254,7 @@ export async function startLive(canvas, hud, opts = {}) {
   setInterval(async () => {
     try {
       const now = await api("world");
-      for (const c of now.clans) if (!islands.has(c.id)) { W.clans.push(c); addNation(c); riseNation(c.id); loadMind(c.id); }
+      for (const c of now.clans) if (!islands.has(c.id)) { W.clans.push(c); addNation(c); riseNation(c.id); loadMind(c.id); fitWorld(); }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       for (let d = lastDay + 1; d <= now.day; d++) fx.enqueue((await api(`day?d=${d}`)).records || []);
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
@@ -270,7 +293,7 @@ export async function startLive(canvas, hud, opts = {}) {
     else if (r.kind === "absorb") {
       loadMind(r.clan, r.points || []);
       for (const [id, isl] of islands) if (isl.userData.status === "dead") loadMind(id); // their sockets empty
-    } else if (r.kind === "gift") loadMind(r.clan); // a new scroll
+    } else if (r.kind === "gift" || r.kind === "founded") loadMind(r.clan); // a new scroll / a first root
   }
   // Hover a star or a scroll: a small card with the keyword and where it came from.
   const tip = document.createElement("div");
@@ -316,7 +339,31 @@ export async function startLive(canvas, hud, opts = {}) {
   controls.maxDistance = 95;
   controls.maxPolarAngle = Math.PI * 0.47; // never below the horizon
   controls.minPolarAngle = Math.PI * 0.08;
-  controls.setBoundary(new THREE.Box3(new THREE.Vector3(-45, -8, -45), new THREE.Vector3(45, 30, 45)));
+  // Bounds and the whole-world view grow with the occupied grid.
+  function fitWorld() {
+    let ext = 16;
+    for (const isl of islands.values()) ext = Math.max(ext, Math.hypot(isl.position.x, isl.position.z) + isl.userData.r);
+    const k = ext / 16;
+    // Pick the home angle where no island hides behind another: for each candidate azimuth,
+    // project every island onto the screen's horizontal axis and keep the angle whose closest
+    // pair is furthest apart (ties go to the original view).
+    const R = Math.hypot(22, 27) * k, H = 10 * Math.sqrt(k), pts = [...islands.values()].map((i) => i.position);
+    let best = Math.atan2(22, 27), bestScore = -1;
+    for (let deg = 0; deg < 360; deg += 5) {
+      const az = (deg * Math.PI) / 180, cx = Math.sin(az) * R, cz = Math.cos(az) * R;
+      const f = new THREE.Vector3(-cx, 2.5 - H, -cz).normalize(), right = new THREE.Vector3().crossVectors(f, new THREE.Vector3(0, 1, 0)).normalize();
+      const xs = pts.map((p) => { const v = new THREE.Vector3(p.x - cx, p.y - H, p.z - cz); return v.dot(right) / Math.max(1, v.dot(f)); }).sort((a, b) => a - b);
+      let score = Infinity;
+      for (let i = 1; i < xs.length; i++) score = Math.min(score, xs[i] - xs[i - 1]);
+      if (xs.length < 2) score = 0;
+      score -= Math.abs(angDiff(az, Math.atan2(22, 27))) * 0.004; // gentle pull toward the old view
+      if (score > bestScore + 1e-6) { bestScore = score; best = az; }
+    }
+    HOME.pos = [Math.sin(best) * R, H, Math.cos(best) * R];
+    controls.maxDistance = 95 * Math.max(1, k * 0.8);
+    controls.setBoundary(new THREE.Box3(new THREE.Vector3(-ext - 30, -8, -ext - 30), new THREE.Vector3(ext + 30, 30, ext + 30)));
+    scene.fog.near = 55 * Math.max(1, k * 0.7);
+  }
   controls.boundaryEnclosesCamera = false;
   controls.mouseButtons.left = CameraControls.ACTION.ROTATE;
   controls.mouseButtons.right = CameraControls.ACTION.TRUCK;
@@ -325,6 +372,7 @@ export async function startLive(canvas, hud, opts = {}) {
   controls.touches.two = CameraControls.ACTION.TOUCH_DOLLY_TRUCK;
   controls.touches.three = CameraControls.ACTION.TOUCH_TRUCK;
   const HOME = { pos: [22, 10, 27], target: [0, 2.5, 0] }; // low, lots of sky: floating, not a map
+  fitWorld();
   controls.setLookAt(...HOME.pos, ...HOME.target, false);
 
   let lastInput = performance.now(), flying = null, focusId = null;

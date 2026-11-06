@@ -7,7 +7,7 @@ import path from "node:path";
 import { JsonRpcProvider } from "near-api-js";
 import { NETWORKS } from "./engine/config.mjs";
 import * as store from "./engine/store.mjs";
-import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256 } from "./engine/world.mjs";
+import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
 
 const NET = process.env.SITE_NET || "testnet";
 const PORT = Number(process.env.PORT || 3000);
@@ -41,6 +41,13 @@ const api = {
         totals: { balance: near(totals.balance), owed: near(totals.liabilities), burned: near(totals.burned), fees_paid: near(totals.fees_paid) },
         clans: clans.map((c) => {
           const st = s.clans[c.id] || {};
+          // Founded but not seen by the engine yet: predict its field exactly as the engine will
+          // assign it (next field in turn, new nations in id order), so its island lands in the
+          // right place at once instead of moving after the next run.
+          if (!s.clans[c.id] && c.alive) {
+            const unseen = clans.filter((x) => x.alive && !s.clans[x.id]).map((x) => x.id).sort((a, b) => a - b);
+            st.field = FIELDS[(Object.keys(s.clans).length + unseen.indexOf(c.id)) % FIELDS.length];
+          }
           return {
             id: c.id, name: c.name, dao: c.dao, alive: c.alive, gods: c.gods.length,
             play: near(c.play), reserve: near(c.reserve), total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
