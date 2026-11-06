@@ -340,14 +340,19 @@ export async function startLive(canvas, hud, opts = {}) {
     if (bokeh) bokeh.uniforms.focus.value = controls.distance;
     if (composer) composer.render(); else renderer.render(scene, camera);
     labels.render(scene, camera);
-    // Plates fade out before they slide under the HUD bar at the top.
-    for (const isl of islands.values()) {
-      const el = isl.userData.plate;
-      if (!el) continue;
+    // Plates: fade before the HUD bar at the top, and when plates overlap on screen the
+    // nearer one wins (farther ones fade back), so names never stack into mush.
+    const shown = [];
+    const plates = [...islands.values()].filter((i) => i.userData.plate).map((isl) => {
       const v = isl.userData.plateObj.getWorldPosition(tmpV).project(camera);
-      const y = (1 - v.y) / 2 * canvas.clientHeight;
-      el.style.opacity = String(Math.max(0, Math.min(1, (y - 70) / 50)) * (isl.userData.plateFade ?? 1));
-      el.style.pointerEvents = y < 90 ? "none" : "auto";
+      return { isl, x: (v.x + 1) / 2 * canvas.clientWidth, y: (1 - v.y) / 2 * canvas.clientHeight, d: camera.position.distanceTo(isl.position), w: isl.userData.plate.offsetWidth || 220, h: isl.userData.plate.offsetHeight || 46 };
+    }).sort((a, b) => a.d - b.d);
+    for (const p of plates) {
+      const el = p.isl.userData.plate;
+      const hidden = shown.some((q) => Math.abs(q.x - p.x) < (q.w + p.w) / 2 - 6 && Math.abs(q.y - p.y) < (q.h + p.h) / 2 - 4);
+      if (!hidden) shown.push(p);
+      el.style.opacity = String(Math.max(0, Math.min(1, (p.y - 70) / 50)) * (p.isl.userData.plateFade ?? 1) * (hidden ? 0.12 : 1));
+      el.style.pointerEvents = p.y < 90 || hidden ? "none" : "auto";
     }
     requestAnimationFrame(frame);
   }
