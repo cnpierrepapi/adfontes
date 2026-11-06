@@ -69,12 +69,15 @@ export function grow(c, node, keywords) {
   for (const k of keywords) if (!c.owned[k] && !c.frontier[k] && k !== node) c.frontier[k] = { depth, parent: node };
 }
 
-/** Patron picks the next point. N or J leap/finish deep; S or P stay shallow and explore. */
+/** Patron picks the next point. N or J leap/finish deep; S or P stay shallow and explore.
+ *  Lines stop at CFG.maxDepth, so the mindmap branches instead of running off in one line. */
 export function pickTarget(c) {
-  const pts = Object.entries(c.frontier);
+  const pts = Object.entries(c.frontier).filter(([, v]) => v.depth <= CFG.maxDepth);
   if (!pts.length) return null;
   const deep = c.mbti[1] === "N" || c.mbti[3] === "J";
-  pts.sort((a, b) => (deep ? b[1].depth - a[1].depth : a[1].depth - b[1].depth) || Math.random() - 0.5);
+  // N/J: deepest first. S/P: anywhere on the map (still reaching drafting depth, just slower).
+  if (deep) pts.sort((a, b) => b[1].depth - a[1].depth || Math.random() - 0.5);
+  else pts.sort(() => Math.random() - 0.5);
   return pts[Math.floor(Math.random() * Math.min(3, pts.length))][0];
 }
 
@@ -123,4 +126,12 @@ export function learn(c, agent, node) {
   bump(node, CFG.learnStep);
   const parent = c.owned[node]?.parent;
   if (parent) bump(parent, CFG.learnStep / 2);
+}
+
+const STOP = new Set(["based", "using", "system", "systems", "method", "methods", "analysis", "material", "materials", "energy", "effect", "effects", "properties", "performance", "application", "applications", "structure", "process"]);
+const words = (k) => k.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 5 && !STOP.has(w));
+/** Two points are related if they share a significant word (graphene oxide ~ reduced graphene oxide). */
+export function related(a, b) {
+  const wa = new Set(words(a));
+  return a === b || words(b).some((w) => wa.has(w));
 }

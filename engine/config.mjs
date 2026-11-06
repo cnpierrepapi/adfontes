@@ -37,6 +37,7 @@ export const CFG = {
   // Work per day.
   scholarTurnsPerDay: 1, // per Scholar, scaled by pace/laziness/fortune/skill
   draftMinDepth: 3, // a draft needs a connected chain this deep
+  maxDepth: 6, // lines stop here; the Patron branches out instead
   draftEveryDays: 8, // a clan tries at most one draft this often
 
   // Starting team (SPEC §12b.13).

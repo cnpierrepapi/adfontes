@@ -93,6 +93,37 @@ for (let n = 0; n < days; n++) {
         log({ kind: "absorb", clan: oc.id, point: k, from: v.from });
       }
 
+      // Broker: once a day, buy a corpus from another clan whose papers are tagged with one of
+      // this clan's open points (OpenAlex keyword tags = the papers are really about it).
+      if (able("Broker").length && chance(Math.min(1, effort))) {
+        let deal = null;
+        for (const point of Object.keys(c.frontier)) {
+          for (const o of Object.values(s.clans)) {
+            if (!o.alive || o.id === oc.id) continue;
+            for (const [k, v] of Object.entries(o.owned)) {
+              const sc = s.corpora[v.corpus];
+              // Never sell a clan its own work, or a corpus it already holds.
+              const mine = sc && (sc.clan === oc.id || Object.values(c.owned).some((x) => x.corpus === sc.id));
+              if (sc?.clean && !mine && (k === point || sc.children.includes(point))) { deal = { point, seller: o.id, sellerPoint: k, sc }; break; }
+            }
+            if (deal) break;
+          }
+          if (deal) break;
+        }
+        if (deal) {
+          const holders = Object.values(s.clans).filter((o) => Object.values(o.owned).some((v) => s.corpora[v.corpus]?.children.includes(deal.point))).length;
+          const depth = c.frontier[deal.point].depth;
+          const price = +(CFG.corpusBasePrice * (1 + depth) * (live.length / (1 + holders))).toFixed(4);
+          if (toNear(oc.play) > price) {
+            const r = await chain.trade(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
+            c.owned[deal.point] = { depth, parent: c.frontier[deal.point].parent, corpus: deal.sc.id, how: `bought from clan ${deal.seller}` };
+            delete c.frontier[deal.point];
+            W.grow(c, deal.point, deal.sc.children);
+            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, tx: r.hash });
+          }
+        }
+      }
+
       // Research: each able Scholar takes its turns on the Patron's chosen point.
       for (const sch of able("Scholar")) {
         const target = pickTarget(c);
@@ -104,22 +135,8 @@ for (let n = 0; n < days; n++) {
           const parent = node ? c.frontier[node].parent : null;
 
           // Broker first: buy it from a clan that already has it (cheaper than research).
-          const sellerId = node && Object.values(s.clans).find((o) => o.alive && o.id !== oc.id && o.owned[node]?.corpus)?.id;
-          if (sellerId && able("Broker").length) {
-            const holders = Object.values(s.clans).filter((o) => o.owned[node]?.corpus).length;
-            const price = +(CFG.corpusBasePrice * (1 + c.frontier[node].depth) * (live.length / (1 + holders))).toFixed(4);
-            if (toNear(oc.play) > price) {
-              const r = await chain.trade(oc.id, sellerId, price, `corpus:${node}`);
-              const sc = s.corpora[s.clans[sellerId].owned[node].corpus];
-              c.owned[node] = { depth: c.frontier[node].depth, parent, corpus: sc.id, how: `bought from ${sellerId}` };
-              delete c.frontier[node];
-              W.grow(c, node, sc.children);
-              log({ kind: "trade", buyer: oc.id, seller: sellerId, point: node, price, tx: r.hash });
-              break;
-            }
-          }
-
-          const papers = await papersFor(parent ? `${parent} ${topic}` : topic, 10);
+          // Anchor every search to the clan's field so the line of knowledge doesn't drift off it.
+          const papers = await papersFor(topic === c.field ? topic : `${c.field} ${topic}`, 10);
           if (!papers.length) { delete c.frontier[topic]; break; }
           const corpus = await scholarTurn({ field: c.field, topic, parent, papers, temperament: c.mbti, whisper: oc.whisper });
           // A Trickster in the clan slips a made-up citation in.

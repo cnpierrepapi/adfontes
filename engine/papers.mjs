@@ -2,6 +2,9 @@
 import fs from "node:fs";
 
 const CACHE = "engine/state/papers-cache.json";
+// Free OpenAlex key = $1/day (~1,000 searches). Without one we share $0.10/day per IP address.
+const KEY = (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").match(/^OPENALEX_API_KEY=(\S+)/m)?.[1];
+const AUTH = KEY ? { Authorization: `Bearer ${KEY}` } : {};
 let cache = fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
 const save = () => fs.writeFileSync(CACHE, JSON.stringify(cache));
 
@@ -20,7 +23,12 @@ export async function papersFor(query, n = 10) {
   url.searchParams.set("filter", "open_access.is_oa:true,has_abstract:true,from_publication_date:2015-01-01");
   url.searchParams.set("per-page", String(n));
   url.searchParams.set("select", "id,title,publication_year,abstract_inverted_index,keywords");
-  const res = await fetch(url, { headers: { "User-Agent": "adfontes-engine" } });
+  let res;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    res = await fetch(url, { headers: { "User-Agent": "adfontes-engine", ...AUTH } });
+    if (res.status !== 429 && res.status < 500) break;
+    await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt)); // 2s, 4s, 8s, 16s
+  }
   if (!res.ok) throw new Error(`OpenAlex ${res.status}`);
   const j = await res.json();
   const papers = j.results.map((w) => ({
@@ -37,6 +45,6 @@ export async function papersFor(query, n = 10) {
 
 /** Does this OpenAlex work id exist? (the Warden's citation check). */
 export async function paperExists(id) {
-  const res = await fetch(`https://api.openalex.org/works/${id}?select=id`, { headers: { "User-Agent": "adfontes-engine" } });
+  const res = await fetch(`https://api.openalex.org/works/${id}?select=id`, { headers: { "User-Agent": "adfontes-engine", ...AUTH } });
   return res.ok;
 }
