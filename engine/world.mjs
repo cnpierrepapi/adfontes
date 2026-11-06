@@ -1,0 +1,126 @@
+// World state kept off chain (Neon later; a JSON file for the testnet loop), the clan mindmap,
+// the Warden's checks and the daily provenance root.
+import crypto from "node:crypto";
+import fs from "node:fs";
+import { CFG } from "./config.mjs";
+
+export const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
+
+export function load(net) {
+  fs.mkdirSync(`engine/state/${net}`, { recursive: true });
+  const f = `engine/state/${net}.json`;
+  return fs.existsSync(f)
+    ? JSON.parse(fs.readFileSync(f, "utf8"))
+    : { day: 0, clans: {}, corpora: {}, drafts: {}, gifts: {}, tools: {}, ruins: {}, roots: {}, nextId: 1 };
+}
+export function save(net, s) {
+  fs.writeFileSync(`engine/state/${net}.json`, JSON.stringify(s, null, 1));
+}
+
+const FIELDS = ["batteries", "solar cells", "carbon capture"];
+const LETTERS = [["E", "I"], ["S", "N"], ["T", "F"], ["J", "P"]];
+
+/** First sight of a clan: give it a field, a temperament and a mindmap rooted at its field. */
+export function initClan(s, clan) {
+  const n = Object.keys(s.clans).length;
+  const field = FIELDS[n % FIELDS.length];
+  s.clans[clan.id] = {
+    id: clan.id,
+    name: clan.name,
+    field,
+    mbti: LETTERS.map((p) => p[Math.random() < 0.5 ? 0 : 1]).join(""),
+    fortune: 1,
+    tricksters: 0,
+    lastDraftDay: -99,
+    lastUpkeepDay: 0,
+    skills: {}, // agent name -> { node: skill }
+    hasKit: false,
+    // mindmap: owned points and the frontier (points one step out, not yet owned)
+    owned: { [field]: { depth: 0, parent: null, corpus: null, how: "root" } },
+    frontier: {},
+    alive: true,
+  };
+  return s.clans[clan.id];
+}
+
+/** Depth of the deepest owned point whose whole chain back to the root is owned. */
+export function chainDepth(c) {
+  let best = 0;
+  for (const [k, v] of Object.entries(c.owned)) {
+    let d = v.depth, cur = k, ok = true;
+    while (c.owned[cur]?.parent) { cur = c.owned[cur].parent; if (!c.owned[cur]) { ok = false; break; } }
+    if (ok && d > best) best = d;
+  }
+  return best;
+}
+
+/** The connected chain (root..deepest) as a list of owned points. */
+export function deepestChain(c) {
+  let deepest = null;
+  for (const [k, v] of Object.entries(c.owned)) if (!deepest || v.depth > c.owned[deepest].depth) deepest = k;
+  const chain = [];
+  for (let cur = deepest; cur; cur = c.owned[cur]?.parent) chain.unshift(cur);
+  return chain;
+}
+
+/** Add a corpus's keywords as new frontier points one step out from `node`. */
+export function grow(c, node, keywords) {
+  const depth = c.owned[node].depth + 1;
+  for (const k of keywords) if (!c.owned[k] && !c.frontier[k] && k !== node) c.frontier[k] = { depth, parent: node };
+}
+
+/** Patron picks the next point. N or J leap/finish deep; S or P stay shallow and explore. */
+export function pickTarget(c) {
+  const pts = Object.entries(c.frontier);
+  if (!pts.length) return null;
+  const deep = c.mbti[1] === "N" || c.mbti[3] === "J";
+  pts.sort((a, b) => (deep ? b[1].depth - a[1].depth : a[1].depth - b[1].depth) || Math.random() - 0.5);
+  return pts[Math.floor(Math.random() * Math.min(3, pts.length))][0];
+}
+
+/** Warden on a corpus: every citation must be one of the papers the Scholar was given. */
+export function wardenCorpus(corpus, paperIds) {
+  const valid = new Set(paperIds);
+  const cites = corpus.findings.flatMap((f) => f.cites);
+  const fake = cites.filter((x) => !valid.has(x));
+  return { clean: fake.length === 0 && cites.length > 0, cites: cites.length, fake };
+}
+
+/** Warden on a draft: claims cite only the chain; every figure numeral is explained in the text. */
+export function wardenDraft(draft, chainNodes) {
+  const allowed = new Set(chainNodes);
+  const problems = [];
+  for (const [i, cl] of draft.claims.entries()) {
+    const bad = cl.supported_by.filter((x) => !allowed.has(x));
+    if (!cl.supported_by.length) problems.push(`claim ${i + 1} cites nothing`);
+    if (bad.length) problems.push(`claim ${i + 1} cites outside the chain: ${bad.join(", ")}`);
+  }
+  if (draft.figures.length < 2) problems.push("fewer than 2 figures");
+  for (const fig of draft.figures) {
+    const nums = [...fig.svg.matchAll(/<text[^>]*>\s*(\d{1,3})\s*<\/text>/g)].map((m) => m[1]);
+    if (!nums.length) problems.push(`${fig.label} has no reference numerals`);
+    for (const n of new Set(nums)) if (!new RegExp(`\\(${n}\\)`).test(draft.description)) problems.push(`${fig.label}: numeral ${n} never explained`);
+  }
+  return { passed: problems.length === 0, problems };
+}
+
+/** Merkle root over the day's records (sha256, last leaf doubled on odd levels). */
+export function merkleRoot(records) {
+  let level = records.map((r) => sha256(JSON.stringify(r)));
+  if (!level.length) return sha256("empty");
+  while (level.length > 1) {
+    const next = [];
+    for (let i = 0; i < level.length; i += 2) next.push(sha256(level[i] + (level[i + 1] ?? level[i])));
+    level = next;
+  }
+  return level[0];
+}
+
+/** Learning (F5): +5% in a topic per clean output, half to its neighbours, capped. */
+export function learn(c, agent, node) {
+  const sk = (c.skills[agent] ||= {});
+  const bump = (k, v) => (sk[k] = Math.min(CFG.learnCap, (sk[k] || 0) + v));
+  bump(node, CFG.learnStep);
+  const parent = c.owned[node]?.parent;
+  if (parent) bump(parent, CFG.learnStep / 2);
+}

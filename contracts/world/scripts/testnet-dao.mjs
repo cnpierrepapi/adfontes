@@ -7,7 +7,7 @@ import { Account, JsonRpcProvider } from "near-api-js";
 import fs from "node:fs";
 
 const [WORLD, GOD1, GOD2, OPERATOR] = process.argv.slice(2);
-const provider = new JsonRpcProvider({ url: "https://rpc.testnet.near.org" });
+const provider = new JsonRpcProvider({ url: "https://rpc.testnet.fastnear.com" });
 const acct = (id) => {
   const k = JSON.parse(fs.readFileSync(`.keys/${id}.json`, "utf8"));
   return new Account(k.account_id, provider, k.private_key);

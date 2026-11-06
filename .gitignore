@@ -11,3 +11,4 @@ stills
 .env*
 
 contracts/*/target
+engine/state/

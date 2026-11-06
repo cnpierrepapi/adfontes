@@ -17,7 +17,7 @@ const get = (k) => {
   if (!l) throw new Error("missing " + k);
   return l.slice(k.length + 1).trim();
 };
-const provider = new JsonRpcProvider({ url: "https://rpc.mainnet.near.org" });
+const provider = new JsonRpcProvider({ url: "https://rpc.mainnet.fastnear.com" });
 const N = (x) => BigInt(Math.round(x * 1000)) * 10n ** 21n;
 const fmt = (y) => (Number(BigInt(y) / 10n ** 21n) / 1000).toFixed(3);
 const T = (t) => (BigInt(t) * 10n ** 12n).toString();

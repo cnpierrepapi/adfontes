@@ -2,7 +2,7 @@
 import { Account, JsonRpcProvider } from "near-api-js";
 import fs from "node:fs";
 
-export const RPC_URL = "https://rpc.testnet.near.org";
+export const RPC_URL = "https://rpc.testnet.fastnear.com";
 export const provider = new JsonRpcProvider({ url: RPC_URL });
 
 export function loadAccount(id) {
