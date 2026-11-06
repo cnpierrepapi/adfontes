@@ -6,28 +6,34 @@ import { says } from "../says.js";
 
 // Colours above 1.0 so only these effects bloom (bloom threshold sits just above white).
 const HDR = (r, g, b) => new THREE.Color(r, g, b);
-const GOLD = HDR(3.2, 2.4, 0.9), RED = HDR(3.4, 0.5, 0.6), CYAN = HDR(0.8, 2.6, 3.2), WHITE = HDR(2.6, 2.6, 2.4), VIOLET = HDR(1.9, 1.1, 3.4);
+const GOLD = HDR(2.2, 1.6, 0.5), RED = HDR(3.4, 0.5, 0.6), CYAN = HDR(0.8, 2.6, 3.2), WHITE = HDR(2.6, 2.6, 2.4), VIOLET = HDR(1.9, 1.1, 3.4);
 
 export function createEffects({ scene, islands, curves, clanName }) {
   const live = [];
   const add = (fx) => live.push(fx);
   const top = (isl) => isl.position.clone().add(new THREE.Vector3(0, 0.6, 0));
 
+  // One bubble per island at a time, above its name plate, one sentence long.
+  const current = new Map();
   function bubble(isl, text, kind) {
     if (!isl) return;
+    current.get(isl)?.();
+    if (text.length > 110) text = text.slice(0, 107).replace(/\s+\S*$/, "") + "…";
     const el = document.createElement("div");
     el.className = `bubble ${kind}`;
     el.textContent = text;
     const obj = new CSS2DObject(el);
     const r = isl.userData.r;
-    obj.position.set((Math.random() - 0.5) * r, r * 1.3 + 3.4, 0);
+    obj.position.set(0, r * 1.3 + 4.4, 0);
     isl.add(obj);
     const t0 = performance.now();
+    let gone = false;
+    current.set(isl, () => { gone = true; });
     add(() => {
-      const k = (performance.now() - t0) / 7000;
-      obj.position.y = r * 1.3 + 3.4 + k * 3.2;
+      const k = gone ? 1 : (performance.now() - t0) / 6000;
+      obj.position.y = r * 1.3 + 4.4 + k * 2.4;
       el.style.opacity = String(k < 0.1 ? k * 10 : k > 0.75 ? Math.max(0, (1 - k) * 4) : 1);
-      if (k >= 1) { isl.remove(obj); el.remove(); return false; }
+      if (k >= 1) { isl.remove(obj); el.remove(); if (current.get(isl) && gone === false) current.delete(isl); return false; }
       return true;
     });
   }
@@ -77,14 +83,14 @@ export function createEffects({ scene, islands, curves, clanName }) {
   // A beam to the gods (a gift). Gold if the Warden passed it, red if not.
   function beam(isl, color) {
     if (!isl) return;
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.5, 60, 16, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.26, 60, 16, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     scene.add(m);
     const t0 = performance.now(), base = top(isl);
     add(() => {
       const k = (performance.now() - t0) / 4200;
       m.position.copy(base).y += 30;
       m.scale.x = m.scale.z = 1 + Math.sin(k * Math.PI) * 0.6;
-      m.material.opacity = Math.sin(Math.min(1, k) * Math.PI) * 0.75;
+      m.material.opacity = Math.sin(Math.min(1, k) * Math.PI) * 0.45;
       if (k >= 1) { scene.remove(m); return false; }
       return true;
     });

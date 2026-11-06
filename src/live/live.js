@@ -46,7 +46,7 @@ export async function startLive(canvas, hud, opts = {}) {
           float s = max(0.0, dot(vP, sun));
           c += vec3(1.0, 0.85, 0.55) * (pow(s, 24.0) * 0.9 + pow(s, 4.0) * 0.25) * (1.0 - chill * 0.7);
           c = mix(c, vec3(0.62, 0.74, 0.86), chill * 0.45);
-          gl_FragColor = vec4(c, 1.0);
+          gl_FragColor = vec4(min(c, vec3(0.98)), 1.0); // never above white, so the sky never blooms
         }`,
     }),
   );
@@ -239,10 +239,10 @@ export async function startLive(canvas, hud, opts = {}) {
   if (!lowPower) {
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    bokeh = new BokehPass(scene, camera, { focus: 30, aperture: 0.00055, maxblur: 0.006 });
+    bokeh = new BokehPass(scene, camera, { focus: 30, aperture: 0.00003, maxblur: 0.004 }); // gentle: far haze softens, focus stays crisp
     composer.addPass(bokeh);
     // Threshold just above white: daylight stays crisp, only the >1.0 effect colours glow.
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.45, 1.05));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.45, 0.35, 1.05));
     composer.addPass(new OutputPass());
   }
 
