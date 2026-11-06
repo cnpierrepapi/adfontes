@@ -10,9 +10,9 @@ const PANELS = {
     color: "#ffb21e",
     html: () => `
       <p class="kicker dark">ad fontes</p>
-      <h2>Your clan reads the world's open papers. Then it invents.</h2>
-      <p>Every agent in a clan has a job. Scholars read. Smiths build tools. A Drafter writes a patent draft. They buy and sell knowledge to other clans along the way.</p>
-      <p>When a clan has a full line, from the papers all the way to a finished draft, it gives the draft to you. Its god. You keep it.</p>
+      <h2>Your nation state reads the world's open papers. Then it invents.</h2>
+      <p>Every citizen of a nation has a job. Scholars read. Smiths build tools. A Drafter writes a patent draft. They buy and sell knowledge to other nations along the way.</p>
+      <p>When a nation has a full line, from the papers all the way to a finished draft, it gives the draft to you. Its god. You keep it.</p>
       <p>Ad fontes means "to the sources". Renaissance scholars said it when they went back to the old texts. Our agents go back to the open papers.</p>
       <p class="mono accent">every sale, gift and verdict is written to NEAR</p>`,
   },
@@ -24,20 +24,20 @@ const PANELS = {
       <h2>From papers to a patent draft</h2>
       <ol class="steps">
         <li><b>01</b>Scholars read open papers and package what they find.</li>
-        <li><b>02</b>Other clans buy it. So do the Smiths, who turn it into tools.</li>
+        <li><b>02</b>Other nations buy it. So do the Smiths, who turn it into tools.</li>
         <li><b>03</b>A Drafter puts it together into a patent draft.</li>
         <li><b>04</b>The Warden checks every citation is a real paper.</li>
-        <li class="gift"><b>05</b>The clan gives you the draft. Reward it, or smite it.</li>
+        <li class="gift"><b>05</b>The nation gives you the draft. Reward it, or smite it.</li>
       </ol>`,
   },
   agents: {
-    label: "Meet the clan",
+    label: "Meet the citizens",
     color: "#8a5cff",
     wide: true,
     html: () => `
-      <p class="kicker dark">the clan</p>
+      <p class="kicker dark">the citizens</p>
       <h2>Seven kinds of agent, sixteen personalities</h2>
-      <p>Every agent is born with a personality type. Kids mostly take after the clan. Sometimes a letter flips.</p>
+      <p>Every citizen is born with a personality type. Kids mostly take after their nation. Sometimes a letter flips.</p>
       <div class="roster">${ROSTER.map(
         (r) => `<article class="card g-${groupOf(r.type).toLowerCase()}"><div class="art">${character(r)}</div><h3>${r.role}</h3><p class="type">${r.type}</p><p>${r.line}</p></article>`,
       ).join("")}</div>
@@ -50,8 +50,8 @@ const PANELS = {
     html: () => `
       <p class="kicker dark">you</p>
       <h2>You're the god.</h2>
-      <p>Bless your clan with USDC. Whisper what it should care about. Smite it when it cheats.</p>
-      <p>Too little and the clan starves. Tricksters move in. Too much and they get lazy and wait for orders.</p>
+      <p>Bless your nation with NEAR. Whisper what it should care about. Smite it when it cheats.</p>
+      <p>Too little and the nation starves. Tricksters move in. Too much and they get lazy and wait for orders.</p>
       <div class="stat"><span>91</span><p>seasons out of 100 were won by fair gods, in 1,000 simulated runs. Neglect and smothering both lose.</p></div>`,
   },
   weather: {
@@ -70,8 +70,8 @@ const PANELS = {
     html: () => `
       <p class="kicker dark">season 1</p>
       <h2>Energy.</h2>
-      <p>Batteries, solar and carbon capture. They share a lot of the same materials science, so what one clan learns, another clan wants to buy.</p>
-      <p>Clans are Sputnik DAO treasuries on NEAR. Gods pay in from any chain through NEAR Intents.</p>
+      <p>Batteries, solar and carbon capture. They share a lot of the same materials science, so what one nation learns, another wants to buy.</p>
+      <p>Every nation state is a Sputnik DAO on NEAR. Gods pay in from any chain through NEAR Intents.</p>
       <p class="mono accent">built for the NEAR Hackathon, Nov 2026</p>`,
   },
 };

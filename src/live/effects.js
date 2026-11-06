@@ -8,7 +8,7 @@ import { says } from "../says.js";
 const HDR = (r, g, b) => new THREE.Color(r, g, b);
 const GOLD = HDR(2.2, 1.6, 0.5), RED = HDR(3.4, 0.5, 0.6), CYAN = HDR(0.8, 2.6, 3.2), WHITE = HDR(2.6, 2.6, 2.4), VIOLET = HDR(1.9, 1.1, 3.4);
 
-export function createEffects({ scene, islands, curves, clanName }) {
+export function createEffects({ scene, islands, curves, clanName, onFounded }) {
   const live = [];
   const add = (fx) => live.push(fx);
   const top = (isl) => isl.position.clone().add(new THREE.Vector3(0, 0.6, 0));
@@ -168,6 +168,7 @@ export function createEffects({ scene, islands, curves, clanName }) {
       case "absorb": debris(deadIsland(), islands.get(r.clan)); bubble(islands.get(r.clan), text, "absorb"); break;
       case "tool": ring(islands.get(r.clan), VIOLET); bubble(islands.get(r.clan), text, "tool"); break;
       case "ruling": ring(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift"); break;
+      case "founded": onFounded?.(r.clan); bubble(islands.get(r.clan), text, "gift"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }
   }

@@ -97,37 +97,79 @@ export async function startLive(canvas, hud, opts = {}) {
   const live = W.clans.filter((c) => c.alive);
   const avgIn = live.reduce((a, c) => a + (c.total_in || 0), 0) / Math.max(1, live.length);
 
-  // Archipelagos by field; clans of a field ring around its centre.
-  const byField = {};
-  for (const c of W.clans) (byField[c.field || "unknown"] ||= []).push(c);
-  for (const [field, clans] of Object.entries(byField)) {
-    const a = FIELD_ANGLE[field] ?? Object.keys(byField).indexOf(field) * 2.1;
-    const cx = Math.cos(a) * 10, cz = Math.sin(a) * 10;
-    clans.forEach((c, i) => {
-      const r = 1.8 + Math.min(2.6, Math.sqrt(c.points || 1) * 0.24);
-      const ring = clans.length === 1 ? 0 : 4 + r;
-      const b = (i / clans.length) * Math.PI * 2 + a;
-      const pos = new THREE.Vector3(cx + Math.cos(b) * ring, range(-1.5, 2.5), cz + Math.sin(b) * ring);
-      const status = !c.alive ? "dead" : c.total_in > avgIn * 1.0001 && live.length > 1 ? "rich" : c.total_in < avgIn / 4 ? "neglected" : "ok";
-      const isl = buildClanIsland(c, r, status, sprays);
-      isl.position.copy(pos);
-      isl.userData = { ...isl.userData, clan: c, baseY: pos.y, bob: Math.random() * Math.PI * 2, r, status };
-      world.add(isl);
-      islands.set(c.id, isl);
+  // Archipelagos by field. Every nation gets a PERMANENT slot: its rank by id within its field,
+  // on a golden-angle spiral round the field's centre. Founding a new nation never moves others.
+  const slotOf = (c) => W.clans.filter((x) => x.field === c.field && x.id < c.id).length;
+  const fieldCentre = (field) => {
+    const known = Object.keys(FIELD_ANGLE);
+    const a = FIELD_ANGLE[field] ?? (known.length + [...new Set(W.clans.map((x) => x.field))].indexOf(field)) * 2.1;
+    return { a, x: Math.cos(a) * 10, z: Math.sin(a) * 10 };
+  };
+  const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+  function addNation(c) {
+    const { a, x: cx, z: cz } = fieldCentre(c.field);
+    const k = slotOf(c);
+    const r = 1.8 + Math.min(2.6, Math.sqrt(c.points || 1) * 0.24);
+    const ring = k === 0 ? 0 : 6.5 * Math.sqrt(k), b = a + k * 2.39996; // golden angle
+    const pos = new THREE.Vector3(cx + Math.cos(b) * ring, -1.5 + hash(c.id) * 4, cz + Math.sin(b) * ring);
+    const status = !c.alive ? "dead" : c.total_in > avgIn * 1.0001 && live.length > 1 ? "rich" : c.total_in < avgIn / 4 ? "neglected" : "ok";
+    const isl = buildClanIsland(c, r, status, sprays);
+    isl.position.copy(pos);
+    isl.userData = { ...isl.userData, clan: c, baseY: pos.y, bob: hash(c.id + 7) * Math.PI * 2, r, status };
+    world.add(isl);
+    islands.set(c.id, isl);
 
-      // Floating name plate (always faces you).
-      const plate = document.createElement("button");
-      plate.className = `plate ${status}`;
-      plate.innerHTML = `<b></b><span></span>`;
-      plate.querySelector("b").textContent = c.name;
-      plate.querySelector("span").textContent = `${c.field ?? ""} · ${c.points} points${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : ""}`;
-      plate.addEventListener("click", () => flyTo(c.id));
-      const lbl = new CSS2DObject(plate);
-      lbl.position.set(0, r * 1.3 + 2.2, 0);
-      isl.add(lbl);
-      isl.userData.plate = plate;
-      isl.userData.plateObj = lbl;
-    });
+    // Floating name plate (always faces you).
+    const plate = document.createElement("button");
+    plate.className = `plate ${status}`;
+    plate.innerHTML = `<b></b><span></span>`;
+    plate.querySelector("b").textContent = c.name;
+    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.points} points${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : ""}`;
+    plate.addEventListener("click", () => flyTo(c.id));
+    const lbl = new CSS2DObject(plate);
+    lbl.position.set(0, r * 1.3 + 2.2, 0);
+    isl.add(lbl);
+    isl.userData.plate = plate;
+    isl.userData.plateObj = lbl;
+    return isl;
+  }
+  for (const c of W.clans) addNation(c);
+
+  // Founding: a seed of light falls, the island rises out of the clouds turning, its town builds
+  // up, then the plate fades in. Plays once per nation (on its "founded" record or when it appears).
+  const rising = new Map();
+  function riseNation(id) {
+    const isl = islands.get(id);
+    if (!isl || isl.userData.rose) return;
+    isl.userData.rose = true;
+    rising.set(id, performance.now());
+    const seed = new THREE.Mesh(new THREE.SphereGeometry(0.35, 14, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.3, 1.2) }));
+    scene.add(seed);
+    isl.userData.seed = seed;
+    if (controls.distance > 26) { // watching the whole world: drift toward the new nation
+      const t = new THREE.Vector3(); controls.getTarget(t);
+      t.lerp(isl.position, 0.45);
+      controls.setTarget(t.x, t.y, t.z, true);
+    }
+  }
+  const easeOutBack = (x) => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
+  function updateRising() {
+    for (const [id, t0] of rising) {
+      const isl = islands.get(id), k = (performance.now() - t0) / 6000;
+      const seedK = Math.min(1, k / 0.2); // 0-1.2 s: the seed falls into the cloud bank
+      if (isl.userData.seed) {
+        isl.userData.seed.position.set(isl.position.x, isl.userData.baseY + 26 - seedK * 46, isl.position.z);
+        if (seedK >= 1) { scene.remove(isl.userData.seed); isl.userData.seed = null; }
+      }
+      const u = Math.max(0, Math.min(1, (k - 0.15) / 0.65)); // 0.9-4.8 s: the island rises
+      isl.userData.riseY = (1 - easeOutBack(u)) * -24;
+      isl.scale.setScalar(0.15 + 0.85 * Math.min(1, easeOutBack(u)));
+      isl.rotation.y = (1 - u) * Math.PI * 1.5;
+      const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
+      if (town) town.scale.set(1, Math.max(0.01, Math.min(1, (k - 0.55) / 0.35)), 1); // the town builds up
+      isl.userData.plateFade = Math.max(0, Math.min(1, (k - 0.8) / 0.2));
+      if (k >= 1) { rising.delete(id); isl.userData.riseY = 0; isl.userData.plateFade = 1; isl.scale.setScalar(1); isl.rotation.y = 0; }
+    }
   }
 
   // Bridges = trade routes; beads of light run seller -> buyer.
@@ -164,13 +206,14 @@ export async function startLive(canvas, hud, opts = {}) {
   scene.fog.color.lerp(new THREE.Color(0xb7c7d4), chill * 0.55);
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
-  const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `clan ${id}`;
-  const fx = createEffects({ scene, islands, curves, clanName });
+  const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id) });
   let lastDay = W.day;
   api(`day?d=${W.day}`).then((d) => fx.enqueue(d.records || [])).catch(() => {});
   setInterval(async () => {
     try {
       const now = await api("world");
+      for (const c of now.clans) if (!islands.has(c.id)) { W.clans.push(c); addNation(c); riseNation(c.id); }
       for (let d = lastDay + 1; d <= now.day; d++) fx.enqueue((await api(`day?d=${d}`)).records || []);
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
     } catch {}
@@ -284,7 +327,8 @@ export async function startLive(canvas, hud, opts = {}) {
 
     fallUniforms.uTime.value = t;
     for (const s of sprays) s(t);
-    for (const isl of islands.values()) isl.position.y = isl.userData.baseY + Math.sin(t * 0.45 + isl.userData.bob) * 0.3;
+    updateRising();
+    for (const isl of islands.values()) isl.position.y = isl.userData.baseY + (isl.userData.riseY || 0) + Math.sin(t * 0.45 + isl.userData.bob) * 0.3;
     const sp = sea.geometry.attributes.position;
     for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
     sp.needsUpdate = true;
@@ -300,13 +344,13 @@ export async function startLive(canvas, hud, opts = {}) {
       if (!el) continue;
       const v = isl.userData.plateObj.getWorldPosition(tmpV).project(camera);
       const y = (1 - v.y) / 2 * canvas.clientHeight;
-      el.style.opacity = String(Math.max(0, Math.min(1, (y - 70) / 50)));
+      el.style.opacity = String(Math.max(0, Math.min(1, (y - 70) / 50)) * (isl.userData.plateFade ?? 1));
       el.style.pointerEvents = y < 90 ? "none" : "auto";
     }
     requestAnimationFrame(frame);
   }
   frame();
-  return { world: W, flyTo, home, controls, camera, fx };
+  return { world: W, flyTo, home, controls, camera, fx, riseNation };
 }
 
 // A clan's island: size from its mindmap, town from its state.

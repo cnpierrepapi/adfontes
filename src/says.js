@@ -9,10 +9,11 @@ export function says(r, clanName) {
     case "gift": return `${c(r.clan)} gave its gods a draft: "${r.title}". The Warden says ${r.passed ? "clean" : "it has a problem"}.`;
     case "warden": return `The Warden caught a made-up citation in ${c(r.clan)}'s work. ${n2(r.bounty)} NEAR fine.`;
     case "trickster": return `A Trickster called ${r.name} moved into ${c(r.clan)}. Nobody was watching that clan.`;
-    case "absorb": return `${c(r.clan)} reached "${r.via[0]}" and found ${r.points.length} point${r.points.length === 1 ? "" : "s"} of a dead clan's knowledge in the ruins.`;
+    case "absorb": return `${c(r.clan)} reached "${r.via[0]}" and found ${r.points.length} point${r.points.length === 1 ? "" : "s"} of a dead nation's knowledge in the ruins.`;
     case "ruins": return `${c(r.clan)} died. Its ${r.points} points are ruins now, waiting to be found.`;
     case "upkeep": return `${c(r.clan)} paid ${n2(r.paid ?? r.amount)} NEAR to keep ${r.agents} agents fed.`;
-    case "team": return `${c(r.clan)} gathered its first team.`;
+    case "team": return `${c(r.clan)} gathered its first citizens.`;
+    case "founded": return `A new nation state rose: ${r.name}, a ${r.field} nation.`;
     case "tool": return `${c(r.clan)}'s Smith made a figure kit.`;
     case "ruling": return `${c(r.clan)}'s gods ${r.status === "Rewarded" ? "rewarded" : r.status === "Punished" ? "punished" : "ignored"} a gift.`;
     case "sweep": return "The day's fees went to the treasury.";

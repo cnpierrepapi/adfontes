@@ -48,7 +48,10 @@ for (let n = 0; n < days; n++) {
   }
 
   for (const oc of live) {
+    const isNew = !s.clans[oc.id];
     const c = s.clans[oc.id] || W.initClan(s, oc);
+    // A nation state seen for the first time: the 3D world plays its founding.
+    if (isNew) log({ kind: "founded", clan: oc.id, name: oc.name, field: c.field, gods: oc.gods.length });
     try {
       // Team
       // Top the clan up to the full starting team (only on first sight; the dead stay dead).

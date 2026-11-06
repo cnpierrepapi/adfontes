@@ -11,7 +11,7 @@ const api = (p) => fetch(`/api/${p}`, { cache: "no-store" }).then((r) => r.json(
 const n2 = (x) => (Math.round(x * 1000) / 1000).toString();
 
 let W = null;
-const clanName = (id) => W?.clans.find((c) => c.id === Number(id))?.name ?? `clan ${id}`;
+const clanName = (id) => W?.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
 
 const says = (r) => saysWith(r, clanName);
 
@@ -63,7 +63,7 @@ async function loadDrafts() {
             ),
           ),
         )
-      : [el("li", { className: "empty", textContent: "No drafts yet. A clan needs a line three steps deep before it can write one." })]),
+      : [el("li", { className: "empty", textContent: "No drafts yet. A nation needs a line three steps deep before it can write one." })]),
   );
 }
 
@@ -87,7 +87,7 @@ async function showDraft(id) {
     el("div", { className: "figs" }, ...dr.figures.map(fig)),
     el("h4", { textContent: "Claims" }),
     el("ol", {}, ...dr.claims.map((c) => el("li", { textContent: c.text }))),
-    el("p", { className: d.passed ? "" : "problems", textContent: d.passed ? "The Warden checked every claim against the clan's line of knowledge and every number in the drawings against the text. Clean." : `The Warden caught: ${d.problems.join("; ")}` }),
+    el("p", { className: d.passed ? "" : "problems", textContent: d.passed ? "The Warden checked every claim against the nation's line of knowledge and every number in the drawings against the text. Clean." : `The Warden caught: ${d.problems.join("; ")}` }),
   );
   v.hidden = false;
   v.scrollIntoView({ behavior: "smooth", block: "start" });
