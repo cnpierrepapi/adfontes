@@ -27,6 +27,11 @@ const STUNT_DAYS: u32 = 3;
 const GAS_DAO_CREATE: Gas = Gas::from_tgas(150);
 const GAS_CALLBACK: Gas = Gas::from_tgas(20);
 const GAS_DAO_CHECK: Gas = Gas::from_tgas(10);
+const GAS_DAO_PROPOSE: Gas = Gas::from_tgas(20);
+const GAS_DAO_VOTE: Gas = Gas::from_tgas(40);
+const GAS_ON_PROPOSED: Gas = Gas::from_tgas(60);
+/// Sputnik proposal bond we set in every clan's policy: 0.01 NEAR.
+const DAO_BOND: u128 = 10_000_000_000_000_000_000_000;
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
@@ -93,6 +98,8 @@ pub struct Clan {
     pub born_day: u32,
     /// Gifts the Warden passed. Most wins the season.
     pub clean_gifts: u32,
+    /// The gods' latest whisper (temperament: risk, honesty, focus), set by DAO vote.
+    pub whisper: String,
 }
 
 #[near(serializers = [borsh, json])]
@@ -132,6 +139,8 @@ pub struct Config {
     pub staking_deposit: U128,
     pub min_found: U128,
     pub day: u32,
+    pub season: String,
+    pub paused: bool,
 }
 
 #[near(serializers = [json])]
@@ -170,6 +179,10 @@ pub struct World {
     fees_paid: u128,
     /// Upkeep leaves the clans and goes to no one. No function can move it.
     burned: u128,
+    /// e.g. "S1: energy". The season winner picks the next field; the owner records it.
+    season: String,
+    /// Owner can stop NEW money (found, bless) in an emergency. Withdrawals never stop.
+    paused: bool,
 }
 
 uint::construct_uint! {
@@ -218,6 +231,8 @@ impl World {
             fees_pending: 0,
             fees_paid: 0,
             burned: 0,
+            season: "S1: energy".to_string(),
+            paused: false,
         };
         w.check_min_found();
         w
@@ -229,6 +244,7 @@ impl World {
     /// is split 86/14. If the DAO can't be made, the whole deposit goes back.
     #[payable]
     pub fn found_clan(&mut self, name: String) -> Promise {
+        require!(!self.paused, "Paused: no new money while we check something");
         let deposit = env::attached_deposit().as_yoctonear();
         require!(deposit >= self.min_found, "Deposit is below the minimum to found a clan");
         require!(!name.is_empty() && name.len() <= 40, "Clan name must be 1-40 characters");
@@ -242,13 +258,14 @@ impl World {
             "roles": [
                 { "name": "gods", "kind": { "Group": [founder] }, "permissions": ["*:*"], "vote_policy": {} },
                 { "name": "world", "kind": { "Group": [env::current_account_id()] },
-                  "permissions": ["add_member_to_role:AddProposal", "add_member_to_role:VoteApprove"],
+                  "permissions": ["add_member_to_role:AddProposal", "add_member_to_role:VoteApprove",
+                                  "remove_member_from_role:AddProposal", "remove_member_from_role:VoteApprove"],
                   "vote_policy": {} }
             ],
             "default_vote_policy": { "weight_kind": "RoleWeight", "quorum": "0", "threshold": [1, 2] },
-            "proposal_bond": "10000000000000000000000",
+            "proposal_bond": DAO_BOND.to_string(),
             "proposal_period": GIFT_WINDOW_NS.to_string(),
-            "bounty_bond": "10000000000000000000000",
+            "bounty_bond": DAO_BOND.to_string(),
             "bounty_forgiveness_period": GIFT_WINDOW_NS.to_string()
         });
         let dao_args = json!({
@@ -325,6 +342,31 @@ fn policy_is_ours(bytes: &[u8], founder: &AccountId) -> bool {
 }
 
 impl World {
+    /// Ask the clan's DAO to add `god` to (or remove them from) its gods role, then approve it
+    /// in the callback. The world role alone can pass these two kinds.
+    fn propose_god(dao: AccountId, god: AccountId, add: bool) -> Promise {
+        let kind = if add { "AddMemberToRole" } else { "RemoveMemberFromRole" };
+        let what = if add { "blessed this clan and joins its gods" } else { "withdrew and leaves its gods" };
+        let args = json!({
+            "proposal": {
+                "description": format!("AD FONTES: {god} {what}"),
+                "kind": { (kind): { "member_id": god, "role": "gods" } }
+            }
+        });
+        Promise::new(dao.clone())
+            .function_call(
+                "add_proposal".to_string(),
+                args.to_string().into_bytes(),
+                NearToken::from_yoctonear(DAO_BOND),
+                GAS_DAO_PROPOSE,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_ON_PROPOSED)
+                    .on_god_proposed(dao, god, add),
+            )
+    }
+
     fn finish_founding(
         &mut self,
         id: u32,
@@ -355,6 +397,7 @@ impl World {
             alive: true,
             born_day: self.day,
             clean_gifts: 0,
+            whisper: String::new(),
         };
         self.clans.insert(id, clan.clone());
         self.clans.flush(); // collections write lazily; flush so storage_usage sees the entry
@@ -380,29 +423,133 @@ impl World {
 impl World {
     /// Put more NEAR into a clan. Anyone who blesses a clan becomes one of its gods.
     #[payable]
-    pub fn bless(&mut self, clan_id: u32) {
+    /// A new god also gets a vote: the world proposes them to the clan's DAO and approves it.
+    /// The 0.01 NEAR proposal bond comes out of their first blessing.
+    #[payable]
+    pub fn bless(&mut self, clan_id: u32) -> PromiseOrValue<bool> {
+        require!(!self.paused, "Paused: no new money while we check something");
         let amount = env::attached_deposit().as_yoctonear();
         require!(amount > 0, "Attach NEAR to bless");
         let who = env::predecessor_account_id();
         let before = env::storage_usage();
         let mut clan = self.live_clan(clan_id);
+        let is_new = !clan.gods.iter().any(|g| g.account == who);
         match clan.gods.iter_mut().find(|g| g.account == who) {
             Some(g) => g.put_in = U128(g.put_in.0 + amount),
-            None => clan.gods.push(God { account: who, put_in: U128(amount) }),
+            None => clan.gods.push(God { account: who.clone(), put_in: U128(amount) }),
         }
         self.clans.insert(clan_id, clan.clone());
         self.clans.flush();
-        let storage = self.storage_cost_since(before);
-        require!(amount > storage, "Blessing too small to cover storage");
-        let net = amount - storage;
-        if storage > 0 {
-            let g = clan.gods.last_mut().unwrap();
-            g.put_in = U128(g.put_in.0 - storage);
+        let costs = self.storage_cost_since(before) + if is_new { DAO_BOND } else { 0 };
+        require!(amount > costs, "Blessing too small to cover storage and the DAO bond");
+        let net = amount - costs;
+        if costs > 0 {
+            let g = clan.gods.iter_mut().find(|g| g.account == who).unwrap();
+            g.put_in = U128(g.put_in.0 - costs);
         }
         clan.total_in = U128(clan.total_in.0 + net);
         clan.play = U128(clan.play.0 + bps(net, PLAY_BPS));
         clan.reserve = U128(clan.reserve.0 + net - bps(net, PLAY_BPS));
+        let dao = clan.dao.clone();
         self.clans.insert(clan_id, clan);
+        if !is_new {
+            return PromiseOrValue::Value(true);
+        }
+        PromiseOrValue::Promise(Self::propose_god(dao, who, true))
+    }
+
+    /// Retry for a god whose automatic DAO seat failed. They pay the 0.01 NEAR bond.
+    #[payable]
+    pub fn join_dao(&mut self, clan_id: u32) -> Promise {
+        require!(env::attached_deposit().as_yoctonear() >= DAO_BOND, "Attach 0.01 NEAR for the DAO bond");
+        let who = env::predecessor_account_id();
+        let clan = self.live_clan(clan_id);
+        require!(clan.gods.iter().any(|g| g.account == who), "Only a god of this clan");
+        Self::propose_god(clan.dao, who, true)
+    }
+
+    #[private]
+    pub fn on_god_proposed(&mut self, dao: AccountId, god: AccountId, add: bool) -> bool {
+        // add_proposal returns the new proposal id. Parse without panicking.
+        let id = match env::promise_result(0) {
+            near_sdk::PromiseResult::Successful(b) => near_sdk::serde_json::from_slice::<u64>(&b).ok(),
+            _ => None,
+        };
+        let Some(id) = id else {
+            env::log_str(&format!("could not propose {god} to {dao}; they can call join_dao"));
+            return false;
+        };
+        let args = json!({
+            "id": id,
+            "action": "VoteApprove",
+            "proposal": { (if add { "AddMemberToRole" } else { "RemoveMemberFromRole" }): { "member_id": god, "role": "gods" } }
+        });
+        Promise::new(dao)
+            .function_call("act_proposal".to_string(), args.to_string().into_bytes(), NearToken::from_yoctonear(0), GAS_DAO_VOTE)
+            .detach();
+        true
+    }
+
+    /// Whisper: the gods set the clan's temperament (by DAO vote). Agents read it each turn.
+    pub fn whisper(&mut self, clan_id: u32, text: String) {
+        require!(text.len() <= 280, "Whisper too long");
+        let mut clan = self.live_clan(clan_id);
+        require!(env::predecessor_account_id() == clan.dao, "Only the clan's DAO can whisper");
+        let before = env::storage_usage();
+        clan.whisper = text;
+        self.clans.insert(clan_id, clan.clone());
+        self.clans.flush();
+        // A longer whisper costs storage; the clan pays from play money.
+        let cost = self.storage_cost_since(before);
+        if cost > 0 {
+            require!(clan.play.0 >= cost, "Clan can't afford to store this whisper");
+            clan.play = U128(clan.play.0 - cost);
+            self.clans.insert(clan_id, clan);
+        }
+    }
+
+    /// Smite: stunt or kill one of the clan's agents at any time (by DAO vote), no gift needed.
+    pub fn smite(&mut self, clan_id: u32, agent: String, verdict: Verdict) {
+        let clan = self.live_clan(clan_id);
+        require!(env::predecessor_account_id() == clan.dao, "Only the clan's DAO can smite");
+        let mut a = self.agents.get(&agent).expect("No such agent").clone();
+        require!(a.clan == clan_id && a.alive, "Agent is not alive in this clan");
+        match verdict {
+            Verdict::Stunt => a.stunted_until = self.day + STUNT_DAYS,
+            Verdict::Kill => a.alive = false,
+        }
+        self.agents.insert(agent, a);
+    }
+
+    /// The clan's DAO (its gods' vote) sends the staking fund to the clan's staking account.
+    pub fn release_staking(&mut self, clan_id: u32, to: AccountId) -> Promise {
+        let mut clan = self.live_clan(clan_id);
+        require!(env::predecessor_account_id() == clan.dao, "Only the clan's DAO can release its staking fund");
+        let amount = clan.staking_fund.0;
+        require!(amount > 0, "No staking fund left");
+        clan.staking_fund = U128(0);
+        self.clans.insert(clan_id, clan);
+        Promise::new(to)
+            .transfer(NearToken::from_yoctonear(amount))
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CALLBACK)
+                    .on_staking_sent(clan_id, U128(amount)),
+            )
+    }
+
+    #[private]
+    pub fn on_staking_sent(&mut self, clan_id: u32, amount: U128) -> bool {
+        let ok = matches!(env::promise_result(0), near_sdk::PromiseResult::Successful(_));
+        if !ok {
+            // Put it back so the DAO can try again.
+            if let Some(c) = self.clans.get(&clan_id) {
+                let mut c = c.clone();
+                c.staking_fund = U128(c.staking_fund.0 + amount.0);
+                self.clans.insert(clan_id, c);
+            }
+        }
+        ok
     }
 
     /// A god takes out their share. The clan dies when its last god leaves.
@@ -438,8 +585,15 @@ impl World {
             clan.alive = false;
             env::log_str(&format!("clan {clan_id} died: its last god left"));
         }
+        let dao = clan.dao.clone();
         self.clans.insert(clan_id, clan);
-        self.pay(who, payout)
+        if last || payout <= DAO_BOND {
+            return self.pay(who, payout);
+        }
+        // Remaining gods shouldn't be blocked by a departed god's vote: remove them from the
+        // DAO too. The 0.01 NEAR bond comes out of their payout.
+        Self::propose_god(dao, who.clone(), false).detach();
+        self.pay(who, payout - DAO_BOND)
     }
 
     /// Nobody ruled within 24h: a god of the clan that contributed most may claim the gift.
@@ -555,6 +709,20 @@ impl World {
         U128(paid)
     }
 
+    /// A Warden caught this clan (fake citation, copied claim). The bounty goes to our treasury
+    /// with the next fee sweep. A clan that can't pay pays what it has.
+    pub fn bounty(&mut self, clan_id: u32, amount: U128, memo: String) -> U128 {
+        self.only_operator();
+        require!(memo.len() <= 200, "Memo too long");
+        let mut c = self.live_clan(clan_id);
+        let paid = amount.0.min(c.play.0);
+        c.play = U128(c.play.0 - paid);
+        self.fees_pending += paid;
+        self.clans.insert(clan_id, c);
+        env::log_str(&format!("bounty {clan_id} {paid} {memo}"));
+        U128(paid)
+    }
+
     /// Record a gift from a clan to its gods.
     pub fn gift(&mut self, clan_id: u32, draft_hash: String, warden_passed: bool, top_contributor: u32) -> u64 {
         self.only_operator();
@@ -639,6 +807,25 @@ impl World {
 
     // ---------------------------------------------------------------- owner
 
+    /// Hand the owner role over (to the Season 2 multisig) without an upgrade.
+    /// Stop or restart NEW money (found, bless). Withdrawals are never paused.
+    pub fn set_paused(&mut self, paused: bool) {
+        require!(env::predecessor_account_id() == self.owner, "Only the owner");
+        self.paused = paused;
+    }
+
+    /// Record the season (the winner of the last one picks the field).
+    pub fn set_season(&mut self, season: String) {
+        require!(env::predecessor_account_id() == self.owner, "Only the owner");
+        require!(season.len() <= 80, "Season label too long");
+        self.season = season;
+    }
+
+    pub fn set_owner(&mut self, owner: AccountId) {
+        require!(env::predecessor_account_id() == self.owner, "Only the owner");
+        self.owner = owner;
+    }
+
     pub fn set_config(
         &mut self,
         operator: Option<AccountId>,
@@ -668,6 +855,8 @@ impl World {
             staking_deposit: U128(self.staking_deposit),
             min_found: U128(self.min_found),
             day: self.day,
+            season: self.season.clone(),
+            paused: self.paused,
         }
     }
 

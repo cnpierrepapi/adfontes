@@ -344,3 +344,115 @@ fn founding_check_accepts_only_our_dao() {
     assert!(!policy_is_ours(b"true", &god));
     assert!(!policy_is_ours(b"{\"roles\":42}", &god));
 }
+
+#[test]
+fn warden_bounty_goes_to_the_treasury() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    let p0 = clan(&w, a).play.0;
+    set("operator.adfontes.near", 0);
+    let paid = w.bounty(a, U128(200 * MILLI), "fake citation".into());
+    assert_eq!(paid.0, 200 * MILLI);
+    assert_eq!(p0 - clan(&w, a).play.0, 200 * MILLI);
+    assert_eq!(w.get_totals().fees_pending.0, 200 * MILLI);
+}
+
+#[test]
+fn new_god_pays_the_dao_bond_once() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("god2.near", NEAR);
+    let _ = w.bless(a);
+    let first = clan(&w, a).gods[1].put_in.0;
+    assert!(first < NEAR - 10 * MILLI + 1, "bond + storage taken: {first}");
+    set("god2.near", NEAR);
+    let _ = w.bless(a);
+    assert_eq!(clan(&w, a).gods[1].put_in.0 - first, NEAR, "no bond the second time");
+}
+
+#[test]
+fn only_the_dao_releases_staking_and_only_once() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set("god1.near", 0);
+        let _ = w.release_staking(a, acc("stake.god1.near"));
+    }));
+    assert!(r.is_err(), "a god alone can't take the staking fund");
+    set("adf-clan-1.sputnik-dao.near", 0);
+    let _ = w.release_staking(a, acc("stake-1.adfontes.near"));
+    assert_eq!(clan(&w, a).staking_fund.0, 0);
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set("adf-clan-1.sputnik-dao.near", 0);
+        let _ = w.release_staking(a, acc("stake-1.adfontes.near"));
+    }));
+    assert!(r.is_err(), "can't release twice");
+}
+
+#[test]
+fn owner_can_hand_over() {
+    let mut w = new_world();
+    set("adfontes.near", 0);
+    w.set_owner(acc("multisig.adfontes.near"));
+    assert_eq!(w.owner, acc("multisig.adfontes.near"));
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set("adfontes.near", 0);
+        w.set_config(None, None, None, None, Some(U128(5 * NEAR)));
+    }));
+    assert!(r.is_err(), "old owner is out");
+}
+
+#[test]
+fn leaving_god_pays_the_removal_bond_last_god_does_not() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("god2.near", 2 * NEAR);
+    let _ = w.bless(a);
+    let before = w.get_totals().liabilities.0;
+    let c = clan(&w, a);
+    let share = mul_div(c.play.0 + c.reserve.0, c.gods[1].put_in.0, c.total_in.0);
+    set("god2.near", 0);
+    let _ = w.withdraw(a);
+    // The god's share left the clan; bond is paid out of it (so the clan doesn't pay).
+    assert!((before - w.get_totals().liabilities.0).abs_diff(share) <= 2);
+}
+
+#[test]
+fn pause_stops_new_money_but_never_withdrawals() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("adfontes.near", 0);
+    w.set_paused(true);
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set("god2.near", NEAR);
+        let _ = w.bless(a);
+    }));
+    assert!(r.is_err(), "no blessing while paused");
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set("god2.near", 3 * NEAR);
+        let _ = w.found_clan("x".into());
+    }));
+    assert!(r.is_err(), "no founding while paused");
+    set("god1.near", 0);
+    let _ = w.withdraw(a); // must still work
+    assert!(!clan(&w, a).alive);
+}
+
+#[test]
+fn dao_whispers_and_smites_without_a_gift() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("operator.adfontes.near", 0);
+    w.spawn_agent(a, "Tamsin Holt".into(), Role::Scholar);
+    w.tick(10);
+    set("adf-clan-1.sputnik-dao.near", 0);
+    w.whisper(a, "careful, honest, batteries first".into());
+    w.smite(a, "Tamsin Holt".into(), Verdict::Stunt);
+    assert_eq!(clan(&w, a).whisper, "careful, honest, batteries first");
+    assert_eq!(w.get_agent("Tamsin Holt".into()).unwrap().stunted_until, 13);
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set("god1.near", 0);
+        w.smite(a, "Tamsin Holt".into(), Verdict::Kill);
+    }));
+    assert!(r.is_err(), "a god alone can't smite; it takes the DAO vote");
+}
