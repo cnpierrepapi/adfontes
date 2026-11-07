@@ -109,6 +109,23 @@ const api = {
     });
   },
 
+  // A nation's recent gifts with their live status on NEAR: its own (its gods rule on them within
+  // 24h) and others' where it was the top contributor (its gods may claim them after 24h).
+  async gifts(q) {
+    const id = Number(q.get("id"));
+    const all = await cached("gifts:all", 20_000, async () => {
+      const s = await store.loadState(NET);
+      const ids = Object.keys(s.gifts || {}).map(Number).sort((a, b) => b - a).slice(0, 40);
+      const live = await Promise.all(ids.map((g) => view("get_gift", { gift_id: g }).catch(() => null)));
+      return live.filter(Boolean).map((g) => ({
+        id: g.id, clan: g.clan, top_contributor: g.top_contributor, passed: g.warden_passed, status: g.status, day: g.day,
+        ends_ms: Math.floor((Number(BigInt(g.created_ns) / 1_000_000n)) + 24 * 3600 * 1000),
+        title: s.drafts?.[s.gifts[g.id]?.draft]?.draft?.title ?? null,
+      }));
+    });
+    return { now_ms: Date.now(), gifts: all.filter((g) => g.clan === id || g.top_contributor === id) };
+  },
+
   async drafts() {
     return cached("drafts", 30_000, () => store.listDrafts(NET, 30));
   },

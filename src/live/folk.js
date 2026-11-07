@@ -14,7 +14,7 @@ const groundY = (r, x, z) => r * 0.05 * (1 - Math.min(1, (x * x + z * z) / (r * 
 // Where each role goes to work, as (angle offset, radius fraction) on the plaza ring.
 const STATION = { Patron: [0, 0.4], Scholar: [0.9, 0.37], Smith: [2.1, 0.5], Drafter: [3.2, 0.45], Broker: [4.4, 0.55], Trickster: [5.3, 0.5] };
 
-export function createFolk({ scene, islands }) {
+export function createFolk({ scene, islands, renderer, camera }) {
   let kit = null, kitLoading = null;
   const dots = new Map(); // nation id -> { pts, agents, seeds }
   const crowds = new Map(); // nation id -> { group, people: [...] }
@@ -117,6 +117,14 @@ export function createFolk({ scene, islands }) {
     group.name = "folk";
     (town || isl).add(group);
     crowds.set(id, { group, people, life, open });
+    // Compile its shaders now (in parallel where the GPU allows) so the first close look doesn't
+    // stall. compileAsync reads what's visible at the call, so the group shows for that instant.
+    if (renderer) {
+      const was = group.visible;
+      group.visible = true;
+      renderer.compileAsync(group, camera, scene).catch(() => {});
+      group.visible = was;
+    }
   }
   function dropCrowd(id) {
     const cr = crowds.get(id);
@@ -142,7 +150,18 @@ export function createFolk({ scene, islands }) {
     }
     return building.get(id);
   }
-  function trim(id) { for (const k of [...crowds.keys()]) if (k !== id && crowds.size > 2) dropCrowd(k); }
+  // Keep every nation's people (a handful of nations, built once); only a very big world lets go.
+  function trim(id) { for (const k of [...crowds.keys()]) if (k !== id && crowds.size > 12) dropCrowd(k); }
+
+  /** Page load: fetch the kit at once, then build each nation's people one by one in idle time. */
+  async function preload(ids) {
+    await ensureKit();
+    const idle = () => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(r, { timeout: 400 }) : setTimeout(r, 30)));
+    for (const id of ids) {
+      await idle();
+      await focus(id).catch(() => {});
+    }
+  }
 
   // A citizen's day: walk to a spot on the plaza, idle a little, sometimes go to work at the
   // role's station (Smiths kneel, Scholars study at the temple, Brokers haggle at the edge).
@@ -186,6 +205,7 @@ export function createFolk({ scene, islands }) {
       stepTown(cr.life, dt, now, { r: islands.get(id).userData.r, s: 0, open: cr.open, groundY });
       for (const p of cr.people) {
         if (p.mode === "gun") { gunStep(p, dt, now); p.c.mixer.update(dt); continue; }
+        if (p.mode === "struck") { p.c.mixer.update(dt); continue; }
         think(p, now);
         if (p.mode === "walk") {
           const dx = p.target[0] - p.pos[0], dz = p.target[1] - p.pos[1], dist = Math.hypot(dx, dz);
@@ -223,6 +243,28 @@ export function createFolk({ scene, islands }) {
     if (!best) return null;
     const left = best.a.stunted_until - day;
     return { title: best.a.name, sub: `${best.a.role}${best.stunted ? ` · stunted, ${left} more day${left === 1 ? "" : "s"}` : ""} · since day ${best.a.born_day}`, kind: best.stunted ? "stone" : "corpus" };
+  }
+
+  // ---- the gods' smite (SPEC §12j): a hit, then a fall (kill) or grey and slow (stunt) ----
+  function smite(id, name, verdict) {
+    const p = crowds.get(id)?.people.find((q) => q.a.name === name);
+    if (!p) return false;
+    p.mode = "struck";
+    const hit = p.c.play("Hit_Chest", 0.12);
+    if (hit) { hit.setLoop(THREE.LoopOnce, 1); hit.clampWhenFinished = true; }
+    setTimeout(() => {
+      if (verdict === "Kill") {
+        const fall = p.c.play("Death01", 0.2);
+        if (fall) { fall.setLoop(THREE.LoopOnce, 1); fall.clampWhenFinished = true; }
+        return; // lies there until the chain's new state puts a gravestone in their place
+      }
+      p.stunted = true;
+      p.c.root.traverse((o) => o.isMesh && o.material?.color && (o.material = Object.assign(o.material.clone(), { color: new THREE.Color(0x8a8a96) })));
+      p.c.mixer.timeScale = 0.5;
+      p.mode = "idle"; p.until = 0;
+      p.c.play("Idle_Loop");
+    }, 900);
+    return true;
   }
 
   // ---- the star-gun (SPEC §12e) ----
@@ -327,7 +369,7 @@ export function createFolk({ scene, islands }) {
     }
   }
 
-  return { setAgents, focus, update, pick, launch, crowds, shots, dayRecords };
+  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords };
 }
 
 // A star-gun, almost a citizen's height (citizen-local metres; the barrel runs along +Y):

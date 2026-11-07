@@ -2,6 +2,7 @@ import { startLive } from "./live.js";
 import { createWeatherSound, weatherKind } from "./sound.js";
 
 const $ = (id) => document.getElementById(id);
+let gods = null; // the god panel, once the wallet code has loaded
 const n3 = (x) => (Math.round(x * 1000) / 1000).toString();
 
 function showClan(c, status) {
@@ -24,6 +25,7 @@ function showClan(c, status) {
   btn("Sky", () => live.flyTo(c.id));
   btn("Plaza", () => live.viewPlaza(c.id));
   p.append(h, m, nums, line, views);
+  if (gods) p.append(gods.section(c, status)); // the god panel: bless, and your powers if you're a god here
   p.hidden = false;
 }
 
@@ -54,5 +56,19 @@ const sound = createWeatherSound({ button: $("sound"), kind: weatherKind(W.weath
 function onDay(now) { showDial(now); sound.setKind(weatherKind(now.weather?.change)); }
 $("home").addEventListener("click", () => live.home());
 setTimeout(() => ($("hint").style.opacity = 0), 9000);
+// A short line at the bottom for wallet news (a refused connection, nothing to smite).
+function toast(text) {
+  const t = Object.assign(document.createElement("p"), { className: "toast", textContent: text });
+  $("visor").append(t);
+  setTimeout(() => t.remove(), 6000);
+}
+// The gods' wallet loads after the world is up, so a slow wallet script never holds the world back.
+import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast })).then((g) => {
+  gods = g;
+  window.__gods = g;
+  // A panel already open gets its powers now.
+  const open = !$("panel").hidden && W.clans.find((c) => c.name === $("panel").querySelector("h2")?.textContent);
+  if (open) $("panel").append(g.section(open, open.alive === false ? "dead" : ""));
+}).catch((e) => console.warn("wallet unavailable", e));
 window.__live = live;
 window.__sound = sound;

@@ -1,0 +1,433 @@
+// The god panel (SPEC §12j). A wallet chip in the HUD, "Your powers" in each nation's panel, and a
+// confirm card that shows the exact transaction before your wallet ever opens. Every deposit is read
+// live from the chain (get_config, the DAO's policy), never hard-coded.
+import { createWallet, toYocto, near, failure, TGAS } from "./wallet.js";
+import * as C from "./calls.js";
+
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
+const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export async function createGods({ live, W, nav, toast }) {
+  const WORLD = W.world;
+  const wallet = await createWallet(W.net);
+  let account = wallet.account();
+  let refreshPanel = () => {};
+
+  // ---------------------------------------------------------------- the HUD chip
+  const chip = el("button", { className: "chip wallet", type: "button" });
+  nav.prepend(chip, " ");
+  const menu = el("div", { className: "walletmenu", hidden: true });
+  document.getElementById("visor").append(menu);
+  const showChip = () => { chip.innerHTML = account ? `◈ <span class="word">${short(account)}</span>` : `◈ <span class="word">Connect wallet</span>`; };
+  showChip();
+  wallet.onAccount((a) => { account = a; showChip(); refreshPanel(); if (!menu.hidden) openMenu(); });
+  chip.addEventListener("click", () => (menu.hidden ? openMenu() : (menu.hidden = true)));
+  document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !chip.contains(e.target)) menu.hidden = true; });
+
+  async function openMenu() {
+    menu.replaceChildren();
+    menu.hidden = false;
+    if (!account) {
+      menu.append(el("p", { className: "lead", textContent: `Connect a NEAR ${W.net} wallet to bless nations and use your powers as a god.` }));
+      for (const w of await wallet.wallets()) {
+        const b = el("button", { type: "button", className: "walletpick" }, w.icon ? el("img", { src: w.icon, alt: "", width: 22, height: 22 }) : null, el("span", { textContent: w.name }));
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          try { await wallet.signIn(w.id); menu.hidden = true; } catch (e) { toast(`${w.name}: ${e.message || "could not connect"}`); }
+          b.disabled = false;
+        });
+        menu.append(b);
+      }
+      if (W.net !== "mainnet") menu.append(el("p", { className: "fine", textContent: "This is the practice world on testnet. HOT joins the list on mainnet." }));
+      return;
+    }
+    menu.append(el("p", { className: "lead" }, "Signed in as ", el("b", { textContent: account })));
+    const [clans, owed] = await Promise.all([wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []), wallet.view(WORLD, "get_owed", { account_id: account }).catch(() => "0")]);
+    const mine = clans.filter((c) => c.alive && c.gods.some((g) => g.account === account));
+    menu.append(el("p", { className: "fine", textContent: mine.length ? "You are a god of:" : "You are not a god of any nation yet. Bless one, or found your own." }));
+    for (const c of mine) {
+      const b = el("button", { type: "button", className: "walletpick" }, el("span", { textContent: c.name }));
+      b.addEventListener("click", () => { menu.hidden = true; live.flyTo(c.id); });
+      menu.append(b);
+    }
+    const row = el("div", { className: "row" });
+    const found = el("button", { type: "button", className: "viewbtn gold", textContent: "Found a nation" });
+    found.addEventListener("click", () => { menu.hidden = true; foundCard(); });
+    row.append(found);
+    if (BigInt(owed || 0) > 0n) {
+      const claim = el("button", { type: "button", className: "viewbtn", textContent: `Claim ${near(owed)} NEAR owed` });
+      claim.addEventListener("click", () => { menu.hidden = true; claimOwedCard(owed); });
+      row.append(claim);
+    }
+    const out = el("button", { type: "button", className: "viewbtn", textContent: "Sign out" });
+    out.addEventListener("click", async () => { await wallet.signOut(); menu.hidden = true; });
+    row.append(out);
+    menu.append(row);
+  }
+
+  // ---------------------------------------------------------------- the confirm card
+  // spec: { title, words: () => string, fields: [...inputs], calls: () => [{receiver, method, args, deposit, gas, note?}],
+  //         check: () => error string | null, after: async (outcomes) => message }
+  let cardOpen = null;
+  function card(spec) {
+    cardOpen?.remove();
+    const box = el("div", { className: "txcard", role: "dialog" });
+    const shade = el("div", { className: "txshade" }, box);
+    cardOpen = shade;
+    const close = () => { shade.remove(); if (cardOpen === shade) cardOpen = null; };
+    shade.addEventListener("pointerdown", (e) => { if (e.target === shade) close(); });
+    const words = el("p", { className: "words" });
+    const err = el("p", { className: "err" });
+    const tx = el("div", { className: "tx" });
+    const sign = el("button", { type: "button", className: "viewbtn gold", textContent: "Sign in your wallet" });
+    const cancel = el("button", { type: "button", className: "viewbtn", textContent: "Cancel" });
+    cancel.addEventListener("click", close);
+    const fields = el("div", { className: "fields" }, ...(spec.fields || []));
+    box.append(el("h3", { textContent: spec.title }), words, fields, el("p", { className: "fine", textContent: "What your wallet will be asked to sign:" }), tx, err, el("div", { className: "row" }, sign, cancel));
+    let calls = [];
+    function redraw() {
+      words.textContent = spec.words();
+      const bad = spec.check?.() ?? null;
+      err.textContent = bad ?? "";
+      sign.disabled = !!bad || !account;
+      tx.replaceChildren();
+      if (bad) return;
+      try { calls = spec.calls(); } catch (e) { err.textContent = e.message; sign.disabled = true; return; }
+      calls.forEach((c, i) => {
+        const shown = c.show ?? c.args;
+        tx.append(el("dl", {},
+          calls.length > 1 ? el("dt", { textContent: `Transaction ${i + 1} of ${calls.length}` }) : null,
+          el("dd", { className: "note", textContent: c.note ?? "" }),
+          el("dt", { textContent: "Contract" }), el("dd", { textContent: c.receiver }),
+          el("dt", { textContent: "Method" }), el("dd", { textContent: c.method }),
+          el("dt", { textContent: "Arguments" }), el("dd", {}, el("pre", { textContent: JSON.stringify(shown, null, 1) })),
+          el("dt", { textContent: "NEAR attached" }), el("dd", { textContent: `${near(c.deposit)} NEAR` }),
+          el("dt", { textContent: "Gas" }), el("dd", { textContent: `${BigInt(c.gas) / TGAS} Tgas (unused gas is refunded)` }),
+        ));
+      });
+    }
+    for (const f of spec.fields || []) f.addEventListener("input", redraw);
+    sign.addEventListener("click", async () => {
+      sign.disabled = cancel.disabled = true;
+      err.textContent = "";
+      sign.textContent = "Waiting for your wallet…";
+      try {
+        const outs = await wallet.send(calls);
+        const bad = outs.map(failure).find(Boolean);
+        if (bad) throw new Error(`NEAR refused it: ${bad}`);
+        const hashes = outs.map((o) => o?.transaction?.hash).filter(Boolean);
+        sign.textContent = "Done";
+        const msg = (await spec.after?.(outs)) ?? "Done.";
+        box.replaceChildren(el("h3", { textContent: spec.title }), el("p", { className: "words", textContent: msg }),
+          ...hashes.map((h) => el("p", { className: "fine" }, el("a", { href: `${wallet.explorer}/txns/${h}`, target: "_blank", rel: "noopener", textContent: `See it on NearBlocks: ${h.slice(0, 10)}…` }))),
+          el("div", { className: "row" }, Object.assign(el("button", { type: "button", className: "viewbtn", textContent: "Close" }), { onclick: close })));
+        refreshPanel();
+      } catch (e) {
+        if (e.partial?.length) { // the proposal went in, the vote didn't
+          box.replaceChildren(el("h3", { textContent: spec.title }), el("p", { className: "words", textContent: "Your proposal is in, but your yes vote wasn't sent. Vote on it under Open proposals in the nation's panel." }),
+            el("div", { className: "row" }, Object.assign(el("button", { type: "button", className: "viewbtn", textContent: "Close" }), { onclick: close })));
+          refreshPanel();
+          return;
+        }
+        err.textContent = /reject|cancel|closed|denied/i.test(e.message || "") ? "You cancelled in your wallet. Nothing was sent." : e.message || "Something went wrong. Nothing was charged unless your wallet says so.";
+        sign.textContent = "Sign in your wallet";
+        sign.disabled = cancel.disabled = false;
+      }
+    });
+    document.body.append(shade);
+    redraw();
+    return { redraw, close };
+  }
+  const input = (props) => el("input", { className: "txin", ...props });
+  const label = (text, ctl) => el("label", { className: "txlabel" }, el("span", { textContent: text }), ctl);
+
+  // A DAO power is one proposal (with the DAO's bond) plus your approving vote, signed together
+  // in one wallet approval (prepDao below builds both calls).
+  async function daoResult(clan, id) {
+    await sleep(1500);
+    const p = await wallet.view(clan.dao, "get_proposal", { id }).catch(() => null);
+    if (p?.status === "Approved") return { passed: true };
+    const policy = await wallet.view(clan.dao, "get_policy");
+    const n = policy.roles.find((r) => r.name === "gods")?.kind?.Group?.length ?? 1;
+    const yes = Object.values(p?.votes || {}).filter((v) => v === "Approve").length;
+    return { passed: false, left: Math.max(1, C.needed(n, yes)) };
+  }
+  const waiting = (left) => `Your proposal is open. It needs ${left} more yes vote${left === 1 ? "" : "s"} from this nation's other gods, who see it in this panel. It runs as soon as it passes.`;
+
+  // ---------------------------------------------------------------- the powers
+  function foundCard() {
+    wallet.view(WORLD, "get_config").then((cfg) => {
+      const name = input({ placeholder: "Name your nation", maxLength: 40 });
+      const amt = input({ value: near(cfg.min_found), inputMode: "decimal" });
+      card({
+        title: "Found a nation",
+        fields: [label("Name", name), label("NEAR to put in", amt)],
+        words: () => `You found "${name.value.trim() || "…"}" and become its first god. ${near(cfg.dao_deposit)} NEAR makes its DAO, ${near(cfg.staking_deposit)} NEAR goes to its staking fund and a little pays for storage. The rest is the nation's money: 86% for its citizens to spend, 14% kept in reserve.`,
+        check: () => {
+          if (cfg.paused) return "The world is paused for new money right now.";
+          if (!name.value.trim()) return "Give it a name.";
+          try { if (toYocto(amt.value) < BigInt(cfg.min_found)) return `The minimum to found a nation is ${near(cfg.min_found)} NEAR.`; } catch (e) { return e.message; }
+          return null;
+        },
+        calls: () => [C.found(WORLD, name.value.trim(), toYocto(amt.value))],
+        after: async () => {
+          const want = name.value.trim();
+          live.refresh?.(want);
+          return `${want} is founded. Its island rises into the world in a moment, and its first citizens arrive on the next game day.`;
+        },
+      });
+    });
+  }
+  function claimOwedCard(owed) {
+    card({
+      title: "Claim what you're owed",
+      words: () => `An earlier payout of ${near(owed)} NEAR to you couldn't be sent. This sends it now.`,
+      calls: () => [C.claimOwed(WORLD)],
+      after: async () => `${near(owed)} NEAR is on its way to ${account}.`,
+    });
+  }
+
+  // "Your powers" for one nation, built into the panel. Re-drawn when the account changes or a
+  // transaction lands.
+  function section(c, status) {
+    const box = el("section", { className: "powers" });
+    let token = 0;
+    async function draw() {
+      const my = ++token;
+      box.replaceChildren(el("h4", { textContent: "Gods" }));
+      if (status === "dead" || c.alive === false) { box.append(el("p", { className: "fine", textContent: "Ruins. Its last god left, so there is nothing left to command." })); return; }
+      if (!account) {
+        const b = el("button", { type: "button", className: "viewbtn gold", textContent: "Connect a wallet" });
+        b.addEventListener("click", openMenu);
+        box.append(el("p", { className: "fine", textContent: "Anyone can bless this nation with NEAR and become one of its gods." }), b);
+        return;
+      }
+      box.append(el("p", { className: "fine", textContent: "Reading the chain…" }));
+      const [clan, policy, cfg] = await Promise.all([wallet.view(WORLD, "get_clan", { clan_id: c.id }), wallet.view(c.dao, "get_policy").catch(() => null), wallet.view(WORLD, "get_config")]);
+      if (my !== token || !clan) return;
+      const me = clan.gods.find((g) => g.account === account);
+      const seats = policy?.roles.find((r) => r.name === "gods")?.kind?.Group ?? [];
+      box.replaceChildren(el("h4", { textContent: me ? "Your powers" : "Gods" }));
+      box.append(el("p", { className: "fine", textContent: me ? `You are one of ${clan.gods.length} god${clan.gods.length === 1 ? "" : "s"} here, with ${near(me.put_in)} NEAR put in.` : `${clan.gods.length} god${clan.gods.length === 1 ? "" : "s"} watch over ${clan.name}.` }));
+      const grid = el("div", { className: "views" });
+      const power = (label, fn, cls = "") => { const b = el("button", { type: "button", className: `viewbtn ${cls}`, textContent: label }); b.addEventListener("click", fn); grid.append(b); };
+      power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "gold");
+      if (me) {
+        if (!seats.includes(account)) power("Take your DAO seat", () => joinCard(clan, policy));
+        else {
+          power("Whisper", () => whisperCard(clan));
+          power("Smite a citizen", () => smiteCard(clan));
+          if (BigInt(clan.staking_fund) > 0n) power("Release staking fund", () => stakingCard(clan));
+        }
+        power("Withdraw your share", () => withdrawCard(clan, me));
+      }
+      box.append(grid);
+      if (clan.whisper) box.append(el("p", { className: "fine" }, "The gods' last whisper: ", el("i", { textContent: `"${clan.whisper}"` })));
+      // Gifts to rule on (own, within 24h) and to claim (as top contributor, after 24h).
+      if (me) {
+        const g = await fetch(`/api/gifts?id=${c.id}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ gifts: [] }));
+        if (my !== token) return;
+        const now = g.now_ms ?? Date.now();
+        const toRule = (g.gifts || []).filter((x) => x.clan === c.id && x.status === "Pending" && now < x.ends_ms);
+        const toClaim = (g.gifts || []).filter((x) => x.top_contributor === c.id && x.clan !== c.id && x.status === "Pending" && now >= x.ends_ms);
+        if (seats.includes(account)) for (const x of toRule) {
+          const hrs = Math.max(1, Math.round((x.ends_ms - now) / 3600000));
+          const row = el("div", { className: "gift" }, el("span", { textContent: `Gift #${x.id}: ${x.title ?? "a draft"} (${x.passed ? "the Warden passed it" : "the Warden failed it"}, ${hrs}h left to rule)` }));
+          const b = el("button", { type: "button", className: "viewbtn", textContent: "Rule on it" });
+          b.addEventListener("click", () => ruleCard(clan, x));
+          row.append(b);
+          box.append(row);
+        }
+        for (const x of toClaim) {
+          const row = el("div", { className: "gift" }, el("span", { textContent: `Gift #${x.id} from ${live.world.clans.find((k) => k.id === x.clan)?.name ?? `nation ${x.clan}`}: its gods didn't rule in time, and your nation contributed most.` }));
+          const b = el("button", { type: "button", className: "viewbtn", textContent: "Claim it" });
+          b.addEventListener("click", () => claimGiftCard(clan, x));
+          row.append(b);
+          box.append(row);
+        }
+      }
+      // Open proposals: nations with more than one god vote on each power (and a lone god can finish
+      // a proposal whose vote they didn't sign).
+      if (policy) {
+        const last = await wallet.view(c.dao, "get_last_proposal_id").catch(() => 0);
+        const props = last ? await wallet.view(c.dao, "get_proposals", { from_index: Math.max(0, last - 15), limit: 15 }).catch(() => []) : [];
+        if (my !== token) return;
+        const period = BigInt(policy.proposal_period);
+        const nowNs = BigInt(Date.now()) * 1_000_000n;
+        const open = props.filter((p) => p.status === "InProgress" && BigInt(p.submission_time) + period > nowNs && p.kind.FunctionCall?.receiver_id === WORLD).reverse();
+        if (open.length) box.append(el("h4", { textContent: "Open proposals" }));
+        for (const p of open) {
+          const yes = Object.values(p.votes || {}).filter((v) => v === "Approve").length;
+          const need = C.needed(seats.length, 0);
+          const row = el("div", { className: "gift" }, el("span", { textContent: `${p.description.replace(/^AD FONTES: /, "")} · by ${short(p.proposer)} · ${yes} of ${need} yes votes` }));
+          if (seats.includes(account) && !p.votes?.[account]) {
+            for (const [lab, action] of [["Approve", "VoteApprove"], ["Reject", "VoteReject"]]) {
+              const b = el("button", { type: "button", className: "viewbtn", textContent: lab });
+              b.addEventListener("click", () => voteCard(clan, p, action));
+              row.append(b);
+            }
+          } else if (p.votes?.[account]) row.append(el("small", { textContent: ` You voted ${p.votes[account] === "Approve" ? "yes" : "no"}.` }));
+          box.append(row);
+        }
+      }
+    }
+    draw().catch((e) => box.replaceChildren(el("p", { className: "fine", textContent: `Couldn't read the chain just now (${e.message}).` })));
+    refreshPanel = () => draw().catch(() => {});
+    return box;
+  }
+
+  function blessCard(clan, isNew) {
+    const amt = input({ value: "1", inputMode: "decimal" });
+    card({
+      title: `Bless ${clan.name}`,
+      fields: [label("NEAR to give", amt)],
+      words: () => `Your NEAR goes into ${clan.name}: 86% for its citizens to spend, 14% kept in reserve.${isNew ? " You become one of its gods with a seat in its DAO. 0.01 NEAR of it pays the DAO seat bond and a little pays for storage." : ""} You can take your share back out at any time.`,
+      check: () => { try { const y = toYocto(amt.value); if (y <= 0n) return "Put in some NEAR."; if (isNew && y < toYocto("0.05")) return "A first blessing needs at least 0.05 NEAR (the DAO seat bond and storage come out of it)."; } catch (e) { return e.message; } return null; },
+      calls: () => [C.bless(WORLD, clan.id, toYocto(amt.value))],
+      after: async () => {
+        live.fx.play({ kind: "bless", clan: clan.id, text: `${short(account)} blessed ${clan.name} with ${amt.value} NEAR` });
+        return `${clan.name} is blessed with ${amt.value} NEAR.${isNew ? " You are now one of its gods." : ""}`;
+      },
+    });
+  }
+  function joinCard(clan, policy) {
+    card({
+      title: "Take your DAO seat",
+      words: () => `You are a god of ${clan.name}, but your seat in its DAO didn't go through when you blessed it. This asks again. The ${near(policy.proposal_bond)} NEAR bond pays for the seat proposal.`,
+      calls: () => [C.joinDao(WORLD, clan.id, policy.proposal_bond)],
+      after: async () => "Your seat is proposed and approved by the world. You can use the DAO powers in a few seconds.",
+    });
+  }
+  async function whisperCard(clan) {
+    const p = await prepDao(clan);
+    const text = el("textarea", { className: "txin", maxLength: 280, rows: 3, placeholder: "e.g. Take fewer risks this season. Honesty first." });
+    card({
+      title: "Whisper",
+      fields: [label("Your whisper (280 characters at most)", text)],
+      words: () => `Your citizens read the gods' whisper every turn and lean their choices toward it: how much risk to take, how honest to be, what to focus on. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      check: () => (!text.value.trim() ? "Write the whisper." : new TextEncoder().encode(text.value.trim()).length > 280 ? "That's over 280 characters." : null),
+      calls: () => { const w = text.value.trim(); return p.build("whisper", { clan_id: clan.id, text: w }, `AD FONTES: whisper to ${clan.name}: "${w}"`).calls; },
+      after: async (outs) => {
+        const r = await daoResult(clan, C.returned(outs[0]));
+        if (!r.passed) return waiting(r.left);
+        live.fx.play({ kind: "whisper", clan: clan.id, text: `The gods whisper: "${text.value.trim()}"` });
+        return `Whispered. ${clan.name}'s citizens hear it from their next turn.`;
+      },
+    });
+  }
+  // Reads the DAO once, then builds proposal calls for any arguments without another round trip.
+  async function prepDao(clan) {
+    const policy = await wallet.view(clan.dao, "get_policy");
+    const p = { policy };
+    p.build = (method, args, description) => ({ calls: C.daoPower(WORLD, clan.dao, policy.proposal_bond, method, args, description) });
+    return p;
+  }
+  async function citizenPicker(clan) {
+    const agents = (await wallet.view(WORLD, "list_agents", { clan_id: clan.id, limit: 100 })).filter((a) => a.alive);
+    const sel = el("select", { className: "txin" }, ...agents.map((a) => el("option", { value: a.name, textContent: `${a.name}, ${a.role}` })));
+    return { sel, agents };
+  }
+  const verdictPicker = () => el("select", { className: "txin" }, el("option", { value: "Stunt", textContent: "Stunt: no work or learning for 3 game days" }), el("option", { value: "Kill", textContent: "Kill: gone for good (the name stays taken)" }));
+  async function smiteCard(clan) {
+    const [{ sel, agents }, p] = await Promise.all([citizenPicker(clan), prepDao(clan)]);
+    if (!agents.length) return toast(`${clan.name} has no living citizens to smite.`);
+    const v = verdictPicker();
+    card({
+      title: "Smite a citizen",
+      fields: [label("Citizen", sel), label("Verdict", v)],
+      words: () => `${sel.value} is ${v.value === "Kill" ? "killed. A gravestone takes their place and their name is never used again" : "stunted: they can't work or learn for 3 game days"}. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      calls: () => p.build("smite", { clan_id: clan.id, agent: sel.value, verdict: v.value }, `AD FONTES: ${v.value === "Kill" ? "kill" : "stunt"} ${sel.value} of ${clan.name}`).calls,
+      after: async (outs) => {
+        const r = await daoResult(clan, C.returned(outs[0]));
+        if (!r.passed) return waiting(r.left);
+        live.smite(clan.id, sel.value, v.value);
+        return `${sel.value} is ${v.value === "Kill" ? "dead" : "stunted for 3 game days"}.`;
+      },
+    });
+  }
+  async function ruleCard(clan, gift) {
+    const [{ sel, agents }, p] = await Promise.all([citizenPicker(clan), prepDao(clan)]);
+    const choice = el("select", { className: "txin" }, el("option", { value: "reward", textContent: "Reward the gift" }), el("option", { value: "punish", textContent: "Punish a citizen for it" }));
+    const v = verdictPicker();
+    const pick = label("Citizen", sel), verd = label("Verdict", v);
+    const sync = () => { pick.hidden = verd.hidden = choice.value !== "punish"; };
+    choice.addEventListener("input", sync);
+    sync();
+    card({
+      title: `Rule on gift #${gift.id}`,
+      fields: [label("Ruling", choice), pick, verd],
+      words: () => (choice.value === "reward" ? `You record that the gods reward "${gift.title ?? "this draft"}". To reward it with NEAR too, bless the nation.` : `You punish ${sel.value} for this gift: ${v.value === "Kill" ? "killed for good" : "stunted for 3 game days"}.`) + ` It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      check: () => (choice.value === "punish" && !agents.length ? "There is no living citizen to punish." : null),
+      calls: () => p.build("rule", choice.value === "reward" ? { gift_id: gift.id, reward: true, verdict: null, agent: null } : { gift_id: gift.id, reward: false, verdict: v.value, agent: sel.value }, `AD FONTES: ${choice.value} gift #${gift.id}${choice.value === "punish" ? ` (${v.value.toLowerCase()} ${sel.value})` : ""}`).calls,
+      after: async (outs) => {
+        const r = await daoResult(clan, C.returned(outs[0]));
+        if (!r.passed) return waiting(r.left);
+        if (choice.value === "punish") live.smite(clan.id, sel.value, v.value);
+        live.fx.play({ kind: "ruling", clan: clan.id, text: choice.value === "reward" ? `The gods rewarded gift #${gift.id}` : `The gods punished ${sel.value} for gift #${gift.id}` });
+        return `Ruled: gift #${gift.id} is ${choice.value === "reward" ? "rewarded" : "punished"}.`;
+      },
+    });
+  }
+  async function stakingCard(clan) {
+    const p = await prepDao(clan);
+    const to = input({ placeholder: "the staking account, e.g. pool.poolv1.near" });
+    card({
+      title: "Release the staking fund",
+      fields: [label("Send it to", to)],
+      words: () => `${near(clan.staking_fund)} NEAR set aside for ${clan.name}'s staking goes to ${to.value.trim() || "the account you name"}. Check the account: NEAR sent to the wrong one can't be pulled back. It goes to the DAO as a proposal with your yes vote.`,
+      check: () => (/^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(to.value.trim()) && to.value.trim().length >= 2 ? null : "Name a NEAR account."),
+      calls: () => p.build("release_staking", { clan_id: clan.id, to: to.value.trim() }, `AD FONTES: release ${clan.name}'s staking fund to ${to.value.trim()}`).calls,
+      after: async (outs) => {
+        const r = await daoResult(clan, C.returned(outs[0]));
+        if (!r.passed) return waiting(r.left);
+        live.fx.play({ kind: "staking", clan: clan.id, text: `${clan.name}'s staking fund went to ${to.value.trim()}` });
+        return `Released: ${near(clan.staking_fund)} NEAR sent to ${to.value.trim()}.`;
+      },
+    });
+  }
+  function withdrawCard(clan, me) {
+    const last = clan.gods.length === 1;
+    const total = BigInt(clan.total_in), put = BigInt(me.put_in);
+    const share = last || total === 0n ? BigInt(clan.play) + BigInt(clan.reserve) : ((BigInt(clan.play) + BigInt(clan.reserve)) * put) / total;
+    const out = last ? share + BigInt(clan.staking_fund) : share > 10n ** 22n ? share - 10n ** 22n : share;
+    card({
+      title: "Withdraw your share",
+      words: () => last
+        ? `You are ${clan.name}'s last god. If you leave, the nation dies: its citizens are gone and its island becomes ruins that other nations can absorb. You get back about ${near(out)} NEAR, including the staking fund. This can't be undone.`
+        : `You leave ${clan.name}'s gods and get back your share, about ${near(out)} NEAR (minus any fee it owes and the 0.01 NEAR bond that removes your DAO seat). The nation goes on with its other gods.`,
+      calls: () => [C.withdraw(WORLD, clan.id)],
+      after: async () => {
+        live.fx.play({ kind: "withdraw", clan: clan.id, text: last ? `The last god left ${clan.name}` : `A god left ${clan.name}` });
+        if (last) live.refresh?.();
+        return last ? `You withdrew. ${clan.name} falls to ruins on the next look at the world.` : `You withdrew your share from ${clan.name}.`;
+      },
+    });
+  }
+  function claimGiftCard(clan, gift) {
+    card({
+      title: `Claim gift #${gift.id}`,
+      words: () => `The nation that made this gift didn't rule on it within 24 hours. ${clan.name} contributed most to it, so its gods can claim it. Claiming records the gift as yours.`,
+      calls: () => [C.claimGift(WORLD, gift.id)],
+      after: async () => { live.fx.play({ kind: "ruling", clan: clan.id, text: `${clan.name} claimed gift #${gift.id}` }); return `Gift #${gift.id} is claimed by ${clan.name}.`; },
+    });
+  }
+  function voteCard(clan, p, action) {
+    const yes = action === "VoteApprove";
+    const call = C.vote(clan.dao, p, action), { method, args } = call.decoded;
+    card({
+      title: yes ? "Approve this proposal" : "Reject this proposal",
+      words: () => `${p.description.replace(/^AD FONTES: /, "")}. Proposed by ${p.proposer}. Your ${yes ? "yes" : "no"} vote${yes ? " runs it straight away if it's the last one needed" : " counts against it"}.`,
+      calls: () => [call],
+      after: async () => {
+        const r = yes ? await daoResult(clan, p.id) : { passed: false };
+        if (!r.passed) return yes ? waiting(r.left) : "Your no vote is in.";
+        if (method === "smite" || (method === "rule" && !args.reward)) live.smite(clan.id, args.agent, args.verdict);
+        live.fx.play({ kind: method === "whisper" ? "whisper" : method === "release_staking" ? "staking" : "ruling", clan: clan.id, text: method === "whisper" ? `The gods whisper: "${args.text}"` : `The gods voted: ${p.description.replace(/^AD FONTES: /, "")}` });
+        return "It passed and ran.";
+      },
+    });
+  }
+
+  return { section, wallet, openMenu };
+}

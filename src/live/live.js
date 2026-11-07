@@ -299,7 +299,8 @@ export async function startLive(canvas, hud, opts = {}) {
   const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => mindRecord(r) });
   let lastDay = W.day;
   api(`day?d=${W.day}`).then((d) => { folk.dayRecords(d.records, W.day); fx.enqueue(d.records || []); }).catch(() => {});
-  setInterval(async () => {
+  let polling = null;
+  async function poll() {
     try {
       const now = await api("world");
       for (const c of now.clans) if (!islands.has(c.id)) {
@@ -308,15 +309,40 @@ export async function startLive(canvas, hud, opts = {}) {
         if (focusId == null && !flying) controls.setLookAt(...HOME.pos, ...HOME.target, true);
         riseNation(c.id); loadMind(c.id);
       }
+      // A nation a god just left for good: its island goes to ruins now, not on the next game day.
+      for (const c of now.clans) {
+        const isl = islands.get(c.id);
+        if (isl && !c.alive && isl.userData.status !== "dead") { isl.userData.status = "dead"; Object.assign(isl.userData.clan, c); loadMind(c.id); }
+      }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       for (let d = lastDay + 1; d <= now.day; d++) { const recs = (await api(`day?d=${d}`)).records || []; folk.dayRecords(recs, d); fx.enqueue(recs); }
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
-    } catch {}
-  }, 30000);
+      return now;
+    } catch { return null; }
+  }
+  setInterval(() => (polling ??= poll().finally(() => (polling = null))), 30000);
+  // After a god's transaction: look again now and after the API's 20 s cache, and fly to a nation
+  // they just founded (by name) once it shows up.
+  async function refresh(foundedName) {
+    for (const wait of [2500, 12000, 23000]) {
+      await new Promise((r) => setTimeout(r, wait));
+      const now = await poll();
+      const c = foundedName && now?.clans.find((x) => x.name === foundedName && islands.has(x.id));
+      if (c) { setTimeout(() => flyTo(c.id), 1500); return; }
+      if (!foundedName && now) return;
+    }
+  }
+  // A smite lands: the citizen staggers, then falls (kill) or greys and slows (stunt), before the
+  // chain's new state rebuilds the crowd.
+  function smite(id, name, verdict) {
+    fx.play({ kind: "smite", clan: id, text: `The gods ${verdict === "Kill" ? "struck down" : "stunted"} ${name}` });
+    folk.smite(id, name, verdict);
+    setTimeout(() => loadMind(id), 22000); // after the API's 20 s cache
+  }
 
   // ---- the mind constellations (SPEC §12f): each nation's mindmap as stars over its island ----
   const minds = new Map(), mindQueue = new Map();
-  const folk = createFolk({ scene, islands }); // the people: dots far out, citizens up close
+  const folk = createFolk({ scene, islands, renderer, camera }); // the people: dots far out, citizens up close
   // One load at a time per nation, so two quick records can't both build a sky.
   function loadMind(id, light = []) {
     const run = (mindQueue.get(id) || Promise.resolve()).then(async () => {
@@ -340,7 +366,9 @@ export async function startLive(canvas, hud, opts = {}) {
     mindQueue.set(id, run.catch(() => {}));
     return run;
   }
-  for (const c of W.clans) loadMind(c.id);
+  // Every nation's people are built in the background as soon as their sky is in, so flying in
+  // shows them at once instead of waiting for the 6.7 MB citizen kit and the shader compiles.
+  Promise.allSettled(W.clans.map((c) => loadMind(c.id))).then(() => { if (!opts.stills) folk.preload([...islands.keys()]); });
   // A finished corpus: if you're watching that nation, its Scholar fires the star into the sky
   // with the star-gun (it lights when it lands); otherwise the star just lights in place.
   // A made-up citation misfires (the Warden's ring follows from its own record).
@@ -639,7 +667,7 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   frame();
   setTheme(opts.theme || "night");
-  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza };
+  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite };
 }
 
 // A clan's island: size from its mindmap, town from its state.

@@ -83,3 +83,47 @@ body.night .hint { color: #d9d3f5; }
 .godpanel .viewbtn { font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.82rem; border: 0; border-radius: 999px; padding: 7px 13px; cursor: pointer; background: #fff; color: var(--ink); box-shadow: 0 4px 12px rgba(29, 20, 48, 0.14); }
 .godpanel .viewbtn:disabled { opacity: 0.55; cursor: wait; }
 body.night .godpanel .viewbtn { background: rgba(255, 255, 255, 0.14); color: #f1ecff; }
+
+/* The god panel (SPEC §12j): wallet menu, powers, the confirm card. */
+.walletmenu { position: absolute; top: 70px; right: 18px; z-index: 6; width: min(300px, calc(100vw - 36px)); display: grid; gap: 8px; padding: 16px; border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); box-shadow: 0 14px 40px rgba(29, 20, 48, 0.25); font-family: var(--body); color: var(--ink); }
+.walletmenu[hidden] { display: none; }
+.walletmenu .lead { margin: 0; font-size: 0.86rem; line-height: 1.45; }
+.walletmenu .fine, .godpanel .fine, .txcard .fine { margin: 0; font-size: 0.76rem; line-height: 1.45; color: #5b5170; }
+.walletpick { display: flex; align-items: center; gap: 10px; font: inherit; font-family: var(--display); font-weight: 800; text-align: left; border: 0; border-radius: 12px; padding: 9px 12px; cursor: pointer; background: rgba(29, 20, 48, 0.06); color: inherit; }
+.walletpick:hover { background: rgba(138, 92, 255, 0.16); }
+.walletpick img { border-radius: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.viewbtn.gold { background: var(--gold); color: var(--ink); }
+.godpanel .powers { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(29, 20, 48, 0.12); display: grid; gap: 8px; }
+.godpanel .powers h4 { margin: 4px 0 0; font-family: var(--display); font-weight: 800; font-size: 1rem; }
+.godpanel .powers .views { margin-top: 2px; }
+.godpanel .gift { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.78rem; line-height: 1.4; padding: 8px 10px; border-radius: 12px; background: rgba(29, 20, 48, 0.06); border-left: 3px solid var(--gold); }
+.godpanel .gift span { flex: 1 1 100%; }
+.txshade { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(11, 15, 46, 0.45); backdrop-filter: blur(3px); padding: 16px; }
+.txcard { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow: auto; display: grid; gap: 10px; padding: 20px; border-radius: 6px 22px 22px 22px; background: #fff; color: var(--ink); font-family: var(--body); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); border-top: 5px solid var(--gold); }
+.txcard h3 { font-size: 1.35rem; }
+.txcard .words { margin: 0; font-size: 0.9rem; line-height: 1.5; }
+.txcard .fields { display: grid; gap: 8px; }
+.txlabel { display: grid; gap: 4px; font-size: 0.76rem; color: #5b5170; }
+.txlabel[hidden] { display: none; }
+.txin { font: inherit; font-size: 0.9rem; color: var(--ink); background: #f6f3fb; border: 1px solid rgba(29, 20, 48, 0.18); border-radius: 10px; padding: 8px 10px; resize: vertical; }
+.txcard .tx { display: grid; gap: 8px; }
+.txcard dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; padding: 10px 12px; border-radius: 12px; background: #1d1430; color: #e9e3fa; font-family: var(--mono); font-size: 0.7rem; }
+.txcard dt { color: #a99fd0; }
+.txcard dd { margin: 0; overflow-wrap: anywhere; }
+.txcard dl > dt:first-child:not(:only-child) + .note { grid-column: 2; }
+.txcard dd.note { grid-column: 1 / -1; font-family: var(--body); font-size: 0.74rem; color: #fff1c9; }
+.txcard dd.note:empty { display: none; }
+.txcard pre { margin: 0; white-space: pre-wrap; font: inherit; }
+.txcard .err { margin: 0; font-size: 0.8rem; color: #c0245e; min-height: 0; }
+.txcard .err:empty { display: none; }
+.txcard a { color: var(--violet); }
+.toast { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); margin: 0; z-index: 7; max-width: min(420px, calc(100vw - 36px)); padding: 9px 14px; border-radius: 12px; font-family: var(--body); font-size: 0.8rem; background: rgba(29, 20, 48, 0.86); color: #fff; }
+body.night .walletmenu { background: rgba(20, 18, 50, 0.92); color: #f1ecff; }
+body.night .walletmenu .fine, body.night .godpanel .fine { color: #b9b2d9; }
+body.night .walletpick { background: rgba(255, 255, 255, 0.08); }
+body.night .godpanel .powers { border-top-color: rgba(255, 255, 255, 0.14); }
+body.night .godpanel .gift { background: rgba(255, 255, 255, 0.07); }
+body.night .godpanel .viewbtn.gold { background: var(--gold); color: var(--ink); }
+.hud-top nav { white-space: nowrap; }

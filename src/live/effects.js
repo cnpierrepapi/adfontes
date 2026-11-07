@@ -158,7 +158,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   const deadIsland = () => [...islands.values()].find((i) => i.userData.status === "dead");
 
   function play(r) {
-    const text = says(r, clanName);
+    const text = r.text ?? says(r, clanName); // a god's own action brings its own words
     onRecord?.(r);
     switch (r.kind) {
       case "trade": comet(r.seller, r.buyer, r.tool ? VIOLET : CYAN); bubble(islands.get(r.buyer), text, "trade"); break;
@@ -170,6 +170,12 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "tool": ring(islands.get(r.clan), VIOLET); bubble(islands.get(r.clan), text, "tool"); break;
       case "ruling": ring(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift"); break;
       case "founded": onFounded?.(r.clan); bubble(islands.get(r.clan), text, "gift"); break;
+      // A god's transaction just landed (the god panel plays these at once).
+      case "bless": beam(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift"); break;
+      case "whisper": ring(islands.get(r.clan), WHITE); bubble(islands.get(r.clan), text, "corpus"); break;
+      case "smite": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), text, "warden"); break;
+      case "staking": beam(islands.get(r.clan), CYAN); bubble(islands.get(r.clan), text, "trade"); break;
+      case "withdraw": bubble(islands.get(r.clan), text, "absorb"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }
   }
