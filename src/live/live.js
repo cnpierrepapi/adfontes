@@ -647,6 +647,10 @@ export async function startLive(canvas, hud, opts = {}) {
     if (focusId != null && focusNear > 0.3 && folkFor !== focusId) { folkFor = focusId; folk.focus(focusId); }
     folk.update(dt, camera, focusId, focusNear);
     // Following a citizen: the camera keeps them in frame as they walk.
+    if (following && !following.who.c.root.parent) { // their crowd was rebuilt (a new day): find them again
+      const again = folk.crowds.get(focusId)?.people.find((q) => q.a.name === following.who.a.name);
+      if (again) following.who = again; else following = null;
+    }
     if (following && !flying) {
       const v = following.who.c.root.getWorldPosition(tmpV);
       controls.getTarget(tmpT);

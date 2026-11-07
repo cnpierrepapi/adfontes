@@ -111,14 +111,22 @@ export function createFolk({ scene, islands }) {
   }
 
   /** Who's up close: build that nation's citizens (and let others go, keeping at most two). */
-  async function focus(id) {
-    if (id == null) return;
-    if (!crowds.has(id)) {
-      await ensureKit();
-      if (!crowds.has(id)) await rebuildCrowd(id, agentsOf.get(id) ?? dots.get(id)?.living ?? []);
+  // One build per nation at a time: the frame loop and a panel button can both ask at once on a
+  // first visit (while the kit is still loading); both must get the SAME crowd.
+  const building = new Map();
+  function focus(id) {
+    if (id == null) return Promise.resolve();
+    if (crowds.has(id)) { trim(id); return Promise.resolve(); }
+    if (!building.has(id)) {
+      building.set(id, (async () => {
+        await ensureKit();
+        if (!crowds.has(id)) await rebuildCrowd(id, agentsOf.get(id) ?? dots.get(id)?.living ?? []);
+        trim(id);
+      })().finally(() => building.delete(id)));
     }
-    for (const k of [...crowds.keys()]) if (k !== id && crowds.size > 2) dropCrowd(k);
+    return building.get(id);
   }
+  function trim(id) { for (const k of [...crowds.keys()]) if (k !== id && crowds.size > 2) dropCrowd(k); }
 
   // A citizen's day: walk to a spot on the plaza, idle a little, sometimes go to work at the
   // role's station (Smiths kneel, Scholars study at the temple, Brokers haggle at the edge).
