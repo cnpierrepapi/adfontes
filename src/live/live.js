@@ -10,6 +10,8 @@ import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { createEffects } from "./effects.js";
 import { buildMind, mindBase } from "./mind.js";
+import { createFolk } from "./folk.js";
+import { citizenGlow } from "./citizens.js";
 import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mesh, school, fallUniforms, range, pick } from "../scene.js";
 
 CameraControls.install({ THREE });
@@ -157,9 +159,9 @@ export async function startLive(canvas, hud, opts = {}) {
     // Night lamps: a warm light by the temple and each house (they bloom; hidden by day).
     const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
     if (town) {
-      const lamps = new THREE.Group(), lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.7, 0.6) });
+      const lamps = new THREE.Group(), lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.25, 0.9, 0.4) }); // just over white: a glow, not a flare
       for (const o of town.children) if (o.userData.lamp) {
-        const m = new THREE.Mesh(new THREE.SphereGeometry(r * 0.035 + 0.04, 8, 6), lampMat);
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r * 0.012 + 0.025, 8, 6), lampMat);
         const out = new THREE.Vector3(o.position.x, 0, o.position.z).normalize().multiplyScalar(r * 0.09);
         m.position.set(o.position.x + out.x, o.userData.lamp * r, o.position.z + out.z);
         lamps.add(m);
@@ -289,6 +291,7 @@ export async function startLive(canvas, hud, opts = {}) {
     skyStars.material.opacity = T.stars;
     for (const isl of islands.values()) if (isl.userData.lamps) isl.userData.lamps.visible = T.lamps;
     document.body.classList.toggle("night", theme === "night");
+    citizenGlow.value = theme === "night" ? 0.22 : 0;
   }
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
@@ -313,6 +316,7 @@ export async function startLive(canvas, hud, opts = {}) {
 
   // ---- the mind constellations (SPEC §12f): each nation's mindmap as stars over its island ----
   const minds = new Map(), mindQueue = new Map();
+  const folk = createFolk({ scene, islands }); // the people: dots far out, citizens up close
   // One load at a time per nation, so two quick records can't both build a sky.
   function loadMind(id, light = []) {
     const run = (mindQueue.get(id) || Promise.resolve()).then(async () => {
@@ -320,6 +324,7 @@ export async function startLive(canvas, hud, opts = {}) {
       if (!isl) return;
       const d = await api(`clan?id=${id}&d=${lastDay}`).catch(() => null);
       if (!d || d.error) return;
+      folk.setAgents(id, d.agents, lastDay);
       const old = minds.get(id);
       const all = [...d.points.map((p) => p.point), ...(d.frontier || []).map((p) => p.point)];
       const added = old ? all.filter((n) => !old.names.has(n)) : [];
@@ -362,6 +367,7 @@ export async function startLive(canvas, hud, opts = {}) {
       ray.setFromCamera(ndc, camera);
       ray.params.Points.threshold = 0.22;
       for (const m of minds.values()) { found = m.pick(ray); if (found) break; }
+      if (!found) found = folk.pick(ray, focusId);
       ray.params.Points.threshold = 1;
     }
     if (!found) { tip.hidden = true; tipKey = ""; canvas.style.cursor = ""; return; }
@@ -515,7 +521,7 @@ export async function startLive(canvas, hud, opts = {}) {
 
   const clock = new THREE.Clock();
   const tmpV = new THREE.Vector3(), tmpT = new THREE.Vector3();
-  let prevAz = controls.azimuthAngle, bank = 0, frameN = 0;
+  let prevAz = controls.azimuthAngle, bank = 0, frameN = 0, folkFor = null;
   const baseFov = 46;
   function frame() {
     const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
@@ -555,6 +561,7 @@ export async function startLive(canvas, hud, opts = {}) {
     // island focuses that one; panning well past the canopy lets go. The whole-world view
     // (camera far out) shows none.
     controls.getTarget(tmpT);
+    let focusNear = 0;
     const offOf = (id) => { const i = islands.get(id); return Math.hypot(tmpT.x - i.position.x, tmpT.z - i.position.z); };
     const fitNow = camera.aspect < 1 ? 1 / Math.pow(camera.aspect, 0.55) : 1; // same stand-back as flyTo
     const zoomK = 1 - THREE.MathUtils.smoothstep(controls.distance, 31 * fitNow, 35 * fitNow);
@@ -570,7 +577,12 @@ export async function startLive(canvas, hud, opts = {}) {
       // At night every nation's sky can be seen dimly from the whole world; by day only the focused one.
       const near = Math.max(focused, theme === "night" && isl.userData.rose !== "rising" ? (focusId == null ? 0.38 : 0) : 0); // flown in: only your nation's sky
       m.update(near, px, focused);
+      if (id === focusId) focusNear = focused;
     }
+    // Citizens: built the first time you come close to a nation (the kit loads then).
+    if (focusId == null) folkFor = null; // coming back later rebuilds them if they were let go
+    if (focusId != null && focusNear > 0.3 && folkFor !== focusId) { folkFor = focusId; folk.focus(focusId); }
+    folk.update(dt, camera, focusId, focusNear);
     if ((frameN++ & 1) === 0) hoverMinds();
     fx.update();
     if (bokeh) bokeh.uniforms.focus.value = controls.distance;
@@ -594,7 +606,7 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   frame();
   setTheme(opts.theme || "night");
-  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme };
+  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk };
 }
 
 // A clan's island: size from its mindmap, town from its state.

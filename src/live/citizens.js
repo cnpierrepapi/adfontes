@@ -19,6 +19,8 @@ export const ROLES = {
   Warden: { outfit: "ranger", tints: { Body: 0xffffff, Arms: 0xffffff, Legs: 0xff1f6e, Pauldron: 0xffd400, Hood: 0xffffff, Belt: 0xff1f6e, Bracer: 0xffd400 }, work: "Idle_Loop", dot: 0xffffff },
   Trickster: { outfit: "ranger", tints: { Body: 0xff1fae, Arms: 0xff1fae, Legs: 0xb6ff1f, Pauldron: 0xb6ff1f, Hood: 0xff1fae, Belt: 0xb6ff1f, Bracer: 0xb6ff1f }, work: "Jog_Fwd_Loop", dot: 0xff1fae },
 };
+/** Night glow on the clothes (live.js sets it with the theme), so bright colours still read by moonlight. */
+export const citizenGlow = { value: 0 };
 const HAIR = { male: [["hair_simpleparted"], ["hair_buzzed"], ["hair_simpleparted", "hair_beard"], ["hair_buzzed", "hair_beard"]], female: [["hair_buns"], ["hair_long"], ["hair_buzzedfemale"]] };
 const HAIR_TINTS = [0x2a1a14, 0x3a2618, 0x5a3a22, 0x8a3a1c, 0xc98a3a, 0xe8b85a, 0x1a1a22];
 
@@ -30,9 +32,10 @@ function brighten(mat, hex, amt, handX) {
   mat = mat.clone();
   const col = new THREE.Color(hex);
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uTint: { value: col }, uAmt: { value: amt }, uHand: { value: handX } });
+    Object.assign(sh.uniforms, { uTint: { value: col }, uAmt: { value: amt }, uHand: { value: handX }, uGlow: citizenGlow });
     sh.vertexShader = "varying vec3 vBind;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vBind = position;");
-    sh.fragmentShader = "uniform vec3 uTint; uniform float uAmt, uHand; varying vec3 vBind;\n" + sh.fragmentShader.replace(
+    sh.fragmentShader = "uniform vec3 uTint; uniform float uAmt, uHand, uGlow; varying vec3 vBind;\n" + sh.fragmentShader.replace(
+      "#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance += uTint * uGlow * uAmt * (1.0 - step(uHand, abs(vBind.x)));").replace(
       "#include <map_fragment>",
       `#include <map_fragment>
        float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
