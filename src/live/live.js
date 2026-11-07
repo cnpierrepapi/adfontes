@@ -533,14 +533,14 @@ export async function startLive(canvas, hud, opts = {}) {
     let d = null;
     for (const turn of [0.35, -0.35, 0.9, -0.9, 1.5, -1.5, 2.2, -2.2, Math.PI]) {
       const dir = facing.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), turn);
-      const cand = v.clone().addScaledVector(dir, h * 1.9).setY(v.y + h * 0.8);
+      const cand = v.clone().addScaledVector(dir, h * (camera.aspect > 1.8 ? 2.6 : 2.2)).setY(v.y + h * 0.95);
       const to = cand.clone().sub(eye), len = to.length();
       ray.set(eye, to.normalize());
       ray.far = len;
       if (!ray.intersectObjects(solid, false).length) { d = cand; break; }
     }
     d ??= v.clone().addScaledVector(facing, h * 1.9).setY(v.y + h * 1.6); // nothing clear: look down from above
-    controls.setLookAt(d.x, d.y, d.z, v.x, v.y + h * 0.5, v.z, true);
+    controls.setLookAt(d.x, d.y, d.z, v.x, v.y + h * 0.6, v.z, true);
     flying = { t0: performance.now(), dur: 1100 };
     lastInput = performance.now();
     following = { who, h };
@@ -667,7 +667,7 @@ export async function startLive(canvas, hud, opts = {}) {
     if (following && !flying) {
       const v = following.who.c.root.getWorldPosition(tmpV);
       controls.getTarget(tmpT);
-      controls.moveTo(tmpT.x + (v.x - tmpT.x) * 0.06, tmpT.y + (v.y + following.h * 0.5 - tmpT.y) * 0.06, tmpT.z + (v.z - tmpT.z) * 0.06, false);
+      controls.moveTo(tmpT.x + (v.x - tmpT.x) * 0.06, tmpT.y + (v.y + following.h * 0.6 - tmpT.y) * 0.06, tmpT.z + (v.z - tmpT.z) * 0.06, false);
     }
     if ((frameN++ & 1) === 0) hoverMinds();
     fx.update();
