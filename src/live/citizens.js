@@ -177,11 +177,16 @@ export async function loadCitizenKit(base = "/citizens/") {
   return { G, hair, clips, dims };
 }
 
+// First names in engine/names.mjs (and the testnet's older list) by the body that suits them.
+const FEMALE = new Set(["Ada", "Cleo", "Dara", "Elena", "Freya", "Hana", "Ines", "Klara", "Mira", "Priya", "Sofia", "Tamsin", "Vera", "Wren", "Ximena", "Zora", "Anouk", "Celia", "Dagny", "Farah", "Ilse", "Leda", "Nora", "Petra", "Saoirse", "Uma", "Wilma", "Yara", "Kemi", "Sade", "Nneka", "Wanjiru"]);
+const MALE = new Set(["Bram", "Goran", "Joaquin", "Lior", "Nikolai", "Otto", "Rafa", "Hugo", "Yusuf", "Bodhi", "Elio", "Felix", "Mateo", "Oskar", "Tariq", "Viggo", "Emeka", "Odo", "Ugo", "Chidi", "Kofi"]);
+
 /** The look a name gives a citizen (deterministic). Exported for the lab. */
 export function looksFor(name) {
   const h = h32(name);
   const r = rng(h);
-  const female = (h & 1) === 1;
+  const first = name.split(" ")[0];
+  const female = FEMALE.has(first) ? true : MALE.has(first) ? false : (h & 1) === 1; // unisex names and townsfolk: by hash
   return {
     female,
     hair: pick(r, HAIR[female ? "female" : "male"]),
