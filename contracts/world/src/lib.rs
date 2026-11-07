@@ -523,16 +523,10 @@ impl World {
         require!(text.len() <= 280, "Whisper too long");
         let mut clan = self.live_clan(clan_id);
         require!(env::predecessor_account_id() == clan.dao, "Only the clan's DAO can whisper");
-        let before = env::storage_usage();
         clan.whisper = text;
-        self.clans.insert(clan_id, clan.clone());
-        self.clans.flush();
-        // A longer whisper costs storage; the nation pays in florins at their NEAR value.
-        let cost = self.storage_cost_since(before);
-        if cost > 0 {
-            self.charge_storage(&mut clan, cost);
-            self.clans.insert(clan_id, clan);
-        }
+        self.clans.insert(clan_id, clan);
+        // A whisper's storage (at most ~0.003 NEAR) is paid by the world, never by the nation:
+        // a god must always be able to speak to a nation that lost everything.
     }
 
     /// Smite: stunt or kill one of the clan's agents at any time (by DAO vote), no gift needed.

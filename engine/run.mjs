@@ -286,7 +286,7 @@ for (let n = 0; n < days; n++) {
       // Drafter
       const depth = W.chainDepth(c);
       // A new nation's first draft comes as soon as its line is deep enough (its first gift to rule on).
-      const draftDue = INSTANT ? FRESH && !c.firstDraftDone : day - c.lastDraftDay >= CFG.draftEveryDays && chance(Math.min(1, effort));
+      const draftDue = INSTANT ? FRESH && !c.firstDraftDone : Date.now() - (c.lastDraftAt || 0) >= CFG.draftEveryMs && chance(Math.min(1, effort));
       if (!eff.waiting && able("Drafter").length && depth >= CFG.draftMinDepth && draftDue && !capped("draft")) {
         c.firstDraftDone = true;
         if (!c.hasKit) {
@@ -316,6 +316,7 @@ for (let n = 0; n < days; n++) {
         const r = await chain.giftDraft(oc.id, hash, check.passed);
         s.gifts[r.value] = { clan: oc.id, draft: id, day, at: Date.now(), applied: false };
         c.lastDraftDay = day;
+        c.lastDraftAt = Date.now();
         // A passed draft earns florins (gods no longer claim drafts): 60% to this nation, 40% to
         // the other living nations whose research is in its chain, by how much of it.
         const shares = {};
@@ -342,12 +343,15 @@ for (let n = 0; n < days; n++) {
           log({ kind: "mint", clan: oc.id, florins: earned, for: earnedFor, tx: r?.hash });
         } catch (e) { log({ kind: "error", clan: oc.id, error: `mint: ${String(e.message || e).slice(0, 180)}` }); }
       }
-      // Upkeep in batches: florins burned per citizen per real day (12 engine turns).
-      if (!INSTANT && day - c.lastUpkeepDay >= CFG.upkeepEveryDays) {
+      // Upkeep in batches: florins burned per citizen per real day, for the real hours since the last.
+      c.lastUpkeepAt ||= Date.now(); // upkeep counts from first sight
+      const upkeepHours = (Date.now() - c.lastUpkeepAt) / 3600e3;
+      if (!INSTANT && upkeepHours >= CFG.upkeepEveryHours) {
         const n = agents.filter((a) => a.alive).length;
-        const amount = +((CFG.florin.upkeep / 12) * n * (day - c.lastUpkeepDay)).toFixed(4);
+        const amount = +((CFG.florin.upkeep / 24) * n * upkeepHours).toFixed(4);
         const r = await chain.burn(oc.id, amount, `upkeep for ${n} citizens`);
         c.lastUpkeepDay = day;
+        c.lastUpkeepAt = Date.now();
         log({ kind: "upkeep", clan: oc.id, agents: n, florins: amount, paid: toFlorins(r.value), tx: r.hash });
       }
       // Reverence at the end of the turn: how the nation did, the fade, reports, who they follow.

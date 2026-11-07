@@ -40,7 +40,9 @@ export const CFG = {
     upkeep: 6, // burned per citizen per real day
     fine: 5, // burned per fake the Warden catches
   },
-  upkeepEveryDays: 6, // engine turns between upkeep burns (12 turns = 1 real day)
+  // Upkeep and the draft limit run on REAL time, not engine turns (a burst of foundings starts
+  // turns minutes apart). ADF_UPKEEP_HOURS only for test runs.
+  upkeepEveryHours: Number(process.env.ADF_UPKEEP_HOURS) || 12,
   corpusBasePrice: 1, // florins; x (1 + depth) x scarcity
   toolPrice: 1, // florins for a figure kit
 
@@ -48,7 +50,7 @@ export const CFG = {
   scholarTurnsPerDay: 1, // per Scholar, scaled by pace/laziness/fortune/skill
   draftMinDepth: 3, // a draft needs a connected chain this deep
   maxDepth: 6, // lines stop here; the Patron branches out instead
-  draftEveryDays: 12, // at most one draft per nation per real day (12 engine turns; SPEC §14)
+  draftEveryMs: 24 * 3600e3, // at most one draft per nation per real day (SPEC §14)
 
   // Spend guard (his call, 7 Nov): never more than this on Claude in one UTC day, whatever happens.
   dailyCapUsd: 0.5,

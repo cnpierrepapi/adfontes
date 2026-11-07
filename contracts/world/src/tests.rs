@@ -500,6 +500,18 @@ fn pause_stops_new_money_but_never_claims() {
 }
 
 #[test]
+fn a_broke_nation_can_still_be_whispered_to() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    let all = clan(&w, a).florins.0;
+    op();
+    w.burn(a, U128(all), "upkeep".into());
+    set("adf-clan-1.sputnik-dao.near", 0);
+    w.whisper(a, "we are still here; keep going".into());
+    assert_eq!(clan(&w, a).whisper, "we are still here; keep going");
+}
+
+#[test]
 fn dao_whispers_and_smites_without_a_gift() {
     let mut w = new_world();
     let a = found(&mut w, "god1.near", 3 * NEAR);
