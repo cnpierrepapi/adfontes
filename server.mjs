@@ -17,6 +17,8 @@ const DEFAULT_NET = process.env.SITE_NET || "testnet";
 const PORT = Number(process.env.PORT || 3000);
 const DIST = path.resolve("dist");
 const near = (y) => Number(BigInt(y || 0) / 10n ** 18n) / 1e6;
+// Florins (SPEC §14): 1 florin = 10^22 units on chain.
+const florins = (u) => Number(BigInt(u || 0) / 10n ** 16n) / 1e6;
 
 // Small cache so a busy page doesn't hammer the RPC or the database.
 const cache = new Map();
@@ -66,11 +68,10 @@ function makeApi(NET) {
         return {
           net: NET, world: WORLD, explorer: EXPLORER, day: cfg.day, season: cfg.season, paused: cfg.paused,
           weather, clock,
-          totals: { balance: near(totals.balance), owed: near(totals.liabilities), burned: near(totals.burned), fees_paid: near(totals.fees_paid) },
-        // Mainnet's season jackpot (SPEC §12m D): the fee account's balance (less its 0.01 NEAR
-        // storage reserve) plus fees taken but not yet swept to it. Paid to the winner's gods.
-        jackpot: NET === "mainnet" ? await rpc.query({ request_type: "view_account", finality: "final", account_id: cfg.treasury })
-          .then((a) => ({ account: cfg.treasury, near: Math.max(0, near(a.amount) - 0.01) + near(totals.fees_pending) }), () => null) : null,
+          totals: { balance: near(totals.balance), owed: near(totals.liabilities), backing: near(totals.backing), florins: florins(totals.florins), florin_value: near(totals.florin_value), minted: florins(totals.minted), burned: florins(totals.burned) },
+        // The season jackpot (SPEC §14): 14% of everything put in, held by the world contract and
+        // paid to the winning nation's gods after the season ends. Both networks.
+        jackpot: totals.jackpot != null ? { near: near(totals.jackpot), paid: !!totals.jackpot_paid } : null,
           clans: clans.map((c) => {
             const st = s.clans[c.id] || {};
             // Founded but not seen by the engine yet: predict its field exactly as the engine will
@@ -82,7 +83,9 @@ function makeApi(NET) {
             }
             return {
               id: c.id, name: c.name, dao: c.dao, alive: c.alive, gods: c.gods.length,
-              play: near(c.play), reserve: near(c.reserve), total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
+              // What the nation holds: florins, and what they're worth in NEAR at today's florin value.
+              florins: florins(c.florins), worth: +(florins(c.florins) * near(totals.florin_value)).toFixed(4),
+              total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
               field: st.field ?? null, mbti: st.mbti ?? null, fortune: st.fortune ?? 1,
               seen: !!s.clans[c.id], tricksters: st.tricksters ?? 0,
               points: Object.keys(st.owned || {}).length, depth: st.owned ? chainDepth(st) : 0,
@@ -154,12 +157,12 @@ function makeApi(NET) {
         const ids = Object.keys(s.gifts || {}).map(Number).sort((a, b) => b - a).slice(0, 40);
         const live = await Promise.all(ids.map((g) => view("get_gift", { gift_id: g }).catch(() => null)));
         return live.filter(Boolean).map((g) => ({
-          id: g.id, clan: g.clan, top_contributor: g.top_contributor, passed: g.warden_passed, status: g.status, day: g.day,
+          id: g.id, clan: g.clan, passed: g.warden_passed, status: g.status, day: g.day,
           ends_ms: Math.floor((Number(BigInt(g.created_ns) / 1_000_000n)) + 24 * 3600 * 1000),
           title: s.drafts?.[s.gifts[g.id]?.draft]?.draft?.title ?? null,
         }));
       });
-      return { now_ms: Date.now(), gifts: all.filter((g) => g.clan === id || g.top_contributor === id) };
+      return { now_ms: Date.now(), gifts: all.filter((g) => g.clan === id) };
     },
   
     // What happened since the last game day, live (SPEC §12n): the instant turns' records, which

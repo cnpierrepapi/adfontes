@@ -15,7 +15,7 @@ function showClan(c, status) {
   const m = document.createElement("p"); m.className = "meta";
   m.textContent = `${[c.field, c.mbti, `${c.gods} god${c.gods === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}${status === "dead" ? " · ruins" : status === "rich" ? " · sated, so a bit lazy" : status === "neglected" ? ((c.tricksters || 0) > 0 ? " · neglected, a Trickster moved in" : " · hungry, it needs a blessing") : status === "new" ? " · new, waiting for its first day" : ""}`;
   const nums = document.createElement("div"); nums.className = "nums";
-  for (const [v, l] of [[c.points, "points on its mindmap"], [n3(c.play), "NEAR to spend"], [c.clean_gifts, "clean gifts"]]) {
+  for (const [v, l] of [[c.points, "points on its mindmap"], [Math.round(c.florins ?? 0), `florins, worth ${n3(c.worth ?? 0)} NEAR`], [c.clean_gifts, "clean gifts"]]) {
     const d = document.createElement("div"); d.textContent = v;
     const s = document.createElement("small"); s.textContent = l; d.append(s); nums.append(d);
   }
@@ -61,7 +61,7 @@ function showDial(W) {
     const mood = soundKind(W);
     const pct = `${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}%`;
     $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
-    $("dial").textContent = `${W.season} · ${c.phase === "day" ? `☀ Day ${c.days}` : `☾ Night ${c.nights}`} · NEAR $${c.price.toFixed(2)} (${pct} since ${c.phase === "day" ? "dawn" : "dusk"})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : " · testnet"}`;
+    $("dial").textContent = `${W.season} · ${c.phase === "day" ? `☀ Day ${c.days}` : `☾ Night ${c.nights}`} · NEAR $${c.price.toFixed(2)} (${pct} since ${c.phase === "day" ? "dawn" : "dusk"})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
     return;
   }
   const w = W.weather, mood = w ? weatherKind(w.change) : "";

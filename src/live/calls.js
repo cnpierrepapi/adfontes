@@ -13,7 +13,6 @@ export const found = (world, name, deposit) => ({ receiver: world, method: "foun
 export const bless = (world, clanId, deposit) => ({ receiver: world, method: "bless", args: { clan_id: clanId }, deposit: BigInt(deposit), gas: T(GAS.bless) });
 export const joinDao = (world, clanId, bond) => ({ receiver: world, method: "join_dao", args: { clan_id: clanId }, deposit: BigInt(bond), gas: T(GAS.join) });
 export const withdraw = (world, clanId) => ({ receiver: world, method: "withdraw", args: { clan_id: clanId }, deposit: 0n, gas: T(GAS.withdraw) });
-export const claimGift = (world, giftId) => ({ receiver: world, method: "claim_gift", args: { gift_id: giftId }, deposit: 0n, gas: T(GAS.claimGift) });
 export const claimOwed = (world) => ({ receiver: world, method: "claim_owed", args: {}, deposit: 0n, gas: T(GAS.claimOwed) });
 
 /** The DAO proposal kind that makes the clan's DAO call `method` on the world. */

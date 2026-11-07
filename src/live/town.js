@@ -14,6 +14,7 @@
 import * as THREE from "three";
 import { mesh } from "../scene.js";
 import { makeCitizen, citizenGlow } from "./citizens.js";
+import { planWalk, walkStep, turnToward } from "./steer.js";
 
 const WOOD = 0xb07a4a, DARK_WOOD = 0x7a5232, STONE = 0xbdb6c8, IRON = 0x5a5f6e, CLOTH = 0xf2ead8, PAPER = 0xfffaf0;
 const GOLD_MAT = new THREE.MeshStandardMaterial({ color: 0xffc83a, emissive: 0x8a5a00, emissiveIntensity: 0.6, metalness: 0.5, roughness: 0.35, flatShading: true });
@@ -88,7 +89,7 @@ function workshop(lit) {
 function countingTable(coins, gifts) {
   const g = new THREE.Group();
   g.add(table(1.5, 0.8));
-  // coin stacks, one per ~0.8 NEAR to spend (at least one, at most 12)
+  // coin stacks, one per ~0.8 NEAR the nation's florins are worth (at least one, at most 12)
   const n = Math.max(1, Math.min(12, Math.round(coins / 0.8)));
   for (let i = 0; i < n; i++) {
     const h = 0.06 + ((i * 37) % 7) * 0.025;
@@ -239,15 +240,15 @@ const SPOT = { Scholar: [0.9, 0.4], Smith: [2.1, 0.52], Drafter: [3.2, 0.46], Br
   // the five techs sit further out, between the trades
   press: [1.5, 0.72], spectacles: [2.65, 0.74], clock: [3.8, 0.72], bookkeeping: [4.95, 0.74], astrolabe: [5.95, 0.7] };
 // Tech buildings stand clearly taller than a citizen (his rule, SPEC §14b): scaled up, footprint too.
-const BIG = { press: 1.45, spectacles: 1.7, clock: 1.3, bookkeeping: 1.4, astrolabe: 1.6 };
-const FOOT = { Scholar: 2.4, Smith: 2.0, Drafter: 1.3, Broker: 1.7, Patron: 1.4, Warden: 0.6, press: 1.3 * BIG.press, spectacles: 0.8 * BIG.spectacles, clock: 1.0 * BIG.clock, bookkeeping: 1.3 * BIG.bookkeeping, astrolabe: 0.9 * BIG.astrolabe };
+const BIG = { press: 1.45, spectacles: 1.7, clock: 1.3, bookkeeping: 1.4, astrolabe: 1.6, Smith: 1.3, Broker: 1.3, Warden: 1.4 };
+const FOOT = { Scholar: 2.4, Smith: 2.0 * BIG.Smith, Drafter: 1.3, Broker: 1.7 * BIG.Broker, Patron: 1.6, Warden: 0.6 * BIG.Warden, press: 1.3 * BIG.press, spectacles: 0.8 * BIG.spectacles, clock: 1.0 * BIG.clock, bookkeeping: 1.3 * BIG.bookkeeping, astrolabe: 0.9 * BIG.astrolabe };
 
 /**
  * Build a nation's scenes and townsfolk. Returns { group, actors, stations } where stations maps a
  * role to the places its citizens work: [{ x, z, face, clip }].
  */
 export async function buildTown(ctx) {
-  const { kit, r, s, clan, status, roles, smithWorked, phone, place, groundY, R, home } = ctx;
+  const { kit, r, s, clan, status, roles, smithWorked, phone, place, open, blocks = [], groundY, R, home } = ctx;
   const group = new THREE.Group();
   group.name = "town";
   const actors = [], stations = new Map(), spin = []; // spin: tech parts that turn (clock hands, astrolabe)
@@ -268,6 +269,8 @@ export async function buildTown(ctx) {
     group.add(g);
     const k = s * (BIG[role] ?? 1); // local metres -> town space, with the building's size
     const frame = { x, z, rot, obj, at: (lx, lz) => [x + (lx * Math.cos(rot) + lz * Math.sin(rot)) * k, z + (-lx * Math.sin(rot) + lz * Math.cos(rot)) * k], face: (a) => a + rot };
+    // Where a citizen stands to see whoever works here (errands, SPEC §14b): beside it, facing it.
+    { const [vx, vz] = frame.at(1.5, 0.2); frame.visit = { x: vx, z: vz, face: Math.atan2(x - vx, z - vz) }; }
     scenes[role] = frame;
     return frame;
   }
@@ -286,7 +289,7 @@ export async function buildTown(ctx) {
     const act = c.play(clip, 0);
     if (act) act.time = R() * act.getClip().duration; // out of step with each other
     group.add(c.root);
-    const actor = { c, kind, pos: [x, z], k, mode: extra.mode ?? "fixed", ...extra };
+    const actor = { c, kind, pos: [x, z], k, mode: extra.mode ?? "fixed", cr: s * k * 0.28, ...extra };
     actors.push(actor);
     return actor;
   }
@@ -332,8 +335,11 @@ export async function buildTown(ctx) {
 
   // ---- counting table by the temple: the Patron counts the nation's NEAR ----
   if (roles.has("Patron")) {
-    const sc = put("Patron", countingTable(clan.play || 0, clan.clean_gifts || 0));
-    station("Patron", [{ ...pt(sc, -0.2, -0.65), face: sc.face(0), clip: "PickUp_Table" }, { ...pt(sc, 0.5, -0.65), face: sc.face(0), clip: "Idle_Talking_Loop" }]);
+    // The bank desk (SPEC §14b): the Patron sits behind it and pays out to citizens who come for money.
+    const sc = put("Patron", countingTable(clan.worth ?? 0, clan.clean_gifts || 0));
+    const chair = stool(0.46); chair.position.set(0.1, 0, -0.72); sc.obj.add(chair); shadows(chair);
+    station("Patron", [{ ...pt(sc, 0.1, -0.72), face: sc.face(0), clip: "Sitting_Idle_Loop" }, { ...pt(sc, 0.6, -0.65), face: sc.face(0), clip: "PickUp_Table" }]);
+    sc.visit = { ...pt(sc, 0.1, 0.78), face: sc.face(Math.PI) }; // where a citizen stands to be paid
     // a clerk on a stool at the end, taking notes
     const st = stool(0.46); st.position.set(-1.05, 0, 0.1); sc.obj.add(st); shadows(st);
     const [x, z] = sc.at(-1.05, 0.1);
@@ -362,7 +368,8 @@ export async function buildTown(ctx) {
   }
   {
     const a0 = R() * 6.28, rad = r * 0.78;
-    const w = await person("adult", Math.cos(a0) * rad, Math.sin(a0) * rad, 0, "Walk_Loop", { mode: "watch", ang: a0, rad, night: true });
+    const stops = roundStops(open, blocks, a0, rad, 10, 1, s * 0.3);
+    const w = await person("adult", stops[0][0], stops[0][1], 0, "Walk_Loop", { mode: "rounds", stops, si: 1, speed: r * 0.035, night: true });
     const t = torch(); const hand = boneNamed(w.c.root, "hand_r");
     if (hand) { const ws = hand.getWorldScale(new THREE.Vector3()).x; t.scale.setScalar(ws > 0 ? (s * w.k) / ws : 1); hand.add(t); w.torch = t; }
     w.c.mixer.timeScale = 0.8;
@@ -387,8 +394,9 @@ export async function buildTown(ctx) {
   }
   if (!phone) {
     // a cart pusher doing the rounds
-    const a0 = R() * 6.28, rad = r * 0.66;
-    const p = await person("adult", Math.cos(a0) * rad, Math.sin(a0) * rad, 0, "Push_Loop", { mode: "ring", ang: a0, rad, dir: R() < 0.5 ? 1 : -1 });
+    const a0 = R() * 6.28, rad = r * 0.62;
+    const stops = roundStops(open, blocks, a0, rad, 8, R() < 0.5 ? 1 : -1, s * 1.3);
+    const p = await person("adult", stops[0][0], stops[0][1], 0, "Push_Loop", { mode: "rounds", stops, si: 1, speed: r * 0.05, cr: s * 1.3 });
     const ct = cart(); ct.position.set(0, 0, 0.95); p.c.root.add(ct); shadows(ct);
     // two children chasing each other round a little circle
     if (!neglected) {
@@ -405,6 +413,16 @@ export async function buildTown(ctx) {
 }
 
 function pt(sc, lx, lz) { const [x, z] = sc.at(lx, lz); return { x, z }; }
+/** Stops for a round of the island: n points on a circle, each moved to open ground; a stop with
+ *  no open ground near it is dropped (the round goes straight on to the next). */
+function roundStops(open, blocks, a0, rad, n, dir, clearance) {
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    const a = a0 + dir * (k / n) * Math.PI * 2, p = open(Math.cos(a) * rad, Math.sin(a) * rad, clearance);
+    if (!blocks.some((b) => Math.hypot(p[0] - b[0], p[1] - b[1]) < b[2] + clearance)) out.push(p);
+  }
+  return out.length >= 2 ? out : [open(Math.cos(a0) * rad * 0.5, Math.sin(a0) * rad * 0.5, clearance), open(-Math.cos(a0) * rad * 0.5, -Math.sin(a0) * rad * 0.5, clearance)];
+}
 function boneNamed(root, name) { let b = null; root.traverse((o) => { if (o.isBone && o.name === name) b = o; }); return b; }
 
 /**
@@ -412,16 +430,18 @@ function boneNamed(root, name) { let b = null; root.traverse((o) => { if (o.isBo
  */
 export function stepTown(town, dt, now, { r, s, open, groundY }) {
   const night = citizenGlow.value > 0;
+  const blocks = town.blocks || [], maxR = r * 0.88;
   for (const o of town.spin || []) o.rotation[o.userData.spin.axis] += dt * o.userData.spin.speed;
   for (const a of town.actors) {
     const c = a.c;
     if (a.night) c.root.visible = night;
     if (!c.root.visible) continue;
-    if (a.mode === "watch") {
-      a.ang += dt * 0.05;
-      const x = Math.cos(a.ang) * a.rad, z = Math.sin(a.ang) * a.rad;
-      c.root.position.set(x, groundY(r, x, z), z);
-      c.root.rotation.y = Math.atan2(-Math.sin(a.ang), Math.cos(a.ang)); // walking round the rim
+    if (a.mode === "rounds") {
+      // The watchman's rim and the cart's round: stop to stop, routed round whatever is between.
+      if (!a.target) planWalk(a, a.stops[a.si], blocks, maxR, now, true);
+      if (walkStep(a, dt, a.speed, blocks, maxR, now)) a.si = (a.si + 1) % a.stops.length;
+      turnToward(c.root, a.heading, dt, 4);
+      c.root.position.set(a.pos[0], groundY(r, ...a.pos), a.pos[1]);
       if (a.torch) { // the flame stays upright whatever the hand does
         c.root.updateMatrixWorld(true);
         a.torch.parent.getWorldQuaternion(a.torch.quaternion).invert();
@@ -434,19 +454,16 @@ export function stepTown(town, dt, now, { r, s, open, groundY }) {
     } else if (a.mode === "walk") {
       if (!a.target && now > a.until) {
         const ang = Math.random() * 6.28, rad = r * (0.3 + Math.random() * 0.4);
-        a.target = open(Math.cos(ang) * rad, Math.sin(ang) * rad);
+        planWalk(a, open(Math.cos(ang) * rad, Math.sin(ang) * rad, a.cr), blocks, maxR, now, true);
+        a.walking = true;
         c.play(a.hurry ? "Jog_Fwd_Loop" : "Walk_Loop");
       }
-      if (a.target) {
-        const dx = a.target[0] - a.pos[0], dz = a.target[1] - a.pos[1], d = Math.hypot(dx, dz);
-        if (d < 0.02) { a.target = null; a.until = now + 2 + Math.random() * 6; c.play(Math.random() < 0.4 ? "Idle_Talking_Loop" : "Idle_Loop"); }
-        else {
-          const step = Math.min(d, r * (a.hurry ? 0.16 : 0.07) * a.k * dt);
-          a.pos[0] += (dx / d) * step; a.pos[1] += (dz / d) * step;
-          const want = Math.atan2(dx, dz);
-          c.root.rotation.y += Math.atan2(Math.sin(want - c.root.rotation.y), Math.cos(want - c.root.rotation.y)) * Math.min(1, dt * 6);
-          c.root.position.set(a.pos[0], groundY(r, ...a.pos), a.pos[1]);
+      if (a.walking) {
+        if (walkStep(a, dt, r * (a.hurry ? 0.16 : 0.07) * a.k, blocks, maxR, now)) {
+          a.walking = false; a.until = now + 2 + Math.random() * 6; c.play(Math.random() < 0.4 ? "Idle_Talking_Loop" : "Idle_Loop");
         }
+        turnToward(c.root, a.heading, dt);
+        c.root.position.set(a.pos[0], groundY(r, ...a.pos), a.pos[1]);
       }
     }
     c.mixer.update(dt);

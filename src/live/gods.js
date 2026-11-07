@@ -8,6 +8,8 @@ import { api } from "../net.js";
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Florins (SPEC §14): 1 florin = 10^22 units on chain.
+const fl = (u) => (Number(BigInt(u || 0) / 10n ** 16n) / 1e6).toFixed(1);
 
 export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   const WORLD = W.world;
@@ -54,18 +56,17 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const [clans, owed] = await Promise.all([wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []), wallet.view(WORLD, "get_owed", { account_id: account }).catch(() => "0")]);
     const mine = clans.filter((c) => c.alive && c.gods.some((g) => g.account === account));
     menu.append(el("p", { className: "fine", textContent: mine.length ? "You are a god of:" : "You are not a god of any nation yet. Bless one, or found your own." }));
-    // Your stakes: each nation's rank in the season, your reverence there, and what your share is
-    // worth now (your put-in share of what the nation holds; it's what a withdrawal would pay).
+    // Your stakes: each nation's rank in the season, your reverence there, and your stake: your
+    // florins there and what claiming them pays today (SPEC §14), read from the contract.
     const ranked = (live.world.clans || []).filter((k) => k.alive !== false).sort((x, y) => (y.reverence?.standing ?? 0) - (x.reverence?.standing ?? 0));
     for (const c of mine) {
       const me = c.gods.find((g) => g.account === account);
-      const held = BigInt(c.play) + BigInt(c.reserve), total = BigInt(c.total_in || 0);
-      const share = total > 0n ? (held * BigInt(me.put_in)) / total : held;
+      const st = await wallet.view(WORLD, "get_stake", { clan_id: c.id, account }).catch(() => null);
       const w = live.world.clans.find((k) => k.id === c.id);
       const rank = ranked.findIndex((k) => k.id === c.id) + 1;
       const myRev = w?.reverence?.gods?.[account]?.r;
       const b = el("button", { type: "button", className: "walletpick stake" }, el("span", { textContent: c.name }),
-        el("small", { textContent: `${rank ? `#${rank} of ${ranked.length}` : ""}${myRev != null ? ` · your reverence ${myRev}` : ""} · your share ${near(share)} NEAR` }));
+        el("small", { textContent: `${rank ? `#${rank} of ${ranked.length}` : ""}${myRev != null ? ` · your reverence ${myRev}` : ""} · your stake ${st ? `${fl(st.florins)} florins, ${near(st.near)} NEAR` : "?"}` }));
       b.addEventListener("click", () => { menu.hidden = true; live.flyTo(c.id); });
       menu.append(b);
     }
@@ -298,6 +299,18 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       box.replaceChildren(el("h4", { textContent: me ? "Your powers" : "Gods" }));
       drawReverence(!!me, seats.includes(account), clan).catch(() => {});
       box.append(el("p", { className: "fine", textContent: me ? `You are one of ${clan.gods.length} god${clan.gods.length === 1 ? "" : "s"} here, with ${near(me.put_in)} NEAR put in.` : `${clan.gods.length} god${clan.gods.length === 1 ? "" : "s"} watch over ${clan.name}.` }));
+      // Your stake, big and clear (SPEC §14): your florins here and what claiming pays today.
+      if (me) {
+        const stakeBox = el("div", { className: "stakebox" }, el("small", { textContent: "Your stake" }), el("b", { textContent: "…" }));
+        box.append(stakeBox);
+        wallet.view(WORLD, "get_stake", { clan_id: clan.id, account }).then((st) => {
+          if (my !== token) return;
+          const put = Number(BigInt(st.put_in) / 10n ** 18n), got = Number(BigInt(st.near) / 10n ** 18n);
+          const pct = put ? Math.round((got / put) * 100) : 0;
+          stakeBox.replaceChildren(el("small", { textContent: "Your stake" }), el("b", { textContent: `${fl(st.florins)} florins` }),
+            el("span", { className: pct >= 100 ? "up" : "down", textContent: `${near(st.near)} NEAR if you claim today · ${pct}% of what you put in` }));
+        }).catch(() => stakeBox.remove());
+      }
       const grid = el("div", { className: "views" });
       const power = (label, fn, cls = "") => { const b = el("button", { type: "button", className: `viewbtn ${cls}`, textContent: label }); b.addEventListener("click", fn); grid.append(b); };
       power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "gold");
@@ -309,29 +322,21 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           power("Root it out", () => rootCard(clan));
           if (BigInt(clan.staking_fund) > 0n) power("Release staking fund", () => stakingCard(clan));
         }
-        power("Withdraw your share", () => withdrawCard(clan, me));
+        power("Claim your stake", () => withdrawCard(clan, me));
       }
       box.append(grid, rev);
       if (clan.whisper) box.append(el("p", { className: "fine" }, "The gods' last whisper: ", el("i", { textContent: `"${clan.whisper}"` })));
-      // Gifts to rule on (own, within 24h) and to claim (as top contributor, after 24h).
+      // Drafts to rule on (own, within 24h). Drafts can't be claimed any more (SPEC §14).
       if (me) {
         const g = await api(`gifts?id=${c.id}`).catch(() => ({ gifts: [] }));
         if (my !== token) return;
         const now = g.now_ms ?? Date.now();
         const toRule = (g.gifts || []).filter((x) => x.clan === c.id && x.status === "Pending" && now < x.ends_ms);
-        const toClaim = (g.gifts || []).filter((x) => x.top_contributor === c.id && x.clan !== c.id && x.status === "Pending" && now >= x.ends_ms);
         if (seats.includes(account)) for (const x of toRule) {
           const hrs = Math.max(1, Math.round((x.ends_ms - now) / 3600000));
           const row = el("div", { className: "gift" }, el("span", { textContent: `Gift #${x.id}: ${x.title ?? "a draft"} (${x.passed ? "the Warden passed it" : "the Warden failed it"}, ${hrs}h left to rule)` }));
           const b = el("button", { type: "button", className: "viewbtn", textContent: "Rule on it" });
           b.addEventListener("click", () => ruleCard(clan, x));
-          row.append(b);
-          box.append(row);
-        }
-        for (const x of toClaim) {
-          const row = el("div", { className: "gift" }, el("span", { textContent: `Gift #${x.id} from ${live.world.clans.find((k) => k.id === x.clan)?.name ?? `nation ${x.clan}`}: its gods didn't rule in time, and your nation contributed most.` }));
-          const b = el("button", { type: "button", className: "viewbtn", textContent: "Claim it" });
-          b.addEventListener("click", () => claimGiftCard(clan, x));
           row.append(b);
           box.append(row);
         }
@@ -503,30 +508,25 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       },
     });
   }
-  function withdrawCard(clan, me) {
+  async function withdrawCard(clan, me) {
     const last = clan.gods.length === 1;
-    const total = BigInt(clan.total_in), put = BigInt(me.put_in);
-    const share = last || total === 0n ? BigInt(clan.play) + BigInt(clan.reserve) : ((BigInt(clan.play) + BigInt(clan.reserve)) * put) / total;
-    const out = last ? share + BigInt(clan.staking_fund) : share > 10n ** 22n ? share - 10n ** 22n : share;
+    const st = await wallet.view(WORLD, "get_stake", { clan_id: clan.id, account }).catch(() => null);
+    if (!st) return toast("Couldn't read your stake. Try again.");
+    const pays = BigInt(st.near), out = last ? pays + BigInt(clan.staking_fund) : pays > 10n ** 22n ? pays - 10n ** 22n : 0n;
+    const put = Number(BigInt(st.put_in) / 10n ** 18n), got = Number(pays / 10n ** 18n);
     card({
-      title: "Withdraw your share",
-      words: () => last
-        ? `You are ${clan.name}'s last god. If you leave, the nation dies: its citizens are gone and its island becomes ruins that other nations can absorb. You get back about ${near(out)} NEAR, including the staking fund. This can't be undone.`
-        : `You leave ${clan.name}'s gods and get back your share, about ${near(out)} NEAR (minus any fee it owes and the 0.01 NEAR bond that removes your DAO seat). The nation goes on with its other gods.`,
+      title: "Claim your stake",
+      words: () => `Your stake in ${clan.name} is ${fl(st.florins)} florins. At today's florin value they pay ${near(st.near)} NEAR (you put in ${near(st.put_in)}, so that's ${put ? Math.round((got / put) * 100) : 0}% of it). ` +
+        "The 14% of every blessing that went to the jackpot stays there for the season's winner. " +
+        (last
+          ? `You are ${clan.name}'s last god, so claiming ends the nation: its citizens are gone and its island becomes ruins that other nations can absorb. You get about ${near(out)} NEAR, with the staking fund. This can't be undone.`
+          : `You leave ${clan.name}'s gods with about ${near(out)} NEAR (the 0.01 NEAR bond that removes your DAO seat comes out of it). The nation goes on with its other gods.`),
       calls: () => [C.withdraw(WORLD, clan.id)],
       after: async () => {
         live.fx.play({ kind: "withdraw", clan: clan.id, text: last ? `The last god left ${clan.name}` : `A god left ${clan.name}` });
         if (last) live.refresh?.();
-        return last ? `You withdrew. ${clan.name} falls to ruins on the next look at the world.` : `You withdrew your share from ${clan.name}.`;
+        return last ? `You claimed your stake. ${clan.name} falls to ruins on the next look at the world.` : `You claimed your stake from ${clan.name}.`;
       },
-    });
-  }
-  function claimGiftCard(clan, gift) {
-    card({
-      title: `Claim gift #${gift.id}`,
-      words: () => `The nation that made this gift didn't rule on it within 24 hours. ${clan.name} contributed most to it, so its gods can claim it. Claiming records the gift as yours.`,
-      calls: () => [C.claimGift(WORLD, gift.id)],
-      after: async () => { live.fx.play({ kind: "ruling", clan: clan.id, text: `${clan.name} claimed gift #${gift.id}` }); return `Gift #${gift.id} is claimed by ${clan.name}.`; },
     });
   }
   function voteCard(clan, p, action) {

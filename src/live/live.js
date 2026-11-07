@@ -302,6 +302,7 @@ export async function startLive(canvas, hud, opts = {}) {
   // Event lines go to the list under the standings; held until that list exists (no TDZ).
   // A tech record: add it to the nation and rebuild its town so the building stands there now.
   let retownLater = () => {}; // set once the people exist (folk is made further down; no TDZ)
+  let errandLater = () => {};
   function techBuilt(r) {
     const isl = islands.get(r.clan);
     if (!isl) return;
@@ -310,7 +311,9 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   const early = [];
   let eventSink = (e) => early.push(e);
-  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); if (r.kind === "tech") techBuilt(r); if (r.kind === "rooted") loadMind(r.clan); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); if (r.kind === "tech") techBuilt(r); if (r.kind === "rooted") loadMind(r.clan);
+      // Citizens run their errands for what just happened (SPEC §14b).
+      if (r.kind === "tool") errandLater(r.clan, "tool"); else if (r.kind === "trade") errandLater(r.buyer, "trade"); else if (r.kind === "gift") errandLater(r.clan, "draft"); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
   const recordHooks = new Set(); // other modules (the god's route) hear every record the world plays
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
@@ -469,6 +472,7 @@ export async function startLive(canvas, hud, opts = {}) {
   const minds = new Map(), mindQueue = new Map();
   const folk = createFolk({ scene, islands, renderer, camera }); // the people: dots far out, citizens up close
   retownLater = folk.retown;
+  errandLater = folk.errand;
   // One load at a time per nation, so two quick records can't both build a sky.
   function loadMind(id, light = []) {
     const run = (mindQueue.get(id) || Promise.resolve()).then(async () => {

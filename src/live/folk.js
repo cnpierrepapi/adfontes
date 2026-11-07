@@ -4,6 +4,7 @@
 // between the temple and the houses, going to their role's spot to work. Stunted = grey and slow;
 // dead = a gravestone. The kit (6.9 MB) loads the first time you fly to a nation.
 import * as THREE from "three";
+import { planWalk, walkStep, turnToward } from "./steer.js";
 import { loadCitizenKit, makeCitizen, ROLES } from "./citizens.js";
 import { buildTown, stepTown } from "./town.js";
 
@@ -65,12 +66,15 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const people = [];
     const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
     // Things to walk round: every building, tree and fountain on the island (town-space x, z, radius).
-    const blocks = [];
+    const blocks = [], houseBlocks = []; // houseBlocks: the island's own houses and trees, which can be cleared
     for (const o of town?.children ?? []) {
       if (o.name === "folk" || o === isl.userData.lamps) continue; // ourselves, and the lamp lights
+      if (!o.visible) continue; // cleared earlier for the town
       const size = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
       if (!isFinite(size.x) || size.x === 0) continue;
-      blocks.push([o.position.x, o.position.z, Math.max(size.x, size.z) * 0.55 + r * 0.04]);
+      const b = [o.position.x, o.position.z, Math.max(size.x, size.z) * 0.55 + r * 0.04];
+      blocks.push(b);
+      houseBlocks.push({ b, o });
     }
     // The open spot nearest to (x, z): tries rings of nudges until nothing is in the way.
     const clear = (x, z, rad = 0) => !blocks.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br + rad);
@@ -90,7 +94,22 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const living = (agents || []).filter((a) => a.alive && isl.userData.status !== "dead");
     const latest = Math.max(day, ...toolDays.keys());
     const home = (h32(String(id)) % 628) / 100;
-    const life = await buildTown({ kit, r, s, clan: isl.userData.clan, status: isl.userData.status, roles: new Set(living.map((a) => a.role)), smithWorked: !!toolDays.get(latest)?.has(id), phone, place, groundY, R: rnd(h32(`town${id}`)), home });
+    const life = await buildTown({ kit, r, s, clan: isl.userData.clan, status: isl.userData.status, roles: new Set(living.map((a) => a.role)), smithWorked: !!toolDays.get(latest)?.has(id), phone, place, open, blocks, groundY, R: rnd(h32(`town${id}`)), home });
+    // Clear the land under the town (SPEC §14b): a house or tree under a scene's footprint, or under
+    // a spot where someone works, comes down, so nobody works or stands inside one. The temple and
+    // the fountain (near the middle) always stay.
+    {
+      const sceneBlocks = Object.values(life.scenes || {}).map((sc) => blocks.find((b) => Math.hypot(b[0] - sc.x, b[1] - sc.z) < 1e-3)).filter(Boolean);
+      const spots = [...life.stations.values()].flat().concat(Object.values(life.scenes || {}).map((sc) => sc.visit).filter(Boolean));
+      for (const { b, o } of houseBlocks) {
+        if (Math.hypot(b[0], b[1]) < r * 0.3) continue;
+        const under = sceneBlocks.some((sb) => Math.hypot(sb[0] - b[0], sb[1] - b[1]) < sb[2] + b[2] * 0.8) || spots.some((sp) => Math.hypot(sp.x - b[0], sp.z - b[1]) < b[2] + s * 0.3);
+        if (!under) continue;
+        o.visible = false;
+        blocks.splice(blocks.indexOf(b), 1);
+      }
+    }
+    life.blocks = blocks; // every footprint on the island: nobody walks through them (SPEC §14b)
     group.add(life.group);
     const taken = new Map();
     for (const a of agents || []) {
@@ -105,7 +124,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
       const spots = life.stations.get(a.role), k = taken.get(a.role) ?? 0;
       taken.set(a.role, k + 1);
       const spot = spots?.[k % spots.length];
-      const p = { c, a, R, r, s, stunted, open, isl, station: spot ? [spot.x, spot.z] : open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), stationFace: spot?.face, stationClip: spot?.clip, pos: [0, 0], target: null, until: 0, mode: "idle" };
+      const p = { c, a, R, r, s, stunted, open, isl, life, blocks, maxR: r * 0.88, cr: s * 0.28, station: spot ? [spot.x, spot.z] : open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), stationFace: spot?.face, stationClip: spot?.clip, pos: [0, 0], target: null, until: 0, mode: "idle" };
       const a0 = R() * 6.28, rad = r * (0.38 + R() * 0.15);
       p.pos = open(Math.cos(a0) * rad, Math.sin(a0) * rad);
       c.root.position.set(p.pos[0], groundY(r, ...p.pos), p.pos[1]);
@@ -169,22 +188,32 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const { c, a, R, r } = p;
     if (p.mode === "walk") return;
     if (now < p.until) return;
+    p.errandStep = null;
+    // Errands come first (SPEC §14b): the money and the people a job needs, before the job.
+    if (p.errands?.length) {
+      const st = p.errands.shift();
+      planWalk(p, st.to, p.blocks, p.maxR, now);
+      p.next = st.clip; p.errandStep = st; p.atWork = false; p.faceTemple = false; p.mode = "walk";
+      c.play(a.role === "Patron" || a.role === "Broker" ? "Walk_Formal_Loop" : "Walk_Loop");
+      return;
+    }
+    if (p.queue?.length) { nextShot(p); return; } // a star waiting for its Scholar
     // Reverence (SPEC §12m) shows in the town: waiting for a first whisper, they stand in the
     // plaza facing the temple; revered, they work more; neglected, they drift to the edge.
     const rev = p.isl?.userData.clan?.reverence;
     if (rev?.waiting && a.role !== "Trickster") {
       const ang = R() * 6.28;
-      p.target = p.open(Math.cos(ang) * r * 0.24, Math.sin(ang) * r * 0.24);
+      planWalk(p, p.open(Math.cos(ang) * r * 0.24, Math.sin(ang) * r * 0.24, p.cr), p.blocks, p.maxR, now, true);
       p.next = "Idle_Loop"; p.atWork = false; p.faceTemple = true; p.mode = "walk";
       c.play("Walk_Loop");
       return;
     }
     p.faceTemple = false;
     const standing = rev?.standing ?? 50;
-    const work = R() < (standing < 30 ? 0.15 : standing > 70 ? 0.6 : 0.45);
+    const work = R() < (a.role === "Patron" ? (standing < 30 ? 0.5 : 0.85) : standing < 30 ? 0.15 : standing > 70 ? 0.6 : 0.45);
     const far = standing < 30; // they've stopped listening: away from the temple, to the edge
-    const [tx, tz] = work ? p.station : (() => { const ang = R() * 6.28, rad = r * (far ? 0.62 + R() * 0.16 : 0.38 + R() * 0.16); return p.open(Math.cos(ang) * rad, Math.sin(ang) * rad); })();
-    p.target = [tx, tz];
+    const [tx, tz] = work ? p.station : (() => { const ang = R() * 6.28, rad = r * (far ? 0.62 + R() * 0.16 : 0.38 + R() * 0.16); return p.open(Math.cos(ang) * rad, Math.sin(ang) * rad, p.cr); })();
+    planWalk(p, [tx, tz], p.blocks, p.maxR, now, !work); // a stroll never cuts into a building
     p.next = work ? (p.stationClip ?? ROLES[a.role]?.work ?? "Idle_Loop") : R() < 0.3 ? "Idle_Talking_Loop" : "Idle_Loop";
     p.atWork = work;
     p.mode = "walk";
@@ -221,20 +250,16 @@ export function createFolk({ scene, islands, renderer, camera }) {
         if (p.mode === "struck") { p.c.mixer.update(dt); continue; }
         think(p, now);
         if (p.mode === "walk") {
-          const dx = p.target[0] - p.pos[0], dz = p.target[1] - p.pos[1], dist = Math.hypot(dx, dz);
           const speed = p.r * 0.09 * (p.stunted ? 0.4 : 1) * (p.a.role === "Trickster" ? 2 : 1);
-          if (dist < 0.02) {
+          if (walkStep(p, dt, speed, p.blocks, p.maxR, now)) {
             p.mode = "stay";
-            p.until = now + 3 + p.R() * 6;
+            const st = p.errandStep;
+            p.until = now + (st?.dur ?? 3 + p.R() * 6);
             p.c.play(p.next);
-            if (p.atWork) p.c.root.rotation.y = p.stationFace ?? Math.atan2(-p.pos[0], -p.pos[1]); // facing their work (or the temple)
+            if (st) { p.c.root.rotation.y = st.face; if (st.at === "Patron") payOut(cr, p, now); } // at the desk: the Patron pays
+            else if (p.atWork) p.c.root.rotation.y = p.stationFace ?? Math.atan2(-p.pos[0], -p.pos[1]); // facing their work (or the temple)
             else if (p.faceTemple) p.c.root.rotation.y = Math.atan2(-p.pos[0], -p.pos[1]); // waiting on their god
-          } else {
-            const step = Math.min(dist, speed * dt);
-            p.pos[0] += (dx / dist) * step; p.pos[1] += (dz / dist) * step;
-            const want = Math.atan2(dx, dz);
-            p.c.root.rotation.y += Math.atan2(Math.sin(want - p.c.root.rotation.y), Math.cos(want - p.c.root.rotation.y)) * Math.min(1, dt * 6);
-          }
+          } else turnToward(p.c.root, p.heading, dt);
           p.c.root.position.set(p.pos[0], groundY(p.r, ...p.pos), p.pos[1]);
         }
         p.c.mixer.update(dt);
@@ -257,6 +282,41 @@ export function createFolk({ scene, islands, renderer, camera }) {
     if (!best) return null;
     const left = best.a.stunted_until - day;
     return { title: best.a.name, sub: `${best.a.role}${best.stunted ? ` · stunted, ${left} more day${left === 1 ? "" : "s"}` : ""} · since day ${best.a.born_day}`, kind: best.stunted ? "stone" : "corpus" };
+  }
+
+  // ---- errands (SPEC §14b): who goes where before a job ----
+  // Where a visitor stands at a role's scene, facing it: the Patron's bank desk has its own spot.
+  function visitStep(cr, role, dur, clip = "Interact") {
+    const sc = cr.life.scenes?.[role];
+    if (!sc) return null;
+    const spot = sc.visit;
+    return { to: [spot.x, spot.z], face: spot.face, clip, dur, at: role }; // beside the scene on purpose: its own footprint doesn't block it
+  }
+  const stationStep = (p) => ({ to: p.station, face: p.stationFace ?? 0, clip: p.stationClip ?? ROLES[p.a.role]?.work ?? "Idle_Loop", dur: 6 + p.R() * 4, at: "work" });
+  // Real work cuts a stroll or a rest short (never a job, an errand already under way, or a shot).
+  function interrupt(p) {
+    const strolling = p.mode === "walk" && !p.errandStep && !p.atWork;
+    if (p.mode === "stay" || p.mode === "idle" || strolling) { p.mode = "idle"; p.until = 0; p.target = null; p.legs = null; }
+  }
+  // The Patron looks up and pays out to whoever came to the desk.
+  function payOut(cr, visitor, now) {
+    const q = cr.people.find((x) => x.a.role === "Patron" && x !== visitor && x.mode !== "gun" && x.mode !== "struck");
+    if (!q || q.mode === "walk") return;
+    q.c.play("Interact"); q.until = now + 2.6; q.mode = "stay";
+  }
+  /** A world event a citizen has to run around for: a Smith's kit, a Broker's purchase, a draft. */
+  function errand(id, kind, name = null) {
+    const cr = crowds.get(id);
+    if (!cr?.group.visible) return false;
+    const role = { tool: "Smith", trade: "Broker", draft: "Drafter" }[kind];
+    const p = cr.people.find((q) => q.a.role === role && (!name || q.a.name === name) && q.mode !== "struck");
+    if (!p) return false;
+    const steps = kind === "tool" ? [visitStep(cr, "Scholar", 2.4, "Idle_Talking_Loop"), visitStep(cr, "Patron", 2.2)] // what the Scholar needs drawn; the Patron pays for metal
+      : kind === "trade" ? [visitStep(cr, "Patron", 2.2)] // money for the purchase
+      : [visitStep(cr, "Scholar", 2.4, "Idle_Talking_Loop")]; // the research the draft is built on
+    p.errands = [...steps.filter(Boolean), stationStep(p)];
+    interrupt(p);
+    return true;
   }
 
   // ---- the gods' smite (SPEC §12j): a hit, then a fall (kill) or grey and slow (stunt) ----
@@ -292,7 +352,13 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const p = cr?.people.find((q) => q.a.name === name);
     if (!p || !cr.group.visible) return false;
     (p.queue ||= []).push(job);
-    if (p.mode !== "gun") nextShot(p);
+    const now = performance.now() / 1000;
+    // Research needs money (SPEC §14b): to the Patron's bank desk first (once per stretch of work).
+    const pay = visitStep(cr, "Patron", 2.6);
+    // One trip covers all the research waiting at the time: no second trip while one is queued or under way.
+    const goingAlready = p.errandStep?.at === "Patron" || p.errands?.some((e) => e.at === "Patron");
+    if (pay && !goingAlready && now - (p.paidAt ?? -99) > 20 && p.mode !== "gun") { p.paidAt = now; (p.errands ||= []).push(pay); interrupt(p); return true; }
+    if (p.mode !== "gun" && !p.errands?.length && !goingAlready) nextShot(p);
     return true;
   }
   function nextShot(p) {
@@ -309,7 +375,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const local = p.c.root.parent.worldToLocal(job.to.clone());
     const here = Math.atan2(p.pos[1], p.pos[0]), there = Math.atan2(local.z, local.x);
     const turn = THREE.MathUtils.clamp(Math.atan2(Math.sin(there - here), Math.cos(there - here)), -0.6, 0.6);
-    p.target = p.open(Math.cos(here + turn) * p.r * 0.68, Math.sin(here + turn) * p.r * 0.68);
+    planWalk(p, p.open(Math.cos(here + turn) * p.r * 0.68, Math.sin(here + turn) * p.r * 0.68, p.cr), p.blocks, p.maxR, performance.now() / 1000);
     p.c.play("Walk_Loop");
     p.c.mixer.timeScale = 0.7; // heavy
     p.walkT0 = p.lastT = performance.now() / 1000;
@@ -322,16 +388,13 @@ export function createFolk({ scene, islands, renderer, camera }) {
   function gunStep(p, dt, now) {
     const { c } = p;
     if (p.phase === "walk") {
-      const dx = p.target[0] - p.pos[0], dz = p.target[1] - p.pos[1], dist = Math.hypot(dx, dz);
       // Real time, not frames: on a slow machine (few frames a second) the walk would crawl and the
-      // shot never come. And never more than 5 s of walking: they fire from wherever they got to.
+      // shot never come. And never more than 8 s of walking: they fire from wherever they got to.
       const rdt = Math.min(0.25, Math.max(0, now - (p.lastT ?? now)));
       p.lastT = now;
-      if (dist < 0.02 || now - (p.walkT0 ?? now) > 5) { p.phase = "aim"; p.t0 = now; c.mixer.timeScale = 1; c.play("Pistol_Aim_Up", 0.3); c.root.rotation.z = 0; return; }
-      const step = Math.min(dist, p.r * 0.075 * rdt); // a heavy stagger
-      p.pos[0] += (dx / dist) * step; p.pos[1] += (dz / dist) * step;
-      const want = Math.atan2(dx, dz);
-      c.root.rotation.y += Math.atan2(Math.sin(want - c.root.rotation.y), Math.cos(want - c.root.rotation.y)) * Math.min(1, dt * 5);
+      const there = walkStep(p, rdt, p.r * 0.075, p.blocks, p.maxR, now); // a heavy stagger, round the buildings
+      if (there || now - (p.walkT0 ?? now) > 8) { p.target = null; p.phase = "aim"; p.t0 = now; c.mixer.timeScale = 1; c.play("Pistol_Aim_Up", 0.3); c.root.rotation.z = 0; return; }
+      turnToward(c.root, p.heading, dt, 5);
       c.root.rotation.z = Math.sin(now * 5.5) * 0.09; // swaying under the weight
       c.root.position.set(p.pos[0], groundY(p.r, ...p.pos), p.pos[1]);
     } else if (p.phase === "aim") {
@@ -390,7 +453,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
 
   // A nation's town changed (a tech was built): rebuild it if it's on screen.
   const retown = (id) => { if (crowds.has(id) && agentsOf.has(id)) rebuildCrowd(id, agentsOf.get(id)); };
-  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown };
+  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown, errand };
 }
 
 // A star-gun, almost a citizen's height (citizen-local metres; the barrel runs along +Y):

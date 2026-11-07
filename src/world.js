@@ -33,7 +33,7 @@ async function loadWorld() {
         el("p", { className: "meta", textContent: `${c.field ?? "?"} · ${c.mbti ?? ""} · ${c.gods} god${c.gods === 1 ? "" : "s"}${c.alive ? "" : " · gone"}` }),
         el("div", { className: "nums" },
           el("div", {}, String(c.points), el("small", { textContent: "points on its mindmap" })),
-          el("div", {}, n2(c.play), el("small", { textContent: "NEAR to spend" })),
+          el("div", {}, String(Math.round(c.florins ?? 0)), el("small", { textContent: `florins, worth ${n2(c.worth ?? 0)} NEAR` })),
           el("div", {}, String(c.clean_gifts), el("small", { textContent: "clean gifts" })),
         ),
         el("p", { className: "line" }, el("b", { textContent: "Deepest line: " }), c.line.length ? c.line.join(" → ") : "nothing yet"),
