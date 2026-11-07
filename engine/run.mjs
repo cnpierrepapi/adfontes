@@ -4,6 +4,7 @@
 // new, Patron picks a point, Scholars research (or the Broker buys from a clan that has it),
 // the Smith makes kits, the Drafter drafts when the chain is deep enough, the Warden checks
 // everything, gifts go on chain, upkeep is charged; then the day's root goes on chain.
+import { refill as refillPool, nationsLeft, SPONSOR } from "./sponsor.mjs";
 import fs from "node:fs";
 import { CFG } from "./config.mjs";
 import { connect, toNear } from "./chain.mjs";
@@ -28,6 +29,16 @@ if (!process.argv.includes("--force") && !s.inProgress && sinceLast < CFG.minMin
   console.log(`last run ${sinceLast.toFixed(0)} min ago (under ${CFG.minMinutesBetweenRuns}): nothing to do, the schedule runs the next day`);
   await store.close();
   process.exit(0);
+}
+// Testnet sponsor pool (SPEC §12m C): every 12 hours, fill it from NEAR's testnet helper (10 new
+// accounts of 10 testnet NEAR, each swept straight into the pool). A failed refill never stops a day.
+if (net === "testnet" && process.env.SPONSOR_ACCOUNT_ID && Date.now() - (s.sponsorRefillAt || 0) > SPONSOR.refillHours * 3600e3) {
+  try {
+    const r = await refillPool(process.env.SPONSOR_ACCOUNT_ID);
+    // Refused (the helper's 12-hour limit)? Try again right when its limit resets.
+    s.sponsorRefillAt = r.made === 0 && r.limitReset ? r.limitReset * 1000 - SPONSOR.refillHours * 3600e3 : Date.now();
+    console.log(`  sponsor pool: +${r.made} helper accounts swept in; ${await nationsLeft(process.env.SPONSOR_ACCOUNT_ID)} new testnet nations can be sponsored`);
+  } catch (e) { console.log("  sponsor pool refill failed:", String(e.message || e).slice(0, 160)); }
 }
 // Today's Claude spend so far (UTC day), carried between runs so the cap covers the whole day.
 const today = new Date().toISOString().slice(0, 10);

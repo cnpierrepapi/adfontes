@@ -168,16 +168,36 @@ export async function createGods({ live, W, nav, toast }) {
 
   // ---------------------------------------------------------------- the powers
   function foundCard() {
-    Promise.all([wallet.view(WORLD, "get_config"), wallet.balance(account).catch(() => null)]).then(([cfg, bal]) => {
+    Promise.all([wallet.view(WORLD, "get_config"), wallet.balance(account).catch(() => null), W.net === "testnet" ? api("sponsor").catch(() => null) : null]).then(([cfg, bal, sp]) => {
       const name = input({ placeholder: "Name your nation", maxLength: 40 });
       const amt = input({ value: near(cfg.min_found), inputMode: "decimal" });
-      // Founding pays Sputnik for the nation's DAO, so it can't be cheap. On testnet, say how to
-      // get test NEAR; on mainnet, it's real money.
+      // Founding pays Sputnik for the nation's DAO, so it can't be cheap. Mainnet: real NEAR. Testnet:
+      // the sponsor pool tops a founder up once (SPEC §12m C); when the pool is spent, new testnet
+      // nations are full and the way in is blessing a nation.
       const need = BigInt(cfg.min_found) + 10n ** 23n; // plus about 0.1 NEAR for gas and the account's own reserve
       const short = bal != null && bal < need;
-      const help = el("p", { className: `fine${short ? " warn" : ""}` },
-        `You have ${bal == null ? "?" : near(bal)} ${W.net === "mainnet" ? "NEAR" : "testnet NEAR"}; founding takes at least ${near(cfg.min_found)} plus a little for gas. `,
-        W.net === "mainnet" ? "This is real NEAR." : el("span", {}, short ? "Not enough yet: " : "Need more? ", el("a", { href: "https://near-faucet.io/", target: "_blank", rel: "noopener", textContent: "get free testnet NEAR from the faucet" }), ", then come back."));
+      const help = el("div", { className: "fields" });
+      const line = (t, warn) => el("p", { className: `fine${warn ? " warn" : ""}`, textContent: t });
+      help.append(line(`You have ${bal == null ? "?" : near(bal)} ${W.net === "mainnet" ? "NEAR" : "testnet NEAR"}; founding takes at least ${near(cfg.min_found)} plus a little for gas.${W.net === "mainnet" ? " This is real NEAR." : ""}`, short));
+      if (W.net === "testnet" && sp?.available) {
+        const left = sp.nations_left;
+        const refill = sp.next_refill_ms ? Math.max(1, Math.round((sp.next_refill_ms - Date.now()) / 3600e3)) : null;
+        if (short && left > 0) {
+          const b = el("button", { type: "button", className: "viewbtn gold", textContent: `Get sponsored: free testnet NEAR to found (${left} new nation${left === 1 ? "" : "s"} left)` });
+          b.addEventListener("click", async () => {
+            b.disabled = true; b.textContent = "Sending…";
+            const r = await fetch("/api/sponsor", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ account }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world. Try again." }));
+            if (r.ok) { toast(`Sponsored: ${r.sent} testnet NEAR sent to you. Now name your nation.`); cardOpen?.remove(); setTimeout(foundCard, 1500); }
+            else { b.textContent = r.error; }
+          });
+          help.append(line("Founding needs more testnet NEAR than any faucet gives, so the world sponsors new founders once per account, while its pool lasts."), b);
+        } else if (short) {
+          help.append(line(`New testnet nations are full for now${refill ? ` (the pool refills in about ${refill} hour${refill === 1 ? "" : "s"})` : ""}. Bless a nation to become one of its gods.`, true));
+          const b = el("button", { type: "button", className: "viewbtn gold", textContent: "Bless a nation instead" });
+          b.addEventListener("click", () => { cardOpen?.remove(); live.home(); toast("Tap a nation, then press Bless this nation in its panel."); });
+          help.append(b);
+        } else help.append(line(`${left} sponsored new testnet nation${left === 1 ? "" : "s"} left this round.`));
+      }
       card({
         title: "Found a nation",
         fields: [help, label("Name", name), label("NEAR to put in", amt)],

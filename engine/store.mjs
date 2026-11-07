@@ -18,9 +18,26 @@ async function db() {
     create table if not exists roots (net text, day int, root text not null, tx text, primary key (net, day));
     create table if not exists papers_cache (key text primary key, papers jsonb not null);
     alter table records add column if not exists raw text;
+    create table if not exists sponsored (net text, account text, at timestamptz default now(), tx text, primary key (net, account));
   `);
   await ready;
   return pool;
+}
+
+// Testnet founders the sponsor pool has topped up (once per account; SPEC §12m C).
+export async function wasSponsored(net, account) {
+  const p = await db();
+  if (p) return (await p.query("select 1 from sponsored where net = $1 and account = $2", [net, account])).rowCount > 0;
+  const f = "engine/state/sponsored.json";
+  return fs.existsSync(f) && !!JSON.parse(fs.readFileSync(f, "utf8"))[`${net}:${account}`];
+}
+export async function markSponsored(net, account, tx) {
+  const p = await db();
+  if (p) { await p.query("insert into sponsored (net, account, tx) values ($1, $2, $3) on conflict do nothing", [net, account, tx]); return; }
+  const f = "engine/state/sponsored.json";
+  const m = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {};
+  m[`${net}:${account}`] = { tx, at: Date.now() };
+  fs.writeFileSync(f, JSON.stringify(m));
 }
 
 const EMPTY = () => ({ day: 0, clans: {}, corpora: {}, drafts: {}, gifts: {}, tools: {}, ruins: {}, roots: {}, nextId: 1 });

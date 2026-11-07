@@ -7,6 +7,7 @@ import path from "node:path";
 import { JsonRpcProvider } from "near-api-js";
 import { NETWORKS } from "./engine/config.mjs";
 import * as store from "./engine/store.mjs";
+import { SPONSOR, nationsLeft, balanceOf, topUp } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
@@ -150,7 +151,17 @@ function makeApi(NET) {
       return { now_ms: Date.now(), gifts: all.filter((g) => g.clan === id || g.top_contributor === id) };
     },
   
-    async drafts() {
+    // The testnet sponsor pool (SPEC §12m C): how many new testnet nations it can still pay for.
+  async sponsor() {
+    if (NET !== "testnet" || !process.env.SPONSOR_ACCOUNT_ID) return { available: false };
+    return cachedN("sponsor", 15_000, async () => {
+      const s = await store.loadState(NET);
+      const next = s.sponsorRefillAt ? s.sponsorRefillAt + SPONSOR.refillHours * 3600e3 : null;
+      return { available: true, pool: process.env.SPONSOR_ACCOUNT_ID, nations_left: await nationsLeft(process.env.SPONSOR_ACCOUNT_ID), per_nation: near(SPONSOR.perNation.toString()), next_refill_ms: next };
+    });
+  },
+
+  async drafts() {
       return cachedN("drafts", 30_000, () => store.listDrafts(NET, 30));
     },
   
@@ -208,6 +219,42 @@ function serveStatic(req, res, url) {
   fs.createReadStream(p).pipe(res);
 }
 
+// POST /api/sponsor {account}: top a testnet founder up to what founding needs, from the pool.
+// Testnet only; once per account; at most 2 per IP a day; only real, short accounts; the pool's
+// own cap (what it can pay for) stops it when it runs dry. Testnet NEAR has no value, but the pool
+// is shared, so this stays strict.
+const sponsorByIp = new Map();
+async function sponsorPost(req, res) {
+  const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
+  const pool = process.env.SPONSOR_ACCOUNT_ID, key = process.env.SPONSOR_PRIVATE_KEY;
+  if (!pool || !key) return json(503, { error: "Sponsorship isn't set up." });
+  let body = "";
+  for await (const chunk of req) { body += chunk; if (body.length > 512) return json(413, { error: "Too long." }); }
+  let account = "";
+  try { account = String(JSON.parse(body).account || "").trim().toLowerCase(); } catch { return json(400, { error: "Send {\"account\": \"you.testnet\"}." }); }
+  if (!/^[a-z0-9_\-.]{2,64}$/.test(account) || !(account.endsWith(".testnet") || /^[0-9a-f]{64}$/.test(account))) return json(400, { error: "That isn't a testnet account." });
+  if (account.startsWith("adf-") || account === pool) return json(400, { error: "That account belongs to the world." });
+  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  const today = (sponsorByIp.get(ip) || []).filter((t) => Date.now() - t < 24 * 3600e3);
+  if (today.length >= 2) return json(429, { error: "Two sponsorships a day from one connection. Try again tomorrow, or bless a nation instead." });
+  if (await store.wasSponsored("testnet", account)) return json(409, { error: "This account was already sponsored once. Bless a nation instead." });
+  const have = await balanceOf(account);
+  if (have == null) return json(404, { error: "That account doesn't exist on testnet yet." });
+  if (have >= SPONSOR.perNation) return json(400, { error: "You already have enough to found a nation." });
+  if ((await nationsLeft(pool)) < 1) return json(410, { error: "New testnet nations are full for now. Bless a nation to become one of its gods." });
+  try {
+    const amount = SPONSOR.perNation - have;
+    const tx = await topUp(pool, key, account, amount);
+    await store.markSponsored("testnet", account, tx);
+    sponsorByIp.set(ip, [...today, Date.now()]);
+    cache.delete("testnet:sponsor");
+    return json(200, { ok: true, sent: near(amount.toString()), tx });
+  } catch (e) {
+    console.error("sponsor", e);
+    return json(500, { error: "The pool couldn't send just now. Try again in a minute." });
+  }
+}
+
 function send(res, code, type, body) {
   res.writeHead(code, { "content-type": type });
   res.end(body);
@@ -216,6 +263,7 @@ function send(res, code, type, body) {
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
+    if (req.method === "POST" && url.pathname === "/api/sponsor") return sponsorPost(req, res);
     if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "text/plain", "read only");
     const m = url.pathname.match(/^\/api\/([a-z]+)$/);
     if (m) {
