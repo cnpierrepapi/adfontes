@@ -25,8 +25,8 @@ export const citizenGlow = { value: 0 };
 const HAIR = { male: [["hair_simpleparted"], ["hair_buzzed"], ["hair_simpleparted", "hair_beard"], ["hair_buzzed", "hair_beard"], ["hair_simpleparted"]], female: [["hair_buns"], ["hair_long"], ["hair_long"], ["hair_buzzedfemale"]] };
 // Blond, ash, golden, light brown, chestnut, dark brown, near black, auburn, copper, silver.
 const HAIR_TINTS = [0xf0d27a, 0xd8c39a, 0xe0a850, 0xa0703e, 0x7a4a26, 0x4a2e1a, 0x22191a, 0x8a3a1c, 0xc8642a, 0xc8c8cc];
-// Skin tones, fair to light tan (sRGB).
-const SKIN = [0xf6d2bf, 0xf2c6ae, 0xedbfa2, 0xf0c7a8, 0xe6b592, 0xe3b898, 0xdcaa84, 0xd6a07a];
+// Skin tones, fair to light (sRGB).
+const SKIN = [0xf8d8c6, 0xf6d2bf, 0xf2c6ae, 0xedbfa2, 0xf0c7a8, 0xeec4aa, 0xe6b592, 0xe9bea0];
 // Iris colours: blue, pale blue, grey, green, grey-green, hazel, amber, brown.
 const EYES = [0x3f7fd0, 0x7fb2e6, 0x8a9aa8, 0x4f9a5a, 0x6f8f7a, 0x9a7a3a, 0xb0802a, 0x6a4128];
 
@@ -103,7 +103,8 @@ function patch(mat, o) {
        // past the wrist: dark leather gloves become light tan leather (bare skin there is left alone)
        float glove = step(uHand, abs(vBind.x)) * step(uHand, 50.0) * (1.0 - smoothstep(0.12, 0.2, lum));
        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.42, 0.25) * (0.7 + lum * 2.5), glove);`;
-      fGlow += "\n totalEmissiveRadiance += uTint * uGlow * uAmt * (1.0 - step(uHand, abs(vBind.x)));";
+      fGlow += "\n totalEmissiveRadiance += uTint * uGlow * uAmt * (1.0 - step(uHand, abs(vBind.x)));" +
+        "\n totalEmissiveRadiance += diffuseColor.rgb * uGlow * 1.6 * step(uHand, abs(vBind.x)) * step(uHand, 50.0);"; // hands and gloves too
     }
     if (o.skin) {
       U.uSkin = { value: o.skin };
@@ -112,7 +113,7 @@ function patch(mat, o) {
       // detail (shading, lips, brows), toned down so the new skin tone decides the colour.
       fMain += `
        vec3 sr = clamp(diffuseColor.rgb / vec3(0.397, 0.168, 0.080), 0.35, 1.6);
-       sr = mix(vec3(dot(sr, vec3(0.3333))), sr, 0.5);
+       sr = mix(vec3(dot(sr, vec3(0.3333))), sr, 0.42);
        diffuseColor.rgb = uSkin * sr;`;
       fGlow += "\n totalEmissiveRadiance += uSkin * uGlow * 0.55;";
     }
