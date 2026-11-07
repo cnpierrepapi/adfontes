@@ -25,15 +25,22 @@ const t0 = performance.now();
 const kit = await loadCitizenKit();
 log(`kit loaded in ${((performance.now() - t0) / 1000).toFixed(1)} s, clips: ${Object.keys(kit.clips).length}`);
 const q = new URLSearchParams(location.search);
-const names = (q.get("names") || "Ada Okafor,Wren Sato,Mira Duarte,Kemi Nakamura,Ilse Castell,Viggo Lindqvist,Zora Ulloa").split(",");
-const roles = Object.keys(ROLES);
-const XS = roles.map((_, i) => (i - (roles.length - 1) / 2) * 1.25);
+const names = (q.get("names") || "Ada Olsen,Wren Sato,Mira Duarte,Klara Nakamura,Ilse Castell,Viggo Lindqvist,Zora Ulloa").split(",");
+const faces = +(q.get("faces") || 0);
+if (faces) {
+  const FN = ["Ada","Bram","Cleo","Elena","Freya","Goran","Hana","Klara","Mira","Nikolai","Otto","Sofia","Hugo","Vera","Wren","Felix","Nora","Oskar","Petra","Ilse"];
+  const LN = ["Olsen","Sato","Duarte","Engel","Falk","Moretti","Holt","Bauer","Novak","Conti","Varga","Albrecht"];
+  names.length = 0;
+  for (let i = 0; i < faces; i++) { const j = i + +(q.get("off") || 0); names.push(`${FN[(j * 7 + 3) % FN.length]} ${LN[(j * 5 + 1) % LN.length]}`); };
+}
+const roles = faces ? names.map((_, i) => Object.keys(ROLES)[i % 7]) : Object.keys(ROLES);
+const XS = roles.map((_, i) => (i - (roles.length - 1) / 2) * (faces ? 0.42 : 1.25));
 const mixers = [], labels = [];
 for (let i = 0; i < roles.length; i++) {
   const c = await makeCitizen(kit, roles[i], names[i]);
   c.root.position.x = XS[i];
   scene.add(c.root);
-  c.play(ROLES[roles[i]].work, 0);
+  c.play(faces ? "Idle_Loop" : ROLES[roles[i]].work, 0);
   mixers.push(c.mixer);
   const el = document.createElement("div");
   el.textContent = `${roles[i]} · ${names[i]}`;
@@ -44,6 +51,8 @@ for (let i = 0; i < roles.length; i++) {
 log("citizens: " + roles.length);
 camera.position.set(0, 1.3, 13);
 camera.lookAt(0, 0.95, 0);
+if (faces) { camera.fov = 18; camera.updateProjectionMatrix(); { const y = +(q.get("y") || 1.6); camera.position.set(0, y + 0.02, faces * 0.42 * 1.2); camera.lookAt(0, y, 0); } }
+if (q.get("night")) { scene.background = new THREE.Color(0x141a3a); scene.children.filter((o) => o.isLight).forEach((l) => (l.intensity *= 0.25)); (await import("../live/citizens.js")).citizenGlow.value = 0.22; }
 const close = q.get("close");
 if (close != null) { const x = XS[+close]; camera.position.set(x, 1.65, 1.6); camera.lookAt(x, 1.55, 0); }
 const tmp = new THREE.Vector3();
@@ -54,7 +63,7 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
   for (const l of labels) {
     tmp.set(l.x, 0.05, 0.6).project(camera);
-    Object.assign(l.el.style, { left: `${(tmp.x + 1) / 2 * innerWidth}px`, top: `${(1 - tmp.y) / 2 * innerHeight}px`, display: close != null ? "none" : "" });
+    Object.assign(l.el.style, { left: `${(tmp.x + 1) / 2 * innerWidth}px`, top: `${(1 - tmp.y) / 2 * innerHeight}px`, display: close != null || faces ? "none" : "" });
   }
 });
 window.__lab = { scene, camera, kit };
