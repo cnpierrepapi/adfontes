@@ -101,7 +101,7 @@ function patch(mat, o) {
        float k = uAmt * (1.0 - step(uHand, abs(vBind.x)));
        diffuseColor.rgb = mix(diffuseColor.rgb, uTint * (0.78 + lum * 0.5), k);
        // past the wrist: dark leather gloves become light tan leather (bare skin there is left alone)
-       float glove = step(uHand, abs(vBind.x)) * step(uHand, 50.0) * (1.0 - smoothstep(0.12, 0.2, lum));
+       float glove = step(uHand, abs(vBind.x)) * step(uHand, 50.0); // clothes past the wrist are gloves (bare hands are another material)
        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.42, 0.25) * (0.7 + lum * 2.5), glove);`;
       fGlow += "\n totalEmissiveRadiance += uTint * uGlow * uAmt * (1.0 - step(uHand, abs(vBind.x)));" +
         "\n totalEmissiveRadiance += diffuseColor.rgb * uGlow * 1.6 * step(uHand, abs(vBind.x)) * step(uHand, 50.0);"; // hands and gloves too
@@ -194,18 +194,28 @@ export function looksFor(name) {
   };
 }
 
+// Townsfolk (SPEC §12i) are not in the game: plain everyday clothes in muted colours, never a
+// role's bright colours, so the real citizens still stand out.
+const PLAIN = [0x8a6a4a, 0xa88a62, 0x6f7a52, 0x5f7488, 0x9a5a4a, 0xbfae8e, 0x7a6a82, 0x5a6a5a, 0xc2a27a, 0x8e8e86];
+function plainRole(h) {
+  const c = (k) => PLAIN[(h >>> k) % PLAIN.length];
+  return { outfit: h % 5 === 0 ? "ranger" : "peasant", hood: false, tints: { Body: c(3), Arms: (h >>> 9) & 1 ? c(3) : 0xe8dcc6, Legs: c(13), Pauldron: c(17), Belt: c(21), Bracer: c(17) } };
+}
+
 /**
- * Make one citizen. Returns { root, mixer, play(name, fade), role, female }.
+ * Make one citizen. opts.plain = a townsfolk outfit (muted, no role); opts.child = a child's head. Returns { root, mixer, play(name, fade), role, female }.
  * The root is ~1.8 units tall at scale 1; the caller scales it to the island.
  */
-export async function makeCitizen(kit, roleName, name) {
-  const role = ROLES[roleName] ?? ROLES.Scholar;
+export async function makeCitizen(kit, roleName, name, opts = {}) {
   const L = looksFor(name || roleName);
+  const role = opts.plain ? plainRole(h32(name || "folk")) : ROLES[roleName] ?? ROLES.Scholar;
   const g = L.female ? "female" : "male";
   const root = clone(kit.G[`${g}_${role.outfit}`].scene);
   if (role.hood === false) { const drop = []; root.traverse((o) => o.isMesh && o.name.includes("Hood") && drop.push(o)); drop.forEach((o) => o.removeFromParent()); }
   const { neckY, handX, eyeY } = kit.dims[g];
-  const shape = { a: new THREE.Vector4(...L.a), b: new THREE.Vector4(...L.b), face: new THREE.Vector2(neckY, eyeY) };
+  // Children: the caller shrinks the body; the head stays bigger for its size.
+  const a = opts.child ? [L.a[0] * 1.24, L.a[1] * 1.2, L.a[2] * 1.22, L.a[3] - 0.08] : L.a;
+  const shape = { a: new THREE.Vector4(...a), b: new THREE.Vector4(...L.b), face: new THREE.Vector2(neckY, eyeY) };
   const skin = new THREE.Color(L.skin); // Color() converts the sRGB hex to linear
   const eye = new THREE.Color(L.eye);
   attach(root, kit.G[`head_${g}`], (m) => {
@@ -215,7 +225,9 @@ export async function makeCitizen(kit, roleName, name) {
     if (m.geometry.attributes.position.count > 3000) return patch(m.material, { shape, cut: neckY - 0.02, skin });
     return patch(m.material, { shape });
   });
-  const hairs = L.hair.concat(L.female ? "eyebrows_female" : "eyebrows_regular");
+  // Children: no beards, no grey hair.
+  const hairs = (opts.child ? L.hair.filter((n) => n !== "hair_beard") : L.hair).concat(L.female ? "eyebrows_female" : "eyebrows_regular");
+  if (opts.child && L.hairTint === 0xc8c8cc) L.hairTint = 0xe0a850;
   const hooded = role.hood !== false && role.outfit === "ranger";
   for (const n of hairs) {
     if (hooded && n.startsWith("hair_") && n !== "hair_beard") continue; // hair under the hood would poke through

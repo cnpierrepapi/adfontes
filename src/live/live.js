@@ -298,7 +298,7 @@ export async function startLive(canvas, hud, opts = {}) {
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
   const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => mindRecord(r) });
   let lastDay = W.day;
-  api(`day?d=${W.day}`).then((d) => fx.enqueue(d.records || [])).catch(() => {});
+  api(`day?d=${W.day}`).then((d) => { folk.dayRecords(d.records, W.day); fx.enqueue(d.records || []); }).catch(() => {});
   setInterval(async () => {
     try {
       const now = await api("world");
@@ -309,7 +309,7 @@ export async function startLive(canvas, hud, opts = {}) {
         riseNation(c.id); loadMind(c.id);
       }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
-      for (let d = lastDay + 1; d <= now.day; d++) fx.enqueue((await api(`day?d=${d}`)).records || []);
+      for (let d = lastDay + 1; d <= now.day; d++) { const recs = (await api(`day?d=${d}`)).records || []; folk.dayRecords(recs, d); fx.enqueue(recs); }
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
     } catch {}
   }, 30000);
@@ -521,12 +521,25 @@ export async function startLive(canvas, hud, opts = {}) {
     const k = ((citizenTurn.get(id) ?? -1) + 1) % people.length;
     citizenTurn.set(id, k);
     const who = people[k];
-    const v = who.c.root.getWorldPosition(new THREE.Vector3()), c = isl.getWorldPosition(new THREE.Vector3());
-    const out = new THREE.Vector3(v.x - c.x, 0, v.z - c.z);
-    if (out.lengthSq() < 1e-4) out.set(1, 0, 0);
-    out.normalize();
-    const side = new THREE.Vector3(-out.z, 0, out.x), h = who.s * 1.8;
-    const d = v.clone().addScaledVector(out, h * 1.7).addScaledVector(side, h * 0.8).setY(v.y + h * 0.75);
+    const v = who.c.root.getWorldPosition(new THREE.Vector3()), h = who.s * 1.8;
+    // Look from in front of them if the view is clear; otherwise the nearest clear angle round
+    // them (temple columns, roofs, trees and props block the line of sight; people don't).
+    const facing = who.c.root.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
+    const eye = v.clone().setY(v.y + h * 0.55);
+    const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
+    const solid = [];
+    town?.traverse((o) => o.isMesh && !o.isSkinnedMesh && o.visible && solid.push(o));
+    const ray = new THREE.Raycaster();
+    let d = null;
+    for (const turn of [0.35, -0.35, 0.9, -0.9, 1.5, -1.5, 2.2, -2.2, Math.PI]) {
+      const dir = facing.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), turn);
+      const cand = v.clone().addScaledVector(dir, h * 1.9).setY(v.y + h * 0.8);
+      const to = cand.clone().sub(eye), len = to.length();
+      ray.set(eye, to.normalize());
+      ray.far = len;
+      if (!ray.intersectObjects(solid, false).length) { d = cand; break; }
+    }
+    d ??= v.clone().addScaledVector(facing, h * 1.9).setY(v.y + h * 1.6); // nothing clear: look down from above
     controls.setLookAt(d.x, d.y, d.z, v.x, v.y + h * 0.5, v.z, true);
     flying = { t0: performance.now(), dur: 1100 };
     lastInput = performance.now();

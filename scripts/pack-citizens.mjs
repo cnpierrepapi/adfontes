@@ -19,9 +19,11 @@ const SRC = {
   hair: `${ROOT}/ubc/Universal Base Characters[Standard]/Hairstyles/Rigged to Head Bone/glTF (Godot -Unreal)`,
   anims: `${ROOT}/anims/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb`,
 };
-// Clips the game plays (see SPEC §12h): walking, idling, each role's work, the star-gun, rulings.
+// Clips the game plays (see SPEC §12h, §12i): walking, idling, each role's work, the star-gun, rulings, townsfolk.
 const KEEP = ["Idle_Loop", "Walk_Loop", "Walk_Formal_Loop", "Idle_Talking_Loop", "Fixing_Kneeling", "Interact",
-  "Pistol_Aim_Up", "Pistol_Shoot", "Dance_Loop", "Hit_Chest", "Death01", "Jog_Fwd_Loop", "Sitting_Idle_Loop"];
+  "Pistol_Aim_Up", "Pistol_Shoot", "Dance_Loop", "Hit_Chest", "Death01", "Jog_Fwd_Loop", "Sitting_Idle_Loop",
+  // townsfolk and the role scenes (SPEC §12i)
+  "Sitting_Talking_Loop", "PickUp_Table", "Push_Loop", "Idle_Torch_Loop", "Crouch_Idle_Loop"];
 
 await MeshoptEncoder.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.encoder": MeshoptEncoder });

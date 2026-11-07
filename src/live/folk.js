@@ -5,6 +5,7 @@
 // dead = a gravestone. The kit (6.9 MB) loads the first time you fly to a nation.
 import * as THREE from "three";
 import { loadCitizenKit, makeCitizen, ROLES } from "./citizens.js";
+import { buildTown, stepTown } from "./town.js";
 
 const h32 = (s) => { let x = 2166136261; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };
 const rnd = (seed) => () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822507) ^ Math.imul(seed ^ (seed >>> 13), 3266489909)) >>> 0) / 4294967296;
@@ -18,6 +19,10 @@ export function createFolk({ scene, islands }) {
   const dots = new Map(); // nation id -> { pts, agents, seeds }
   const crowds = new Map(); // nation id -> { group, people: [...] }
   let day = 0;
+  // Nations where a Smith built a tool on the latest day (the forge is lit there).
+  const toolDays = new Map();
+  function dayRecords(records, d) { for (const r of records || []) if (r.kind === "tool") { if (!toolDays.has(d)) toolDays.set(d, new Set()); toolDays.get(d).add(r.clan); } }
+  const phone = matchMedia("(pointer: coarse)").matches || innerWidth < 700;
 
   // ---- dots (every nation) ----
   function setAgents(id, agents, today) {
@@ -68,18 +73,26 @@ export function createFolk({ scene, islands }) {
       blocks.push([o.position.x, o.position.z, Math.max(size.x, size.z) * 0.55 + r * 0.04]);
     }
     // The open spot nearest to (x, z): tries rings of nudges until nothing is in the way.
-    const clear = (x, z) => !blocks.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br);
-    const open = (x, z) => {
-      if (clear(x, z)) return [x, z];
+    const clear = (x, z, rad = 0) => !blocks.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br + rad);
+    const open = (x, z, rad = 0) => {
+      if (clear(x, z, rad)) return [x, z];
       for (let ring = 1; ring <= 6; ring++) for (let k = 0; k < 10; k++) {
         const a = (k / 10) * Math.PI * 2, d = ring * r * 0.06;
         let nx = x + Math.cos(a) * d, nz = z + Math.sin(a) * d;
         const len = Math.hypot(nx, nz), max = r * 0.86;
         if (len > max) { nx *= max / len; nz *= max / len; } // stay on the island
-        if (clear(nx, nz)) return [nx, nz];
+        if (clear(nx, nz, rad)) return [nx, nz];
       }
       return [x, z];
     };
+    // The nation's scenes and townsfolk go down first (SPEC §12i), so everyone walks round them.
+    const place = (x, z, rad) => { const p = open(x, z, rad); if (rad > 0) blocks.push([p[0], p[1], rad]); return p; };
+    const living = (agents || []).filter((a) => a.alive && isl.userData.status !== "dead");
+    const latest = Math.max(day, ...toolDays.keys());
+    const home = (h32(String(id)) % 628) / 100;
+    const life = await buildTown({ kit, r, s, clan: isl.userData.clan, status: isl.userData.status, roles: new Set(living.map((a) => a.role)), smithWorked: !!toolDays.get(latest)?.has(id), phone, place, groundY, R: rnd(h32(`town${id}`)), home });
+    group.add(life.group);
+    const taken = new Map();
     for (const a of agents || []) {
       const seed = h32(a.name), R = rnd(seed);
       if (!a.alive || isl.userData.status === "dead") { group.add(gravestone(r, s, R)); continue; }
@@ -88,8 +101,11 @@ export function createFolk({ scene, islands }) {
       const stunted = a.stunted_until > day;
       if (stunted) c.root.traverse((o) => o.isMesh && o.material?.color && (o.material = Object.assign(o.material.clone(), { color: new THREE.Color(0x8a8a96) })));
       const st = STATION[a.role] ?? [R() * 6.28, 0.45];
-      const home = (h32(String(id)) % 628) / 100;
-      const p = { c, a, R, r, s, stunted, open, station: open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), pos: [0, 0], target: null, until: 0, mode: "idle" };
+      // Work at the role's scene if it has one (two spots each; more citizens share them).
+      const spots = life.stations.get(a.role), k = taken.get(a.role) ?? 0;
+      taken.set(a.role, k + 1);
+      const spot = spots?.[k % spots.length];
+      const p = { c, a, R, r, s, stunted, open, station: spot ? [spot.x, spot.z] : open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), stationFace: spot?.face, stationClip: spot?.clip, pos: [0, 0], target: null, until: 0, mode: "idle" };
       const a0 = R() * 6.28, rad = r * (0.38 + R() * 0.15);
       p.pos = open(Math.cos(a0) * rad, Math.sin(a0) * rad);
       c.root.position.set(p.pos[0], groundY(r, ...p.pos), p.pos[1]);
@@ -100,7 +116,7 @@ export function createFolk({ scene, islands }) {
     }
     group.name = "folk";
     (town || isl).add(group);
-    crowds.set(id, { group, people });
+    crowds.set(id, { group, people, life, open });
   }
   function dropCrowd(id) {
     const cr = crowds.get(id);
@@ -137,7 +153,8 @@ export function createFolk({ scene, islands }) {
     const work = R() < 0.45;
     const [tx, tz] = work ? p.station : (() => { const ang = R() * 6.28, rad = r * (0.38 + R() * 0.16); return p.open(Math.cos(ang) * rad, Math.sin(ang) * rad); })();
     p.target = [tx, tz];
-    p.next = work ? (ROLES[a.role]?.work ?? "Idle_Loop") : R() < 0.3 ? "Idle_Talking_Loop" : "Idle_Loop";
+    p.next = work ? (p.stationClip ?? ROLES[a.role]?.work ?? "Idle_Loop") : R() < 0.3 ? "Idle_Talking_Loop" : "Idle_Loop";
+    p.atWork = work;
     p.mode = "walk";
     c.play(a.role === "Trickster" ? "Jog_Fwd_Loop" : a.role === "Patron" || a.role === "Broker" ? "Walk_Formal_Loop" : "Walk_Loop");
   }
@@ -166,6 +183,7 @@ export function createFolk({ scene, islands }) {
     for (const [id, cr] of crowds) {
       cr.group.visible = id === focusId && nearK > 0.05;
       if (!cr.group.visible) continue;
+      stepTown(cr.life, dt, now, { r: islands.get(id).userData.r, s: 0, open: cr.open, groundY });
       for (const p of cr.people) {
         if (p.mode === "gun") { gunStep(p, dt, now); p.c.mixer.update(dt); continue; }
         think(p, now);
@@ -176,7 +194,7 @@ export function createFolk({ scene, islands }) {
             p.mode = "stay";
             p.until = now + 3 + p.R() * 6;
             p.c.play(p.next);
-            if (p.next === ROLES[p.a.role]?.work) p.c.root.rotation.y = Math.atan2(-p.pos[0], -p.pos[1]); // work facing the temple
+            if (p.atWork) p.c.root.rotation.y = p.stationFace ?? Math.atan2(-p.pos[0], -p.pos[1]); // facing their work (or the temple)
           } else {
             const step = Math.min(dist, speed * dt);
             p.pos[0] += (dx / dist) * step; p.pos[1] += (dz / dist) * step;
@@ -309,7 +327,7 @@ export function createFolk({ scene, islands }) {
     }
   }
 
-  return { setAgents, focus, update, pick, launch, crowds, shots };
+  return { setAgents, focus, update, pick, launch, crowds, shots, dayRecords };
 }
 
 // A star-gun, almost a citizen's height (citizen-local metres; the barrel runs along +Y):
