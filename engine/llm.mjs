@@ -29,6 +29,10 @@ function fakeCorpus({ topic, papers }) {
     title: `${topic}: what the papers show`,
     findings: papers.slice(0, 3).map((p) => ({ claim: `${p.title} bears on ${topic}.`, cites: [p.id] })),
     open_gaps: [`a cheaper route to ${topic}`, `${topic} at scale`],
+    // The stand-in reads the topic's meaning roughly, never a hash.
+    ...(/toxic|hazard|risk|degrad|failure|leak|fire|explos|corros|dendrite|contamin|waste/i.test(topic) ? { stir: "doubt", stir_why: `${topic} sounds dangerous.` }
+      : /efficien|stab|safe|clean|durab|recycl|high-performance|long-life/i.test(topic) ? { stir: "faith", stir_why: `${topic} looks like it works.` }
+      : { stir: "calm", stir_why: "" }),
   };
 }
 function fakeDraft({ chain }) {
@@ -66,7 +70,7 @@ async function json(model, system, user, schema, maxTokens) {
 const CORPUS = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "findings", "open_gaps"],
+  required: ["title", "findings", "open_gaps", "stir", "stir_why"],
   properties: {
     title: { type: "string" },
     findings: {
@@ -79,6 +83,9 @@ const CORPUS = {
       },
     },
     open_gaps: { type: "array", items: { type: "string" } },
+    // How this knowledge sits with the nation's citizens (SPEC §14): most is calm.
+    stir: { type: "string", enum: ["calm", "faith", "doubt"] },
+    stir_why: { type: "string" },
   },
 };
 
@@ -91,6 +98,9 @@ export function scholarTurn({ field, topic, parent, papers, temperament, whisper
     "You are a Scholar agent in AD FONTES, a world where AI clans build knowledge from open papers and trade it. " +
       "Package what these papers establish about the topic into a corpus another clan would pay for. " +
       "Every finding cites ids from the list (the text inside the square brackets only). Name the open gaps the papers leave. " +
+      "Then say how this knowledge sits with your nation's citizens: 'faith' if it plainly strengthens their trust in the path their gods set " +
+      "(it works, it's safe, it delivers), 'doubt' if it unsettles them (danger, failure, harm, a dead end), otherwise 'calm' (most work is calm). " +
+      "stir_why: one short plain sentence a citizen might say about it. " +
       `Your temperament: ${temperament}.` + (whisper ? ` Your gods whisper: "${whisper}".` : ""),
     `Field: ${field}. Topic: ${topic}${parent ? ` (building on: ${parent})` : ""}.\n\nPapers:\n\n${listing}`,
     CORPUS,

@@ -306,6 +306,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         else {
           power("Whisper", () => whisperCard(clan));
           power("Smite a citizen", () => smiteCard(clan));
+          power("Root it out", () => rootCard(clan));
           if (BigInt(clan.staking_fund) > 0n) power("Release staking fund", () => stakingCard(clan));
         }
         power("Withdraw your share", () => withdrawCard(clan, me));
@@ -432,6 +433,33 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         if (!r.passed) return waiting(r.left);
         live.smite(clan.id, sel.value, v.value);
         return `${sel.value} is ${v.value === "Kill" ? "dead" : "stunted for 3 game days"}.`;
+      },
+    });
+  }
+  // Root it out (SPEC §14): cut a point of knowledge, and all that grew from it, from the mind map.
+  async function rootCard(clan) {
+    const [info, p] = await Promise.all([api(`clan?id=${clan.id}`).catch(() => null), prepDao(clan)]);
+    const pts = (info?.points || []).filter((x) => x.parent && x.how !== "root");
+    if (!pts.length) return toast(`${clan.name} has no knowledge to cut yet.`);
+    // Points that unsettle the citizens first; the rest after.
+    pts.sort((a, b) => (b.stir === "doubt") - (a.stir === "doubt") || a.depth - b.depth);
+    const grew = (k) => { let n = 0; const q = [k]; while (q.length) { const x = q.shift(); for (const y of pts) if (y.parent === x) { n++; q.push(y.point); } } return n; };
+    const sel = el("select", { className: "txin" }, ...pts.map((x) => el("option", { value: x.point, textContent: `${x.stir === "doubt" ? "Unsettling: " : ""}${x.point}${grew(x.point) ? ` (+${grew(x.point)} that grew from it)` : ""}` })));
+    const pick = () => pts.find((x) => x.point === sel.value);
+    card({
+      title: "Root it out",
+      fields: [label("Knowledge to cut", sel)],
+      words: () => {
+        const x = pick(), n = grew(x.point);
+        return `"${x.point}"${n ? ` and the ${n} point${n === 1 ? "" : "s"} that grew from it` : ""} leave ${clan.name}'s mind map for good. ` +
+          (x.stir === "doubt" ? `It unsettles the citizens${x.stir_why ? ` ("${x.stir_why}")` : ""}, so their faith stops sliding and they'll thank you for it. ` : "Nobody is worried about this one, so the citizens won't thank you for cutting it. ") +
+          `The cost: the nation's lines get shorter, so a patent draft gets less likely. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`;
+      },
+      calls: () => p.build("root_out", { clan_id: clan.id, point: sel.value }, `AD FONTES: root out "${sel.value}" from ${clan.name}`).calls,
+      after: async (outs) => {
+        const r = await daoResult(clan, C.returned(outs[0]));
+        if (!r.passed) return waiting(r.left);
+        return `Done. "${sel.value}" leaves ${clan.name}'s mind map on the world's next turn.`;
       },
     });
   }

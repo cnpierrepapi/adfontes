@@ -5,6 +5,8 @@
 // and how the god answers (stunt or let it lapse) changes how fast reverence fades.
 // Pure logic: run.mjs gathers the god actions from the chain and calls in here. No NEAR moves.
 
+import { rootOut } from "./world.mjs";
+
 export const REV = {
   start: 50, // gods already in a nation when reverence arrives
   newcomer: 30, // a founder or a god who joins later
@@ -21,6 +23,9 @@ export const REV = {
   flourishMax: 10,
   bless: (near) => Math.min(15, 3 + 4 * Math.log2(1 + near)),
   reward: 6, claim: 5, staking: 4, punish: -3, stunt: -8, kill: -20, unruled: -5,
+  rootDoubt: 3, // rooted out a point that unsettled the citizens
+  rootGood: -2, // cut knowledge that wasn't troubling anyone
+  faithPer: 0.15, doubtPer: 0.25, stirMax: 3, // per engine turn, per point held (up to stirMax of each)
   cleanGift: 3, // the nation's gift passed the Warden: its followed god gains
   wardenCatch: -1,
   ignoredBelow: 30, // under this the followed god's whisper is ignored and citizens go their own way
@@ -79,6 +84,18 @@ export function act(rv, god, kind, day, changes, info = {}) {
   else if (kind === "stunt") move(rv, god, REV.stunt, `stunted ${info.agent ?? "a citizen"}`, changes);
   else if (kind === "kill") move(rv, god, REV.kill, `killed ${info.agent ?? "a citizen"}`, changes);
   else if (kind === "unruled") move(rv, god, REV.unruled, "let a gift go unruled for a day", changes);
+  else if (kind === "rootOut") move(rv, god, info.doubt ? REV.rootDoubt : REV.rootGood, info.doubt ? `rooted out "${info.point}", which unsettled them` : `cut "${info.point}", which nobody minded`, changes);
+}
+
+/** What the nation knows moves its faith a little every turn (SPEC §14): points that strengthen
+ *  it lift the followed god, points that unsettle it pull them down. */
+export function stirDrift(rv, c, changes) {
+  if (!rv.followed) return;
+  const held = Object.values(c.owned);
+  const faith = Math.min(REV.stirMax, held.filter((v) => v.stir === "faith").length);
+  const doubt = Math.min(REV.stirMax, held.filter((v) => v.stir === "doubt").length);
+  const d = faith * REV.faithPer - doubt * REV.doubtPer;
+  if (Math.abs(d) > 1e-9) move(rv, rv.followed, d, `what the nation knows (${faith} lifting, ${doubt} unsettling)`, changes);
 }
 
 /** The nation did something good (+) or bad (-): counts toward each god's next whisper. */
@@ -248,6 +265,15 @@ export async function godActions({ chain, s, oc, rv, day, changes }) {
     const method = a.actions[0].method_name, god = p.proposer;
     if (method !== "rule" && Number(args.clan_id) !== oc.id) continue;
     if (method === "whisper") act(rv, god, "whisper", day, changes, { text: args.text });
+    else if (method === "root_out") {
+      const c = s.clans?.[oc.id];
+      const doubt = c?.owned?.[args.point]?.stir === "doubt";
+      const cut = c ? rootOut(c, String(args.point)) : [];
+      if (cut.length) {
+        act(rv, god, "rootOut", day, changes, { point: args.point, doubt });
+        out.push({ kind: "rooted", clan: oc.id, point: args.point, cut, doubt, by: god });
+      }
+    }
     else if (method === "release_staking") act(rv, god, "staking", day, changes);
     else if (method === "smite") {
       act(rv, god, args.verdict === "Kill" ? "kill" : "stunt", day, changes, { agent: args.agent });

@@ -261,10 +261,10 @@ for (let n = 0; n < days; n++) {
           const id = `c${s.nextId++}`;
           const children = [...new Set(papers.flatMap((p) => p.keywords))].slice(0, 12);
           s.corpora[id] = { id, clan: oc.id, scholar: sch.name, node: topic, day, title: corpus.title, findings: corpus.findings, gaps: corpus.open_gaps, papers: papers.map((p) => p.id), children, ...check };
-          log({ kind: "corpus", clan: oc.id, scholar: sch.name, point: topic, title: corpus.title, cites: check.cites, fake: check.fake.length, hash: W.sha256(JSON.stringify(s.corpora[id])) });
+          log({ kind: "corpus", clan: oc.id, scholar: sch.name, point: topic, title: corpus.title, cites: check.cites, fake: check.fake.length, stir: corpus.stir ?? "calm", stir_why: corpus.stir_why || undefined, hash: W.sha256(JSON.stringify(s.corpora[id])) });
           if (check.clean) {
             const depth = node ? c.frontier[node].depth : 0;
-            c.owned[topic] = { depth, parent, corpus: id, how: "researched" };
+            c.owned[topic] = { depth, parent, corpus: id, how: "researched", stir: corpus.stir ?? "calm", ...(corpus.stir_why ? { stir_why: corpus.stir_why } : {}) };
             delete c.frontier[topic];
             W.grow(c, topic, children);
             W.learn(c, sch.name, topic);
@@ -380,6 +380,7 @@ for (let n = 0; n < days; n++) {
       const nowAgents = await chain.agents(oc.id);
       const living = nowAgents.filter((a) => a.alive);
       if (!INSTANT) RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh, c.mood === "hungry" ? CFG.needs.hungryFade : 1); // the fade is per day
+      if (!INSTANT) RV.stirDrift(rv, c, revCh); // faith and doubt in what the nation knows
       if (!INSTANT) for (const r of RV.lapseReports(s, rv, oc.id, day, revCh)) log(r);
       const evidence = [
         ...mine.filter((r) => r.kind === "corpus" && r.fake).map((r) => ({ kind: "fake", name: r.scholar })),

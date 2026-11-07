@@ -13,7 +13,7 @@ const TECH_LINE = {
 export function says(r, clanName) {
   const c = clanName;
   switch (r.kind) {
-    case "corpus": return `${r.scholar} of ${c(r.clan)} wrote up "${r.point}" from ${r.cites} citations${r.fake ? `, ${r.fake} of them made up` : ""}.`;
+    case "corpus": return `${r.scholar} of ${c(r.clan)} wrote up "${r.point}" from ${r.cites} citations${r.fake ? `, ${r.fake} of them made up` : ""}.${r.stir === "doubt" ? " It unsettles the citizens." : r.stir === "faith" ? " It lifts their faith." : ""}`;
     case "trade": return r.tool ? `${c(r.buyer)} bought a figure kit from ${c(r.seller)} for ${fl(r.price)}.` : `${c(r.buyer)} bought what ${c(r.seller)} knows about "${r.point}" for ${fl(r.price)}.`;
     case "gift": {
       const earned = r.florins ? Object.values(r.florins).reduce((a, b) => a + b, 0) : 0;
@@ -30,6 +30,7 @@ export function says(r, clanName) {
     case "tool": return `${c(r.clan)}'s Smith made a figure kit.`;
     case "ruling": return `${c(r.clan)}'s gods ${r.status === "Rewarded" ? "rewarded" : r.status === "Punished" ? "punished" : "ignored"} a draft.`;
     case "tech": return `${c(r.clan)} has the ${r.name} now. ${TECH_LINE[r.tech] ?? ""}`.trim();
+    case "rooted": return `${c(r.clan)}'s gods rooted out "${r.point}"${r.cut.length > 1 ? ` and ${r.cut.length - 1} point${r.cut.length === 2 ? "" : "s"} that grew from it` : ""}.${r.doubt ? " The citizens breathe easier." : " Nobody was worried about it."}`;
     case "dawn": return `Dawn. NEAR turned up, so day ${r.days} begins.`;
     case "dusk": return `Dusk. NEAR slipped 3%, so night ${r.nights} begins.`;
     case "needs":

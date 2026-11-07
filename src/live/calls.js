@@ -5,7 +5,7 @@
 export const TGAS = 10n ** 12n;
 const near = (y) => { const v = BigInt(y), w = v / 10n ** 24n, f = ((v % 10n ** 24n) * 10000n) / 10n ** 24n; return f ? `${w}.${String(f).padStart(4, "0").replace(/0+$/, "")}` : String(w); };
 // Gas per call (Tgas). Generous on purpose: unused gas is refunded.
-export const GAS = { found: 300, bless: 200, join: 150, withdraw: 200, claimGift: 30, claimOwed: 60, propose: 50, vote: 150, inner: { release_staking: 60, rule: 30, whisper: 30, smite: 30 } };
+export const GAS = { found: 300, bless: 200, join: 150, withdraw: 200, claimGift: 30, claimOwed: 60, propose: 50, vote: 150, inner: { release_staking: 60, rule: 30, whisper: 30, smite: 30, root_out: 30 } };
 const T = (n) => BigInt(n) * TGAS;
 const b64 = (obj) => { const bytes = new TextEncoder().encode(JSON.stringify(obj)); let s = ""; for (const x of bytes) s += String.fromCharCode(x); return btoa(s); };
 

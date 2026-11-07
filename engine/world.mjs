@@ -76,7 +76,24 @@ export function deepestChain(c) {
 /** Add a corpus's keywords as new frontier points one step out from `node`. */
 export function grow(c, node, keywords) {
   const depth = c.owned[node].depth + 1;
-  for (const k of keywords) if (!c.owned[k] && !c.frontier[k] && k !== node) c.frontier[k] = { depth, parent: node };
+  for (const k of keywords) if (!c.owned[k] && !c.frontier[k] && k !== node && !c.banned?.[k]) c.frontier[k] = { depth, parent: node };
+}
+
+/** Root it out (SPEC §14): cut `point` and everything that grew from it, and never let it back.
+ *  The root (the nation's field) can't be cut. Returns the cut points (empty = nothing to cut). */
+export function rootOut(c, point) {
+  if (!c.owned[point] || point === c.field) return [];
+  const cut = [], queue = [point];
+  while (queue.length) {
+    const k = queue.shift();
+    if (!c.owned[k]) continue;
+    cut.push(k);
+    delete c.owned[k];
+    for (const [ck, cv] of Object.entries(c.owned)) if (cv.parent === k) queue.push(ck);
+  }
+  for (const [fk, fv] of Object.entries(c.frontier)) if (cut.includes(fv.parent)) delete c.frontier[fk];
+  (c.banned ||= {})[point] = true;
+  return cut;
 }
 
 /** Patron picks the next point. N or J leap/finish deep; S or P stay shallow and explore.

@@ -310,7 +310,7 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   const early = [];
   let eventSink = (e) => early.push(e);
-  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); if (r.kind === "tech") techBuilt(r); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); if (r.kind === "tech") techBuilt(r); if (r.kind === "rooted") loadMind(r.clan); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
   const recordHooks = new Set(); // other modules (the god's route) hear every record the world plays
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });

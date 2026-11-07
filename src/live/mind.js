@@ -16,6 +16,8 @@ const HDR = (r, g, b) => new THREE.Color(r, g, b);
 const FIELD_HDR = { batteries: HDR(0.12, 0.5, 1.35), "solar cells": HDR(1.35, 0.62, 0.0), "carbon capture": HDR(0.0, 0.85, 0.42) };
 const OTHER_HDR = HDR(0.75, 0.25, 1.2);
 const BOUGHT = HDR(1.3, 0.2, 0.62); // the pink of the trade bridges
+const DOUBT = HDR(2.6, 0.12, 0.22); // knowledge that unsettles the citizens (SPEC §14): a hot red that blooms, readable at night
+const FAITH = HDR(1.9, 1.6, 0.9); // knowledge that lifts their faith: warm white-gold
 const FRONTIER = new THREE.Color(0.32, 0.3, 0.45);
 const LINE_HOT = HDR(1.3, 0.56, 0.0);
 const STONE = new THREE.Color(0xb3a99c);
@@ -152,7 +154,7 @@ export function buildMind(data, isl, ctx) {
     const how = node.how || "";
     if (dead) { stone.push({ name, pos, color: name === L.root ? STONE_DARK : STONE, size: name === L.root ? 0.7 : 0.48, born, glint: 0, hollow: node.taken ? 1 : 0, node }); continue; }
     if (how.startsWith("absorbed")) { stone.push({ name, pos, color: STONE, size: hot ? 0.6 : 0.5, born, glint: 1, hollow: 0, node }); continue; }
-    const c = name === L.root ? field.clone().multiplyScalar(1.15) : how.startsWith("bought") ? BOUGHT.clone() : field.clone();
+    const c = name === L.root ? field.clone().multiplyScalar(1.15) : node.stir === "doubt" ? DOUBT.clone() : node.stir === "faith" ? FAITH.clone() : how.startsWith("bought") ? BOUGHT.clone() : field.clone();
     glow.push({ name, pos, color: c, size: name === L.root ? 1.5 : hot ? 1.15 : 0.85, born, node });
   }
 
@@ -307,7 +309,8 @@ export function buildMind(data, isl, ctx) {
         return { title: d.title, sub: `Draft, day ${d.day} · ${d.passed ? "the Warden passed it" : "failed the Warden"}`, kind: d.passed ? "gift" : "warden" };
       }
       const s = top.list[top.index];
-      return { title: s.name, sub: describe(s.node, dead, ctx.clanName), corpus: s.node.corpus?.title ?? null, kind: s.node.kind === "frontier" ? "frontier" : dead || (s.node.how || "").startsWith("absorbed") ? "stone" : (s.node.how || "").startsWith("bought") ? "trade" : "corpus" };
+      const mood = s.node.stir === "doubt" ? ` · it unsettles the citizens${s.node.stir_why ? `: "${s.node.stir_why}"` : ""}` : s.node.stir === "faith" ? ` · it lifts their faith${s.node.stir_why ? `: "${s.node.stir_why}"` : ""}` : "";
+      return { title: s.name, sub: describe(s.node, dead, ctx.clanName) + mood, corpus: s.node.corpus?.title ?? null, kind: s.node.kind === "frontier" ? "frontier" : dead || (s.node.how || "").startsWith("absorbed") ? "stone" : (s.node.how || "").startsWith("bought") ? "trade" : "corpus" };
     },
     /** Light named stars again (a record about them just played). */
     light(list, at = now()) {

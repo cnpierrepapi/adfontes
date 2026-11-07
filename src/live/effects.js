@@ -135,7 +135,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     onRecord?.(r);
     switch (r.kind) {
       case "trade": comet(r.seller, r.buyer, r.tool ? VIOLET : CYAN); bubble(islands.get(r.buyer), text, "trade"); break;
-      case "corpus": page(islands.get(r.clan), r.fake ? RED : WHITE); bubble(islands.get(r.clan), text, "corpus"); break;
+      case "corpus": page(islands.get(r.clan), r.fake ? RED : WHITE); bubble(islands.get(r.clan), text, r.stir === "doubt" ? "warden" : "corpus"); break;
       case "gift": beam(islands.get(r.clan), r.passed ? GOLD : RED); bubble(islands.get(r.clan), text, r.passed ? "gift" : "warden"); break;
       case "warden": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), text, "warden"); break;
       case "trickster": drop(islands.get(r.clan)); bubble(islands.get(r.clan), text, "trickster"); break;
@@ -157,6 +157,8 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "report-settled": bubble(islands.get(r.clan), r.outcome === "stunted" ? `${r.accused} was stunted. ${r.truth ? "The report was true." : "The report was a grudge: an innocent was punished."}` : `Nobody acted on the report about ${r.accused}. ${r.truth ? "It was true." : "It was a grudge."}`, r.truth === (r.outcome === "stunted") ? "gift" : "warden"); break;
       // A tech built (SPEC §14): a gold ring and beam; its building rises in the town.
       case "tech": ring(islands.get(r.clan), GOLD); beam(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift"); break;
+      // Root it out (SPEC §14): a red ring, and the sky loses that branch.
+      case "rooted": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), text, r.doubt ? "gift" : "warden"); break;
       // The world clock and a nation's needs: words only.
       case "dawn": case "dusk": bubble(null, text, r.kind === "dawn" ? "gift" : "corpus"); break;
       case "needs": bubble(islands.get(r.clan), text, r.mood === "content" ? "trade" : "warden"); break;

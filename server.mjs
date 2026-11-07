@@ -110,7 +110,7 @@ function makeApi(NET) {
         const dead = st.alive === false;
         // A dead nation's points are ruins until another nation absorbs them ("taken").
         const points = Object.entries(st.owned).map(([k, v]) => ({
-          point: k, parent: v.parent, depth: v.depth, how: v.how,
+          point: k, parent: v.parent, depth: v.depth, how: v.how, stir: v.stir ?? "calm", stir_why: v.stir_why ?? null,
           corpus: v.corpus ? { id: v.corpus, title: s.corpora[v.corpus]?.title } : null,
           ...(dead && v.corpus ? { ruin: !!s.ruins?.[k] && s.ruins[k].from === id, taken: !s.ruins?.[k] } : {}),
         }));

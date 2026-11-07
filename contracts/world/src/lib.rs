@@ -529,6 +529,16 @@ impl World {
         // a god must always be able to speak to a nation that lost everything.
     }
 
+    /// Root it out (SPEC §14): the gods cut a point of knowledge (and all that grew from it) from
+    /// their nation's mind map, by DAO vote. Nothing is stored here: the engine reads the passed
+    /// proposal and prunes the map, and the line gets shorter (drafts get less likely).
+    pub fn root_out(&mut self, clan_id: u32, point: String) {
+        let clan = self.live_clan(clan_id);
+        require!(env::predecessor_account_id() == clan.dao, "Only the clan's DAO can root out knowledge");
+        require!(!point.is_empty() && point.len() <= 120, "Point must be 1-120 characters");
+        env::log_str(&format!("root_out {clan_id} {point}"));
+    }
+
     /// Smite: stunt or kill one of the clan's agents at any time (by DAO vote), no gift needed.
     pub fn smite(&mut self, clan_id: u32, agent: String, verdict: Verdict) {
         let clan = self.live_clan(clan_id);

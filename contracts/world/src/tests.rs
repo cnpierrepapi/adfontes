@@ -512,6 +512,19 @@ fn a_broke_nation_can_still_be_whispered_to() {
 }
 
 #[test]
+fn only_the_dao_roots_out_knowledge() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("adf-clan-1.sputnik-dao.near", 0);
+    w.root_out(a, "lithium sulfur batteries".into()); // fine: the DAO voted
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        set("god1.near", 0);
+        w.root_out(a, "lithium sulfur batteries".into());
+    }));
+    assert!(r.is_err(), "a god alone can't root out; it takes the DAO vote");
+}
+
+#[test]
 fn dao_whispers_and_smites_without_a_gift() {
     let mut w = new_world();
     let a = found(&mut w, "god1.near", 3 * NEAR);
