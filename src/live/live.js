@@ -341,9 +341,28 @@ export async function startLive(canvas, hud, opts = {}) {
     return run;
   }
   for (const c of W.clans) loadMind(c.id);
-  // Records that change a sky. New points light in place (star launches wait for the Scholar figures).
+  // A finished corpus: if you're watching that nation, its Scholar fires the star into the sky
+  // with the star-gun (it lights when it lands); otherwise the star just lights in place.
+  // A made-up citation misfires (the Warden's ring follows from its own record).
+  async function starGun(r) {
+    if (!r.fake) await loadMind(r.clan);
+    const m = minds.get(r.clan), isl = islands.get(r.clan);
+    if (!m || !isl) return;
+    let to = r.fake ? null : m.worldPos(r.point);
+    if (!to && !r.fake) return m.light([r.point]);
+    if (r.fake) { // aim at where a new star would go: above the sky's root
+      to = isl.getWorldPosition(new THREE.Vector3());
+      to.y += mindBase(isl.userData.r) + 2.5;
+    }
+    if (!r.fake) m.hold([r.point]);
+    let landed = false;
+    const land = () => { if (landed) return; landed = true; if (!r.fake) m.light([r.point]); };
+    if (!folk.launch(r.clan, r.scholar, { to, fake: !!r.fake, onArrive: land })) return land();
+    setTimeout(land, 20000); // flew away mid-shot: never leave a star hidden
+  }
+  // Records that change a sky (corpus records go through the star-gun above).
   function mindRecord(r) {
-    if (r.kind === "corpus" && !r.fake) loadMind(r.clan, [r.point]);
+    if (r.kind === "corpus") starGun(r);
     else if (r.kind === "trade" && r.point) loadMind(r.buyer, [r.point]);
     else if (r.kind === "absorb") {
       loadMind(r.clan, r.points || []);

@@ -310,14 +310,22 @@ export function buildMind(data, isl, ctx) {
       return { title: s.name, sub: describe(s.node, dead, ctx.clanName), corpus: s.node.corpus?.title ?? null, kind: s.node.kind === "frontier" ? "frontier" : dead || (s.node.how || "").startsWith("absorbed") ? "stone" : (s.node.how || "").startsWith("bought") ? "trade" : "corpus" };
     },
     /** Light named stars again (a record about them just played). */
-    light(list) {
-      const t = now();
+    light(list, at = now()) {
       for (const p of [glowPts, stonePts]) {
         if (!p) continue;
         const born = p.geometry.attributes.born;
-        p.userData.list.forEach((s, i) => { if (list.includes(s.name)) born.setX(i, t); });
+        p.userData.list.forEach((s, i) => { if (list.includes(s.name)) born.setX(i, at); });
         born.needsUpdate = true;
       }
+    },
+    /** Hide named stars until light() (a star-gun shot is on its way to them). */
+    hold(list) { this.light(list, 1e9); },
+    /** World position of a star's slot (null if this sky has no such point). */
+    worldPos(name) {
+      const at = L.at.get(name);
+      if (!at) return null;
+      group.updateWorldMatrix(true, false);
+      return group.localToWorld(at.pos.clone());
     },
     dispose() {
       group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
