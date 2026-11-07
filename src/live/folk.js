@@ -388,7 +388,9 @@ export function createFolk({ scene, islands, renderer, camera }) {
     }
   }
 
-  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords };
+  // A nation's town changed (a tech was built): rebuild it if it's on screen.
+  const retown = (id) => { if (crowds.has(id) && agentsOf.has(id)) rebuildCrowd(id, agentsOf.get(id)); };
+  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown };
 }
 
 // A star-gun, almost a citizen's height (citizen-local metres; the barrel runs along +Y):

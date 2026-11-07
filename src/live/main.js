@@ -13,7 +13,7 @@ function showClan(c, status) {
   p.replaceChildren();
   const h = document.createElement("h2"); h.textContent = c.name;
   const m = document.createElement("p"); m.className = "meta";
-  m.textContent = `${[c.field, c.mbti, `${c.gods} god${c.gods === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}${status === "dead" ? " · ruins" : status === "rich" ? " · rich, so lazy" : status === "neglected" ? " · neglected, a Trickster moved in" : status === "new" ? " · new, waiting for its first day" : ""}`;
+  m.textContent = `${[c.field, c.mbti, `${c.gods} god${c.gods === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}${status === "dead" ? " · ruins" : status === "rich" ? " · sated, so a bit lazy" : status === "neglected" ? ((c.tricksters || 0) > 0 ? " · neglected, a Trickster moved in" : " · hungry, it needs a blessing") : status === "new" ? " · new, waiting for its first day" : ""}`;
   const nums = document.createElement("div"); nums.className = "nums";
   for (const [v, l] of [[c.points, "points on its mindmap"], [n3(c.play), "NEAR to spend"], [c.clean_gifts, "clean gifts"]]) {
     const d = document.createElement("div"); d.textContent = v;

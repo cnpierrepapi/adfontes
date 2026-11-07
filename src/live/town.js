@@ -144,6 +144,86 @@ function torch() { const g = new THREE.Group(); g.add(cyl(0.025, 0.03, 0.5, DARK
 function cart() { const g = new THREE.Group(); g.add(box(0.8, 0.3, 1.0, WOOD, 0, 0.45, 0)); for (const x of [-0.45, 0.45]) { const w = cyl(0.28, 0.28, 0.06, DARK_WOOD, x, 0.28, 0.1, 10); w.rotation.z = Math.PI / 2; g.add(w); } g.add(box(0.05, 0.05, 0.6, DARK_WOOD, -0.3, 0.6, -0.7), box(0.05, 0.05, 0.6, DARK_WOOD, 0.3, 0.6, -0.7)); for (let i = 0; i < 4; i++) g.add(box(0.22, 0.18, 0.22, [0xffb347, 0x9fd36a, 0xfff1a8, 0xff6f91][i], -0.18 + (i % 2) * 0.36, 0.69, -0.2 + Math.floor(i / 2) * 0.4)); return g; }
 
 let glow = null;
+// ---------- the five techs (SPEC §14): one building each, built in code ----------
+const GLASS = new THREE.MeshStandardMaterial({ color: 0xcdeeff, emissive: 0x6fc8ff, emissiveIntensity: 0.25, transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.1 });
+const goldTorus = (r, tube) => new THREE.Mesh(new THREE.TorusGeometry(r, tube, 8, 28), GOLD_MAT);
+const spinner = (o, axis, speed) => { o.userData.spin = { axis, speed }; return o; };
+
+function printingPress() {
+  const g = new THREE.Group();
+  g.add(table(1.0, 0.7, 0.7));
+  for (const x of [-0.48, 0.48]) g.add(box(0.12, 1.75, 0.12, DARK_WOOD, x, 0.875, -0.05));
+  g.add(box(1.2, 0.16, 0.22, DARK_WOOD, 0, 1.75, -0.05)); // head beam
+  g.add(cyl(0.05, 0.05, 0.62, IRON, 0, 1.36, -0.05)); // the screw
+  g.add(box(0.66, 0.08, 0.46, WOOD, 0, 1.02, -0.05)); // platen
+  const bar = box(0.8, 0.045, 0.045, IRON, 0.32, 1.42, -0.05); bar.rotation.y = 0.5; g.add(bar); // the lever
+  g.add(box(0.5, 0.012, 0.34, PAPER, 0, 0.71, 0.05)); // a sheet on the bed
+  const st = stool(0.5); st.position.set(0.85, 0, 0.35); g.add(st);
+  for (let i = 0; i < 5; i++) g.add(box(0.36, 0.012, 0.26, PAPER, 0.85, 0.51 + i * 0.014, 0.35)); // printed pages
+  return g;
+}
+
+function spectaclesStand() {
+  const g = new THREE.Group();
+  g.add(cyl(0.06, 0.09, 1.0, DARK_WOOD, 0, 0.5, 0));
+  const board = box(0.62, 0.045, 0.46, WOOD, 0, 1.05, 0); board.rotation.x = -0.5; g.add(board);
+  const book = box(0.46, 0.05, 0.32, PAPER, 0, 1.09, 0.02); book.rotation.x = -0.5; g.add(book);
+  // a giant pair of spectacles floating above the book, slowly turning
+  const sp = new THREE.Group();
+  for (const x of [-0.27, 0.27]) {
+    const rim = goldTorus(0.22, 0.032); rim.position.x = x; sp.add(rim);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.2, 24), GLASS); lens.position.x = x; sp.add(lens);
+    const back = lens.clone(); back.rotation.y = Math.PI; sp.add(back);
+  }
+  const bridge = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.025, 6, 12, Math.PI), GOLD_MAT); sp.add(bridge);
+  for (const x of [-1, 1]) { const arm = box(0.03, 0.03, 0.4, 0xc99a2e, x * 0.49, 0, -0.2); sp.add(arm); }
+  sp.position.y = 1.7;
+  g.add(spinner(sp, "y", 0.35));
+  return g;
+}
+
+function clockTower() {
+  const g = new THREE.Group();
+  g.add(box(0.9, 2.4, 0.9, STONE, 0, 1.2, 0));
+  g.add(box(1.02, 0.12, 1.02, DARK_WOOD, 0, 2.42, 0));
+  const roof = mesh(new THREE.ConeGeometry(0.78, 0.7, 4), 0xc0504d, 0.04); roof.position.y = 2.83; roof.rotation.y = Math.PI / 4; g.add(roof);
+  g.add(box(0.3, 0.55, 0.04, DARK_WOOD, 0, 0.28, 0.46)); // door
+  const face = cyl(0.34, 0.34, 0.05, PAPER, 0, 1.85, 0.47, 24); face.rotation.x = Math.PI / 2; g.add(face);
+  const rim = goldTorus(0.34, 0.03); rim.position.set(0, 1.85, 0.49); g.add(rim);
+  // hands turn with the world's clock: a NEAR hour (12 real minutes) per turn of the long hand
+  const hand = (len, w, speed) => { const p = new THREE.Group(); p.position.set(0, 1.85, 0.51); const h = box(w, len, 0.02, IRON, 0, len / 2, 0); p.add(h); return spinner(p, "z", speed); };
+  g.add(hand(0.27, 0.03, -(Math.PI * 2) / 720), hand(0.17, 0.045, -(Math.PI * 2) / 8640));
+  return g;
+}
+
+function ledgerDesk() {
+  const g = new THREE.Group();
+  g.add(table(1.2, 0.62));
+  for (const sx of [-1, 1]) { const pg = box(0.32, 0.02, 0.42, PAPER, sx * 0.165, 0.77, 0); pg.rotation.z = sx * -0.08; g.add(pg); } // the open ledger
+  g.add(box(0.012, 0.012, 0.4, 0xb0412e, 0, 0.785, 0)); // the spine's red line
+  const cols = [0x8a3b3b, 0x2f5d8a, 0x3f7a4a, 0x6b4a8a];
+  for (let i = 0; i < 4; i++) g.add(box(0.26, 0.07, 0.34, cols[i], 0.46, 0.79 + i * 0.075, -0.05)); // books of account
+  g.add(cyl(0.05, 0.06, 0.08, 0x2a2633, -0.48, 0.79, 0.1)); // inkpot
+  const quill = cyl(0.008, 0.02, 0.36, 0xffffff, -0.45, 0.93, 0.08); quill.rotation.z = 0.5; g.add(quill);
+  const st = stool(0.46); st.position.set(0, 0, -0.62); g.add(st);
+  return g;
+}
+
+function astrolabe() {
+  const g = new THREE.Group();
+  g.add(cyl(0.26, 0.34, 0.9, STONE, 0, 0.45, 0));
+  g.add(cyl(0.36, 0.36, 0.08, STONE, 0, 0.94, 0));
+  const sphere = new THREE.Group(); sphere.position.y = 1.5;
+  const a = goldTorus(0.46, 0.025); sphere.add(a);
+  const b = goldTorus(0.42, 0.022); b.rotation.x = Math.PI / 2; sphere.add(spinner(b, "y", 0.6));
+  const c = goldTorus(0.38, 0.02); c.rotation.y = Math.PI / 2; c.rotation.z = 0.4; sphere.add(c);
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), GOLD_MAT); sphere.add(core);
+  g.add(cyl(0.025, 0.025, 0.5, 0xc99a2e, 0, 1.2, 0)); // the stem
+  g.add(spinner(sphere, "y", 0.22));
+  return g;
+}
+const TECH_PROP = { press: printingPress, spectacles: spectaclesStand, clock: clockTower, bookkeeping: ledgerDesk, astrolabe };
+
 function glowTex() {
   if (glow) return glow;
   const c = document.createElement("canvas"); c.width = c.height = 64;
@@ -155,8 +235,12 @@ function glowTex() {
 
 // Where each scene goes, as (angle offset, radius fraction) on the plaza ring (matches the roles'
 // old work spots, so citizens keep their part of the island).
-const SPOT = { Scholar: [0.9, 0.4], Smith: [2.1, 0.52], Drafter: [3.2, 0.46], Broker: [4.4, 0.55], Patron: [0, 0.36], Warden: [5.4, 0.62] };
-const FOOT = { Scholar: 2.4, Smith: 2.0, Drafter: 1.3, Broker: 1.7, Patron: 1.4, Warden: 0.6 };
+const SPOT = { Scholar: [0.9, 0.4], Smith: [2.1, 0.52], Drafter: [3.2, 0.46], Broker: [4.4, 0.55], Patron: [0, 0.36], Warden: [5.4, 0.62],
+  // the five techs sit further out, between the trades
+  press: [1.5, 0.72], spectacles: [2.65, 0.74], clock: [3.8, 0.72], bookkeeping: [4.95, 0.74], astrolabe: [5.95, 0.7] };
+// Tech buildings stand clearly taller than a citizen (his rule, SPEC §14b): scaled up, footprint too.
+const BIG = { press: 1.45, spectacles: 1.7, clock: 1.3, bookkeeping: 1.4, astrolabe: 1.6 };
+const FOOT = { Scholar: 2.4, Smith: 2.0, Drafter: 1.3, Broker: 1.7, Patron: 1.4, Warden: 0.6, press: 1.3 * BIG.press, spectacles: 0.8 * BIG.spectacles, clock: 1.0 * BIG.clock, bookkeeping: 1.3 * BIG.bookkeeping, astrolabe: 0.9 * BIG.astrolabe };
 
 /**
  * Build a nation's scenes and townsfolk. Returns { group, actors, stations } where stations maps a
@@ -166,7 +250,7 @@ export async function buildTown(ctx) {
   const { kit, r, s, clan, status, roles, smithWorked, phone, place, groundY, R, home } = ctx;
   const group = new THREE.Group();
   group.name = "town";
-  const actors = [], stations = new Map();
+  const actors = [], stations = new Map(), spin = []; // spin: tech parts that turn (clock hands, astrolabe)
   const dead = status === "dead";
 
   // Put a scene on the island: returns a frame for converting its local metres to town space.
@@ -178,11 +262,12 @@ export async function buildTown(ctx) {
     const g = new THREE.Group();
     g.position.set(x, groundY(r, x, z), z);
     g.rotation.y = rot;
-    obj.scale.setScalar(s);
+    obj.scale.setScalar(s * (BIG[role] ?? 1));
     g.add(obj);
     shadows(obj);
     group.add(g);
-    const frame = { x, z, rot, obj, at: (lx, lz) => [x + (lx * Math.cos(rot) + lz * Math.sin(rot)) * s, z + (-lx * Math.sin(rot) + lz * Math.cos(rot)) * s], face: (a) => a + rot };
+    const k = s * (BIG[role] ?? 1); // local metres -> town space, with the building's size
+    const frame = { x, z, rot, obj, at: (lx, lz) => [x + (lx * Math.cos(rot) + lz * Math.sin(rot)) * k, z + (-lx * Math.sin(rot) + lz * Math.cos(rot)) * k], face: (a) => a + rot };
     scenes[role] = frame;
     return frame;
   }
@@ -283,6 +368,16 @@ export async function buildTown(ctx) {
     w.c.mixer.timeScale = 0.8;
   }
 
+  // ---- the nation's techs (SPEC §14): a building for each one it has unlocked ----
+  for (const id of clan.techs || []) {
+    const make = TECH_PROP[id];
+    if (!make) continue;
+    const sc = put(id, make());
+    sc.obj.traverse((o) => o.userData.spin && spin.push(o));
+    if (id === "press") { const [x, z] = sc.at(-0.1, 0.62); await person("adult", x, z, sc.face(Math.PI), "PickUp_Table"); }
+    if (id === "bookkeeping") { const [x, z] = sc.at(0, -0.62); await person("adult", x, z, sc.face(0), "Sitting_Idle_Loop"); }
+  }
+
   // ---- everyday townsfolk ----
   const walkers = phone ? 1 : neglected ? 3 : 2;
   for (let i = 0; i < walkers; i++) {
@@ -306,7 +401,7 @@ export async function buildTown(ctx) {
     await person("adult", x, z, R() * 6.28, "Dance_Loop");
   }
 
-  return { group, actors, stations, scenes };
+  return { group, actors, stations, scenes, spin };
 }
 
 function pt(sc, lx, lz) { const [x, z] = sc.at(lx, lz); return { x, z }; }
@@ -317,6 +412,7 @@ function boneNamed(root, name) { let b = null; root.traverse((o) => { if (o.isBo
  */
 export function stepTown(town, dt, now, { r, s, open, groundY }) {
   const night = citizenGlow.value > 0;
+  for (const o of town.spin || []) o.rotation[o.userData.spin.axis] += dt * o.userData.spin.speed;
   for (const a of town.actors) {
     const c = a.c;
     if (a.night) c.root.visible = night;

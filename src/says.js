@@ -2,6 +2,14 @@
 const n2 = (x) => (Math.round(x * 1000) / 1000).toString();
 const fl = (x) => `${n2(x)} florin${Math.abs(x - 1) < 1e-9 ? "" : "s"}`;
 
+const TECH_LINE = {
+  press: "Copies are cheap, so every sale of its research earns a little more.",
+  spectacles: "Its Scholars can read by lamplight now and work right through the night.",
+  clock: "Days run on time, and upkeep costs 30% less.",
+  bookkeeping: "It can take more NEAR before its citizens get lazy.",
+  astrolabe: "It buys at half price and spots ruins from far off.",
+};
+
 export function says(r, clanName) {
   const c = clanName;
   switch (r.kind) {
@@ -21,6 +29,7 @@ export function says(r, clanName) {
     case "founded": return `A new nation state rose: ${r.name}, a ${r.field} nation.`;
     case "tool": return `${c(r.clan)}'s Smith made a figure kit.`;
     case "ruling": return `${c(r.clan)}'s gods ${r.status === "Rewarded" ? "rewarded" : r.status === "Punished" ? "punished" : "ignored"} a draft.`;
+    case "tech": return `${c(r.clan)} has the ${r.name} now. ${TECH_LINE[r.tech] ?? ""}`.trim();
     case "dawn": return `Dawn. NEAR turned up, so day ${r.days} begins.`;
     case "dusk": return `Dusk. NEAR slipped 3%, so night ${r.nights} begins.`;
     case "needs":

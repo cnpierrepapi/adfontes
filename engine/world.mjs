@@ -15,6 +15,17 @@ export function canon(v) {
 /** A record's leaf in the day's Merkle tree. */
 export const leafOf = (r) => sha256(canon(r));
 
+/** The five techs (SPEC §14), unlocked as the mind map grows. Each: a town building, a florin
+ *  bonus, and the citizens want more NEAR after it (needs x techStep). */
+export const TECHS = [
+  { id: "press", name: "Printing Press", does: "+florins each time another nation buys its research", ready: (c) => Object.keys(c.owned).length >= 6 },
+  { id: "spectacles", name: "Spectacles", does: "Scholars work at full pace at night", ready: (c) => chainDepth(c) >= 3 },
+  { id: "clock", name: "Mechanical Clock", does: "upkeep costs 30% less", ready: (c) => Object.keys(c.owned).length >= 12 },
+  { id: "bookkeeping", name: "Double-entry Bookkeeping", does: "citizens can take more NEAR before they get lazy", ready: (c) => (c.passedDrafts || 0) >= 1 },
+  { id: "astrolabe", name: "Astrolabe", does: "half-price buying, and ruins found from afar", ready: (c) => chainDepth(c) >= CFG.maxDepth },
+];
+export const hasTech = (c, id) => (c.techs || []).includes(id);
+
 export const FIELDS = ["batteries", "solar cells", "carbon capture"];
 const LETTERS = [["E", "I"], ["S", "N"], ["T", "F"], ["J", "P"]];
 
@@ -159,9 +170,10 @@ export function related(a, b) {
  *  that grew from it. Nothing is absorbed without a matching gain, so it happens over time. */
 export function absorbRuins(s, c, gained) {
   const taken = [];
+  const afar = hasTech(c, "astrolabe"); // the Astrolabe finds ruins that are only related, not exact
   for (const g of gained) {
     const tags = new Set([g, ...(s.corpora[c.owned[g]?.corpus]?.children || [])]);
-    const hits = Object.keys(s.ruins).filter((k) => tags.has(k));
+    const hits = Object.keys(s.ruins).filter((k) => tags.has(k) || (afar && [...tags].some((t) => related(t, k))));
     for (const hit of hits) {
       const queue = [hit];
       while (queue.length) {

@@ -88,6 +88,8 @@ function makeApi(NET) {
               points: Object.keys(st.owned || {}).length, depth: st.owned ? chainDepth(st) : 0,
               line: st.owned ? deepestChain(st) : [],
               reverence: revOf(s, c.id),
+              // v2 (SPEC §14): techs unlocked, and the needs mood (hungry / content / sated)
+              techs: st.techs ?? [], mood: st.mood ?? null, need: st.need ?? null,
             };
           }),
           ruins: Object.keys(s.ruins || {}).length,

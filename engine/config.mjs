@@ -39,6 +39,7 @@ export const CFG = {
     tech: 40, // minted per tech unlocked (step 4)
     upkeep: 6, // burned per citizen per real day
     fine: 5, // burned per fake the Warden catches
+    pressSale: 1, // Printing Press: minted to the seller each time another nation buys its research
   },
   // Upkeep and the draft limit run on REAL time, not engine turns (a burst of foundings starts
   // turns minutes apart). ADF_UPKEEP_HOURS only for test runs.

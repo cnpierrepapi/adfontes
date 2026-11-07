@@ -155,6 +155,8 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       // Reverence (SPEC §12m): a citizen reports another; later the truth comes out.
       case "report": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), `${r.claim}.`, "warden"); break;
       case "report-settled": bubble(islands.get(r.clan), r.outcome === "stunted" ? `${r.accused} was stunted. ${r.truth ? "The report was true." : "The report was a grudge: an innocent was punished."}` : `Nobody acted on the report about ${r.accused}. ${r.truth ? "It was true." : "It was a grudge."}`, r.truth === (r.outcome === "stunted") ? "gift" : "warden"); break;
+      // A tech built (SPEC §14): a gold ring and beam; its building rises in the town.
+      case "tech": ring(islands.get(r.clan), GOLD); beam(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift"); break;
       // The world clock and a nation's needs: words only.
       case "dawn": case "dusk": bubble(null, text, r.kind === "dawn" ? "gift" : "corpus"); break;
       case "needs": bubble(islands.get(r.clan), text, r.mood === "content" ? "trade" : "warden"); break;

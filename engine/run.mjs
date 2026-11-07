@@ -175,7 +175,7 @@ for (let n = 0; n < days; n++) {
       const living = agents.filter((a) => a.alive && a.role !== "Trickster").length;
       const need = +(CFG.needs.base * living * CFG.needs.growth ** ageDays * CFG.needs.techStep ** (c.techs?.length || 0)).toFixed(4);
       const fed = c.blessings.reduce((a, b) => a + b.near, 0) / need;
-      const mood = ageDays < 1 ? "content" : fed < CFG.needs.hungryBelow ? "hungry" : fed > CFG.needs.satedAbove ? "sated" : "content";
+      const mood = ageDays < 1 ? "content" : fed < CFG.needs.hungryBelow ? "hungry" : fed > CFG.needs.satedAbove * (W.hasTech(c, "bookkeeping") ? 1.5 : 1) ? "sated" : "content";
       if (!INSTANT && mood !== c.mood) log({ kind: "needs", clan: oc.id, mood, need, fed: +fed.toFixed(2), was: c.mood ?? null });
       c.mood = mood; c.need = need;
       const lazy = mood === "sated" ? CFG.richLazy : mood === "hungry" ? CFG.needs.hungrySlow : 0;
@@ -216,7 +216,7 @@ for (let n = 0; n < days; n++) {
         if (deal) {
           const holders = Object.values(s.clans).filter((o) => Object.values(o.owned).some((v) => s.corpora[v.corpus]?.children.includes(deal.point))).length;
           const depth = c.frontier[deal.point].depth;
-          const price = +(FL.corpusBase * (1 + depth) * (live.length / (1 + holders))).toFixed(4);
+          const price = +(FL.corpusBase * (1 + depth) * (live.length / (1 + holders)) * (W.hasTech(c, "astrolabe") ? 0.5 : 1)).toFixed(4);
           if (wallet > price) {
             const r = await chain.trade(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
             wallet -= price;
@@ -224,6 +224,11 @@ for (let n = 0; n < days; n++) {
             delete c.frontier[deal.point];
             W.grow(c, deal.point, deal.sc.children);
             log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, tx: r.hash });
+            // The seller's Printing Press: copies are cheap, so each sale earns it a little more.
+            if (W.hasTech(s.clans[deal.seller], "press")) {
+              try { await chain.mint(deal.seller, FL.pressSale, `printing press: sale to ${oc.id}`); }
+              catch (e) { log({ kind: "error", clan: deal.seller, error: `press mint: ${String(e.message || e).slice(0, 160)}` }); }
+            }
           }
         }
       }
@@ -236,7 +241,7 @@ for (let n = 0; n < days; n++) {
         if (INSTANT && sch !== instantScholar) continue;
         const target = pickTarget(c);
         const skill = c.skills[sch.name]?.[target] || 0;
-        for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * effort * (1 + skill) * (w.phase === "night" ? CFG.nightPace : 1))); t++) {
+        for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * effort * (1 + skill) * (w.phase === "night" && !W.hasTech(c, "spectacles") ? CFG.nightPace : 1))); t++) {
           if (capped("agent")) break;
           const node = target && c.frontier[target] ? target : null;
           if (!node && c.owned[c.field].corpus) break;
@@ -322,6 +327,7 @@ for (let n = 0; n < days; n++) {
         // the other living nations whose research is in its chain, by how much of it.
         const shares = {};
         if (check.passed) {
+          c.passedDrafts = (c.passedDrafts || 0) + 1;
           const by = {};
           for (const k of nodes) { const a = s.corpora[c.owned[k].corpus]?.clan; if (a != null && a !== oc.id && s.clans[a]?.alive) by[a] = (by[a] || 0) + 1; }
           const n = Object.values(by).reduce((x, y) => x + y, 0);
@@ -336,6 +342,13 @@ for (let n = 0; n < days; n++) {
         log({ kind: "gift", clan: oc.id, draft: id, title: draft.title, passed: check.passed, problems: check.problems, florins: shares, gift: r.value, tx: r.hash });
       }
 
+      // Techs (SPEC §14): any the nation is ready for unlock now, each with a florin bonus.
+      for (const t of W.TECHS) {
+        if (W.hasTech(c, t.id) || !t.ready(c)) continue;
+        (c.techs ||= []).push(t.id);
+        earned += FL.tech; earnedFor.push(t.id);
+        log({ kind: "tech", clan: oc.id, tech: t.id, name: t.name, does: t.does, florins: FL.tech });
+      }
       // The turn's earnings, minted at once (the record says what for).
       if (earned > 0) {
         try {
@@ -349,7 +362,7 @@ for (let n = 0; n < days; n++) {
       const upkeepHours = (Date.now() - c.lastUpkeepAt) / 3600e3;
       if (!INSTANT && upkeepHours >= CFG.upkeepEveryHours) {
         const n = agents.filter((a) => a.alive).length;
-        const amount = +((FL.upkeep / 24) * n * upkeepHours).toFixed(4);
+        const amount = +((FL.upkeep / 24) * n * upkeepHours * (W.hasTech(c, "clock") ? 0.7 : 1)).toFixed(4);
         const r = await chain.burn(oc.id, amount, `upkeep for ${n} citizens`);
         c.lastUpkeepDay = day;
         c.lastUpkeepAt = Date.now();

@@ -151,8 +151,9 @@ export async function startLive(canvas, hud, opts = {}) {
     const r = 1.8 + Math.min(2.6, Math.sqrt(c.points || 1) * 0.24);
     // A little drift inside the cell so the grid doesn't read as a grid.
     const pos = new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
-    // Neglect is the game's: gods ignored their gifts and a Trickster moved in (not just low money).
-    const status = !c.alive ? "dead" : c.seen === false ? "new" : (c.tricksters || 0) > 0 ? "neglected" : c.total_in > avgIn * 1.0001 && live.length > 1 ? "rich" : "ok";
+    // From the game (SPEC §14): a Trickster moved in or the citizens are hungry = neglected;
+    // sated (more NEAR than they need) = rich and a bit lazy.
+    const status = !c.alive ? "dead" : c.seen === false ? "new" : (c.tricksters || 0) > 0 || c.mood === "hungry" ? "neglected" : c.mood === "sated" ? "rich" : "ok";
     const isl = buildClanIsland(c, r, status, sprays);
     isl.position.copy(pos);
     isl.userData = { ...isl.userData, clan: c, baseY: pos.y, bob: hash(c.id + 7) * Math.PI * 2, r, status };
@@ -178,7 +179,7 @@ export async function startLive(canvas, hud, opts = {}) {
     plate.className = `plate ${status}`;
     plate.innerHTML = `<b></b><span></span>`;
     plate.querySelector("b").textContent = c.name;
-    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.reverence && status !== "dead" ? `reverence ${c.reverence.standing}` : `${c.points} points`}${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : status === "new" ? " · new" : ""}`;
+    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.reverence && status !== "dead" ? `reverence ${c.reverence.standing}` : `${c.points} points`}${status === "dead" ? " · ruins" : status === "rich" ? " · sated" : status === "neglected" ? ((c.tricksters || 0) > 0 ? " · neglected" : " · hungry") : status === "new" ? " · new" : ""}`;
     plate.addEventListener("click", () => flyTo(c.id));
     const lbl = new CSS2DObject(plate);
     lbl.position.set(0, r * 0.75 + 1.5, 0);
@@ -299,9 +300,17 @@ export async function startLive(canvas, hud, opts = {}) {
   // ---- events: replay the latest day, then follow new days as the engine runs ----
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
   // Event lines go to the list under the standings; held until that list exists (no TDZ).
+  // A tech record: add it to the nation and rebuild its town so the building stands there now.
+  let retownLater = () => {}; // set once the people exist (folk is made further down; no TDZ)
+  function techBuilt(r) {
+    const isl = islands.get(r.clan);
+    if (!isl) return;
+    const t = (isl.userData.clan.techs ||= []);
+    if (!t.includes(r.tech)) { t.push(r.tech); retownLater(r.clan); }
+  }
   const early = [];
   let eventSink = (e) => early.push(e);
-  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); if (r.kind === "tech") techBuilt(r); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
   const recordHooks = new Set(); // other modules (the god's route) hear every record the world plays
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
@@ -391,6 +400,9 @@ export async function startLive(canvas, hud, opts = {}) {
       // Reverence moves every game day: the plates, panels and towns read the latest.
       for (const c of now.clans) {
         const isl = islands.get(c.id);
+        // Techs (SPEC §14): a new building appears in the town as soon as the world knows of it.
+        if (isl && (c.techs?.length ?? 0) !== (isl.userData.clan.techs?.length ?? 0)) { isl.userData.clan.techs = c.techs; retownLater(c.id); }
+        if (isl) isl.userData.clan.mood = c.mood;
         if (!isl || !c.reverence) continue;
         isl.userData.clan.reverence = c.reverence;
         const span = isl.userData.plate?.querySelector("span");
@@ -456,6 +468,7 @@ export async function startLive(canvas, hud, opts = {}) {
   // ---- the mind constellations (SPEC §12f): each nation's mindmap as stars over its island ----
   const minds = new Map(), mindQueue = new Map();
   const folk = createFolk({ scene, islands, renderer, camera }); // the people: dots far out, citizens up close
+  retownLater = folk.retown;
   // One load at a time per nation, so two quick records can't both build a sky.
   function loadMind(id, light = []) {
     const run = (mindQueue.get(id) || Promise.resolve()).then(async () => {
