@@ -18,20 +18,12 @@ function showClan(c, status) {
   }
   const line = document.createElement("p"); line.className = "line";
   line.textContent = c.line?.length ? `Deepest line: ${c.line.join(" → ")}` : "Nothing learned yet.";
-  // Views of this nation: its sky (the fly-in), its plaza, and its citizens one by one.
+  // Views of this nation: its sky (the fly-in) and its plaza (the closest the camera goes).
   const views = document.createElement("div"); views.className = "views";
   const btn = (label, fn) => { const b = document.createElement("button"); b.type = "button"; b.className = "viewbtn"; b.textContent = label; b.addEventListener("click", fn); views.append(b); return b; };
   btn("Sky", () => live.flyTo(c.id));
   btn("Plaza", () => live.viewPlaza(c.id));
-  const meet = btn("Meet a citizen", async () => {
-    meet.disabled = true;
-    const who = await live.viewCitizen(c.id);
-    meet.disabled = false;
-    meet.textContent = who ? `Next citizen (${who.n}/${who.of})` : "Meet a citizen";
-    whoLine.textContent = who ? `${who.name}, ${who.role}` : status === "dead" ? "No one lives here now." : "";
-  });
-  const whoLine = document.createElement("p"); whoLine.className = "who";
-  p.append(h, m, nums, line, views, whoLine);
+  p.append(h, m, nums, line, views);
   p.hidden = false;
 }
 

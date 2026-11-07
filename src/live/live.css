@@ -83,4 +83,3 @@ body.night .hint { color: #d9d3f5; }
 .godpanel .viewbtn { font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.82rem; border: 0; border-radius: 999px; padding: 7px 13px; cursor: pointer; background: #fff; color: var(--ink); box-shadow: 0 4px 12px rgba(29, 20, 48, 0.14); }
 .godpanel .viewbtn:disabled { opacity: 0.55; cursor: wait; }
 body.night .godpanel .viewbtn { background: rgba(255, 255, 255, 0.14); color: #f1ecff; }
-.godpanel .who { font-family: var(--mono); font-size: 0.75rem; margin: 8px 0 0; min-height: 1em; }
