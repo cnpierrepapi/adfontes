@@ -1,5 +1,6 @@
 // The live world (step 1): islands and bridges built from the real world (API), and the
 // floating god's camera. Zoom levels become information levels in later steps.
+import { api as netApi } from "../net.js";
 import * as THREE from "three";
 import CameraControls from "camera-controls";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
@@ -36,7 +37,7 @@ const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const FIELD_COLOR = { batteries: 0x2fa8ff, "solar cells": 0xffc93c, "carbon capture": 0x22c47e };
 
 export async function startLive(canvas, hud, opts = {}) {
-  const api = (p) => fetch(`/api/${p}`, { cache: "no-store" }).then((r) => r.json());
+  const api = netApi; // this world's API (testnet or mainnet, src/net.js)
 
   // ---- renderer, labels, scene ----
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: !!opts.stills });

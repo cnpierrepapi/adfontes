@@ -7,7 +7,7 @@ const el = (tag, props = {}, ...kids) => {
   for (const k of kids) n.append(k);
   return n;
 };
-const api = (p) => fetch(`/api/${p}`, { cache: "no-store" }).then((r) => r.json());
+import { api } from "./net.js"; // this world's API (testnet or mainnet)
 const n2 = (x) => (Math.round(x * 1000) / 1000).toString();
 
 let W = null;

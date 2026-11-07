@@ -3,6 +3,7 @@
 // live from the chain (get_config, the DAO's policy), never hard-coded.
 import { createWallet, toYocto, near, failure, TGAS } from "./wallet.js";
 import * as C from "./calls.js";
+import { api } from "../net.js";
 
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
@@ -196,7 +197,7 @@ export async function createGods({ live, W, nav, toast }) {
     // Reverence and reports (SPEC §12m): everyone sees them; a god can answer a report.
     const rev = el("div", { className: "reverence" });
     async function drawReverence(me, seated, clan) {
-      const info = await fetch(`/api/clan?id=${c.id}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      const info = await api(`clan?id=${c.id}`).catch(() => null);
       rev.replaceChildren();
       const R = info?.reverence;
       if (!R) return;
@@ -261,7 +262,7 @@ export async function createGods({ live, W, nav, toast }) {
       if (clan.whisper) box.append(el("p", { className: "fine" }, "The gods' last whisper: ", el("i", { textContent: `"${clan.whisper}"` })));
       // Gifts to rule on (own, within 24h) and to claim (as top contributor, after 24h).
       if (me) {
-        const g = await fetch(`/api/gifts?id=${c.id}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ gifts: [] }));
+        const g = await api(`gifts?id=${c.id}`).catch(() => ({ gifts: [] }));
         if (my !== token) return;
         const now = g.now_ms ?? Date.now();
         const toRule = (g.gifts || []).filter((x) => x.clan === c.id && x.status === "Pending" && now < x.ends_ms);

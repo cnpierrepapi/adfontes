@@ -1,5 +1,6 @@
 import { startLive } from "./live.js";
 import { createWeatherSound, weatherKind } from "./sound.js";
+import { switchNet } from "../net.js";
 
 const $ = (id) => document.getElementById(id);
 let gods = null; // the god panel, once the wallet code has loaded
@@ -11,7 +12,7 @@ function showClan(c, status) {
   p.replaceChildren();
   const h = document.createElement("h2"); h.textContent = c.name;
   const m = document.createElement("p"); m.className = "meta";
-  m.textContent = `${c.field ?? ""} · ${c.mbti ?? ""} · ${c.gods} god${c.gods === 1 ? "" : "s"}${status === "dead" ? " · ruins" : status === "rich" ? " · rich, so lazy" : status === "neglected" ? " · neglected, a Trickster moved in" : status === "new" ? " · new, waiting for its first day" : ""}`;
+  m.textContent = `${[c.field, c.mbti, `${c.gods} god${c.gods === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}${status === "dead" ? " · ruins" : status === "rich" ? " · rich, so lazy" : status === "neglected" ? " · neglected, a Trickster moved in" : status === "new" ? " · new, waiting for its first day" : ""}`;
   const nums = document.createElement("div"); nums.className = "nums";
   for (const [v, l] of [[c.points, "points on its mindmap"], [n3(c.play), "NEAR to spend"], [c.clean_gifts, "clean gifts"]]) {
     const d = document.createElement("div"); d.textContent = v;
@@ -55,6 +56,11 @@ showDial(W);
 const sound = createWeatherSound({ button: $("sound"), kind: weatherKind(W.weather?.change) });
 function onDay(now) { showDial(now); sound.setKind(weatherKind(now.weather?.change)); }
 $("home").addEventListener("click", () => live.home());
+// Testnet (practice, free test NEAR) or mainnet (real NEAR): same world, same rules.
+const netBtn = $("net");
+netBtn.innerHTML = W.net === "mainnet" ? `◉ <span class="word">Mainnet</span>` : `○ <span class="word">Testnet</span>`;
+netBtn.classList.toggle("main", W.net === "mainnet");
+netBtn.addEventListener("click", () => switchNet(W.net === "mainnet" ? "testnet" : "mainnet"));
 setTimeout(() => ($("hint").style.opacity = 0), 9000);
 // A short line at the bottom for wallet news (a refused connection, nothing to smite).
 function toast(text) {

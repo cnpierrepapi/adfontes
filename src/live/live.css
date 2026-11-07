@@ -152,3 +152,6 @@ body.night .godpanel .revrow .bar { background: rgba(255, 255, 255, 0.14); }
 .godpanel .revrow small { font-size: 0.68rem; color: #b0306a; }
 .godpanel .report { border-left-color: #d12a6b; }
 .godpanel .report small { flex: 1 1 100%; font-size: 0.7rem; opacity: 0.8; }
+/* The world switch: testnet (practice) / mainnet (real NEAR). */
+.chip.net.main { background: var(--gold); color: var(--ink); }
+body.night .chip.net.main { background: var(--gold); color: var(--ink); }
