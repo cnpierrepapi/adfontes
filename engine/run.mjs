@@ -25,7 +25,10 @@ const s = await store.loadState(net);
 
 // Only the schedule moves the world (see CFG.minMinutesBetweenRuns). --force skips this check.
 const sinceLast = (Date.now() - (s.lastRunAt || 0)) / 60000;
-if (!process.argv.includes("--force") && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
+// A new nation brings a new day at once (his call 7 Nov): a nation on chain the world hasn't seen yet
+// skips the wait.
+const unseen = (await chain.clans()).some((c) => c.alive && !s.clans[c.id]);
+if (!process.argv.includes("--force") && !unseen && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
   console.log(`last run ${sinceLast.toFixed(0)} min ago (under ${CFG.minMinutesBetweenRuns}): nothing to do, the schedule runs the next day`);
   await store.close();
   process.exit(0);
