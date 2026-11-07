@@ -176,6 +176,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "smite": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), text, "warden"); break;
       case "staking": beam(islands.get(r.clan), CYAN); bubble(islands.get(r.clan), text, "trade"); break;
       case "withdraw": bubble(islands.get(r.clan), text, "absorb"); break;
+      case "overtake": ring(islands.get(r.clan), GOLD); beam(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift"); break;
       // Reverence (SPEC §12m): a citizen reports another; later the truth comes out.
       case "report": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), `${r.claim}.`, "warden"); break;
       case "report-settled": bubble(islands.get(r.clan), r.outcome === "stunted" ? `${r.accused} was stunted. ${r.truth ? "The report was true." : "The report was a grudge: an innocent was punished."}` : `Nobody acted on the report about ${r.accused}. ${r.truth ? "It was true." : "It was a grudge."}`, r.truth === (r.outcome === "stunted") ? "gift" : "warden"); break;

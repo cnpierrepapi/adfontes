@@ -1,5 +1,6 @@
 // The live world (step 1): islands and bridges built from the real world (API), and the
 // floating god's camera. Zoom levels become information levels in later steps.
+import { createStandings } from "./standings.js";
 import { api as netApi } from "../net.js";
 import * as THREE from "three";
 import CameraControls from "camera-controls";
@@ -298,6 +299,9 @@ export async function startLive(canvas, hud, opts = {}) {
   // ---- events: replay the latest day, then follow new days as the engine runs ----
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
   const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); } });
+  // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
+  const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
+  standings.update(W);
   let lastDay = W.day;
   api(`day?d=${W.day}`).then((d) => { folk.dayRecords(d.records, W.day); fx.enqueue(d.records || []); }).catch(() => {});
   // The game days before it in the last 24 hours (11 more) don't play on the world view, but
@@ -308,7 +312,7 @@ export async function startLive(canvas, hud, opts = {}) {
   // Every world event that plays while you aren't watching that nation up close (or from before
   // you arrived) is kept per nation. Fly in and they play again in order, with the Scholars firing
   // their star-guns, under a strip that says what's replaying and lets you skip.
-  const REPLAY = new Set(["corpus", "gift", "warden", "ruling", "trade", "tool", "trickster", "absorb", "report", "report-settled"]);
+  const REPLAY = new Set(["corpus", "gift", "warden", "ruling", "trade", "tool", "trickster", "absorb", "report", "report-settled", "overtake"]);
   const missed = new Map(), missedKeys = new Set();
   let nearNow = 0, replaying = false, replay = null;
   const ownerOf = (r) => (r.kind === "trade" ? r.buyer : r.clan);
@@ -339,7 +343,7 @@ export async function startLive(canvas, hud, opts = {}) {
     warden: () => "the Warden caught a fake citation", ruling: () => "the gods ruled on a gift",
     trade: (r) => (r.tool ? `bought a tool from ${clanName(r.seller)}` : `bought research from ${clanName(r.seller)}`),
     tool: () => "the Smith built a tool", trickster: () => "a Trickster moved in", absorb: () => "absorbed ruins",
-    report: (r) => `a report: ${r.claim}`, "report-settled": (r) => `a report about ${r.accused} was settled`,
+    report: (r) => `a report: ${r.claim}`, overtake: (r) => r.text, "report-settled": (r) => `a report about ${r.accused} was settled`,
   };
   function stepReplay(now) {
     // Left the nation mid-replay: what didn't play yet waits for the next visit.
@@ -393,6 +397,8 @@ export async function startLive(canvas, hud, opts = {}) {
       }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       for (let d = lastDay + 1; d <= now.day; d++) { const recs = (await api(`day?d=${d}`)).records || []; folk.dayRecords(recs, d); fx.enqueue(recs); }
+      W.jackpot = now.jackpot;
+      standings.update(now);
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
       return now;
     } catch { return null; }

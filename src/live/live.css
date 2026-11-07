@@ -155,3 +155,22 @@ body.night .godpanel .revrow .bar { background: rgba(255, 255, 255, 0.14); }
 /* The world switch: testnet (practice) / mainnet (real NEAR). */
 .chip.net.main { background: var(--gold); color: var(--ink); }
 body.night .chip.net.main { background: var(--gold); color: var(--ink); }
+
+/* Season standings (ranked by reverence). */
+.standings { position: absolute; left: 18px; top: 84px; z-index: 4; width: 230px; border-radius: 16px; padding: 6px; background: rgba(255, 255, 255, 0.78); backdrop-filter: blur(10px); box-shadow: 0 10px 28px rgba(29, 20, 48, 0.18); font-family: var(--body); color: var(--ink); }
+.standings .head { width: 100%; text-align: left; font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.82rem; border: 0; background: none; color: inherit; padding: 6px 8px; cursor: pointer; }
+.standings ol { list-style: none; margin: 0; padding: 0 2px 4px; display: grid; gap: 2px; }
+.standings ol[hidden] { display: none; }
+.standings li { display: grid; grid-template-columns: 18px minmax(0, 1fr) 30px 34px; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 10px; cursor: pointer; font-size: 0.8rem; }
+.standings li:hover { background: rgba(138, 92, 255, 0.14); }
+.standings .n { font-family: var(--mono); font-size: 0.7rem; opacity: 0.6; }
+.standings .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.standings b { font-family: var(--mono); font-size: 0.78rem; text-align: right; }
+.standings .mv { font-family: var(--mono); font-size: 0.66rem; text-align: right; }
+.standings .mv.up { color: #1a9e5c; }
+.standings .mv.down { color: #c0245e; }
+.standings li:first-child .name::after { content: " ✦"; color: #c98d00; }
+body.night .standings { background: rgba(20, 18, 50, 0.78); color: #f1ecff; }
+body.night .standings .mv.up { color: #6fe3a5; }
+body.night .standings .mv.down { color: #ff8fb8; }
+@media (max-width: 700px) { .standings { top: 118px; left: 12px; width: 200px; } }
