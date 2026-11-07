@@ -11,8 +11,10 @@ export const CFG = {
   baseMistake: 0.08, // Warden finds this share of drafts dirty on a calm week
   hotMistake: 0.15, // extra mistake rate at full heat
 
-  // Gods' money (SPEC §6): by NEAR put in, never by sales.
-  richLazy: 0.4, // above the world average: agents do 40% less
+  // Needs (SPEC §14): NEAR a nation's citizens want per real day = base x citizens x growth^age(days)
+  // x techStep^techs. Blessings in the last real day vs need decide hungry / content / sated.
+  needs: { base: 0.02, growth: 1.03, techStep: 1.15, hungryBelow: 0.5, satedAbove: 2, hungrySlow: 0.2, hungryFade: 1.5, silenceMs: 24 * 3600e3 },
+  richLazy: 0.4, // sated: citizens do 40% less
   neglectSlow: 0.3, // under a quarter of the average: 30% less
   neglectTrickster: 0.3, // daily chance a Trickster moves into a neglected clan
   tricksterMistake: 0.05, // each Trickster adds this to the draft mistake rate
@@ -28,18 +30,25 @@ export const CFG = {
   learnCap: 0.5,
 
   // Economy. Sized so a 3.5 NEAR clan (1.885 play) can last a ~100-day season.
-  upkeepPerAgent: 0.001, // NEAR per agent per game day (burned, counts as spend)
-  upkeepEveryDays: 6, // charge upkeep in batches to save gas
-  corpusBasePrice: 0.01, // NEAR; x (1 + depth) x scarcity
-  toolPrice: 0.008,
-  wardenBounty: 0.02, // to our treasury when the Warden catches a fake
-  sweepEveryDays: 12, // send fees to the treasury once a real day
+  // Florins (SPEC §14; rates from scripts/sim-florin.mjs, 7 Nov): a strong small nation ~1.8x,
+  // a rich lazy one ~0.6x, a neglected one ~0.05x over the season.
+  florin: {
+    corpus: 8, // minted per clean corpus
+    draft: 40, // minted per passed draft: 60% to the drafting nation, 40% to the others in its chain
+    draftOwn: 0.6,
+    tech: 40, // minted per tech unlocked (step 4)
+    upkeep: 6, // burned per citizen per real day
+    fine: 5, // burned per fake the Warden catches
+  },
+  upkeepEveryDays: 6, // engine turns between upkeep burns (12 turns = 1 real day)
+  corpusBasePrice: 1, // florins; x (1 + depth) x scarcity
+  toolPrice: 1, // florins for a figure kit
 
   // Work per day.
   scholarTurnsPerDay: 1, // per Scholar, scaled by pace/laziness/fortune/skill
   draftMinDepth: 3, // a draft needs a connected chain this deep
   maxDepth: 6, // lines stop here; the Patron branches out instead
-  draftEveryDays: 8, // a clan tries at most one draft this often
+  draftEveryDays: 12, // at most one draft per nation per real day (12 engine turns; SPEC §14)
 
   // Spend guard (his call, 7 Nov): never more than this on Claude in one UTC day, whatever happens.
   dailyCapUsd: 0.5,

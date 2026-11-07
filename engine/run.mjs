@@ -7,7 +7,7 @@
 import { refill as refillPool, nationsLeft, SPONSOR } from "./sponsor.mjs";
 import fs from "node:fs";
 import { CFG } from "./config.mjs";
-import { connect, toNear } from "./chain.mjs";
+import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
 import { scholarTurn, draftTurn, meter, setSpentToday, spentToday, canSpend } from "./llm.mjs";
@@ -101,7 +101,6 @@ for (let n = 0; n < days; n++) {
   const onchain = await chain.clans();
   const alive = onchain.filter((c) => c.alive);
   const live = INSTANT ? alive.filter((c) => INSTANT.includes(c.id)) : alive;
-  const avgIn = alive.reduce((a, c) => a + toNear(c.total_in), 0) / Math.max(1, alive.length);
 
   // Dead clans: their mindmap becomes ruins, unowned.
   for (const c of INSTANT ? [] : onchain.filter((c) => !c.alive)) {
@@ -149,7 +148,9 @@ for (let n = 0; n < days; n++) {
       const revCh = [];
       try {
         rv = RV.ensure(s, oc, day, { fresh: isNew });
-        for (const r of await RV.godActions({ chain, s, oc, rv, day, changes: revCh })) log(r);
+        const acts = await RV.godActions({ chain, s, oc, rv, day, changes: revCh });
+        for (const r of acts) log(r);
+        if (acts.length) c.lastActAt = Date.now(); // a god acted: no Trickster for 24 hours
         RV.follow(s, oc.id, revCh);
         const fol = rv.followed && rv.gods[rv.followed];
         if (fol?.outsider) fol.text = Object.values(s.rev).find((o) => o !== rv && o.followed === rv.followed)?.gods[rv.followed]?.text ?? fol.text;
@@ -157,14 +158,29 @@ for (let n = 0; n < days; n++) {
         if (eff.waiting) log({ kind: "waiting", clan: oc.id, note: "the citizens wait in the plaza for their god's first whisper" });
       } catch (e) { rv = null; log({ kind: "error", clan: oc.id, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
 
-      // Rich / neglected (SPEC §6) and Tricksters
-      const putIn = toNear(oc.total_in);
-      const rich = putIn > avgIn && alive.length > 1;
-      const neglected = putIn < avgIn / 4;
-      const lazy = rich ? CFG.richLazy : neglected ? CFG.neglectSlow : 0;
-      // No Trickster in a nation's first real day: a new god's first research mustn't be sabotaged.
-      const settled = day - (c.bornDay ?? -99) >= 12;
-      if (!INSTANT && settled && neglected && chance(CFG.neglectTrickster * eff.tricksterMul)) {
+      // Needs (SPEC §14): the NEAR the citizens want each real day, which keeps growing. Blessings
+      // in the last real day against it: under half = hungry (-20% work, reverence fades faster),
+      // over twice = sated (-40% work), otherwise content. The founding deposit isn't a blessing,
+      // and a nation's first real day is always content. Need is per nation: gods share it.
+      const now = Date.now();
+      c.bornAt ||= now;
+      c.lastActAt ||= now;
+      const totalIn = toNear(oc.total_in);
+      if (c.lastTotalIn == null) c.lastTotalIn = totalIn;
+      if (totalIn > c.lastTotalIn + 1e-6) { (c.blessings ||= []).push({ at: now, near: +(totalIn - c.lastTotalIn).toFixed(6) }); c.lastActAt = now; }
+      c.lastTotalIn = totalIn; // a claim lowers it
+      c.blessings = (c.blessings || []).filter((b) => now - b.at < 86400e3);
+      const ageDays = (now - c.bornAt) / 86400e3;
+      const living = agents.filter((a) => a.alive && a.role !== "Trickster").length;
+      const need = +(CFG.needs.base * living * CFG.needs.growth ** ageDays * CFG.needs.techStep ** (c.techs?.length || 0)).toFixed(4);
+      const fed = c.blessings.reduce((a, b) => a + b.near, 0) / need;
+      const mood = ageDays < 1 ? "content" : fed < CFG.needs.hungryBelow ? "hungry" : fed > CFG.needs.satedAbove ? "sated" : "content";
+      if (!INSTANT && mood !== c.mood) log({ kind: "needs", clan: oc.id, mood, need, fed: +fed.toFixed(2), was: c.mood ?? null });
+      c.mood = mood; c.need = need;
+      const lazy = mood === "sated" ? CFG.richLazy : mood === "hungry" ? CFG.needs.hungrySlow : 0;
+      // Tricksters come only to a nation whose gods have done nothing for 24 real hours.
+      const silent = now - c.lastActAt > CFG.needs.silenceMs;
+      if (!INSTANT && silent && chance(CFG.neglectTrickster * eff.tricksterMul)) {
         const name = newName(new Set(Object.values(s.clans).flatMap((x) => Object.keys(x.skills))));
         await chain.spawn(oc.id, name, "Trickster");
         c.skills[name] = {};
@@ -174,6 +190,10 @@ for (let n = 0; n < days; n++) {
       const effort = w.pace * (1 - lazy) * c.fortune * eff.effortMul;
 
       const before = new Set(Object.keys(c.owned));
+      // Florins (SPEC §14): what the nation holds now (kept in step with today's trades), and what
+      // it earns this turn (minted once at the end of the turn, to save gas).
+      let wallet = toFlorins(oc.florins || "0");
+      let earned = 0, earnedFor = [];
 
       // Broker: once a day, buy a corpus from another clan whose papers are tagged with one of
       // this clan's open points (OpenAlex keyword tags = the papers are really about it).
@@ -196,8 +216,9 @@ for (let n = 0; n < days; n++) {
           const holders = Object.values(s.clans).filter((o) => Object.values(o.owned).some((v) => s.corpora[v.corpus]?.children.includes(deal.point))).length;
           const depth = c.frontier[deal.point].depth;
           const price = +(CFG.corpusBasePrice * (1 + depth) * (live.length / (1 + holders))).toFixed(4);
-          if (toNear(oc.play) > price) {
+          if (wallet > price) {
             const r = await chain.trade(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
+            wallet -= price;
             c.owned[deal.point] = { depth, parent: c.frontier[deal.point].parent, corpus: deal.sc.id, how: `bought from clan ${deal.seller}` };
             delete c.frontier[deal.point];
             W.grow(c, deal.point, deal.sc.children);
@@ -241,9 +262,11 @@ for (let n = 0; n < days; n++) {
             delete c.frontier[topic];
             W.grow(c, topic, children);
             W.learn(c, sch.name, topic);
+            earned += CFG.florin.corpus; earnedFor.push(id);
           } else {
-            const r = await chain.bounty(oc.id, CFG.wardenBounty, `fake citation in ${id}`);
-            log({ kind: "warden", clan: oc.id, catch: id, fake: check.fake, bounty: CFG.wardenBounty, tx: r.hash });
+            const r = await chain.burn(oc.id, CFG.florin.fine, `fake citation in ${id}`);
+            wallet = Math.max(0, wallet - CFG.florin.fine);
+            log({ kind: "warden", clan: oc.id, catch: id, fake: check.fake, fine: toFlorins(r.value), tx: r.hash });
           }
         }
       }
@@ -268,8 +291,9 @@ for (let n = 0; n < days; n++) {
         c.firstDraftDone = true;
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
-          if (kit && toNear(oc.play) > CFG.toolPrice) {
+          if (kit && wallet > CFG.toolPrice) {
             const r = await chain.trade(oc.id, kit.clan, CFG.toolPrice, `tool:${kit.id}`);
+            wallet -= CFG.toolPrice;
             c.hasKit = true;
             log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: CFG.toolPrice, tx: r.hash });
           }
@@ -289,23 +313,42 @@ for (let n = 0; n < days; n++) {
         const hash = W.sha256(JSON.stringify(draft));
         s.drafts[id] = { id, clan: oc.id, day, hash, draft, chain: nodes, rushed, ...check };
         await store.saveDraft(net, s.drafts[id]);
-        // Top contributor = the clan whose corpora make up most of the chain.
-        const by = {};
-        for (const k of nodes) { const a = s.corpora[c.owned[k].corpus]?.clan; if (a) by[a] = (by[a] || 0) + 1; }
-        const top = Number(Object.entries(by).sort((a, b) => b[1] - a[1])[0]?.[0] || oc.id);
-        const r = await chain.giftDraft(oc.id, hash, check.passed, top);
+        const r = await chain.giftDraft(oc.id, hash, check.passed);
         s.gifts[r.value] = { clan: oc.id, draft: id, day, at: Date.now(), applied: false };
         c.lastDraftDay = day;
-        log({ kind: "gift", clan: oc.id, draft: id, title: draft.title, passed: check.passed, problems: check.problems, top_contributor: top, gift: r.value, tx: r.hash });
+        // A passed draft earns florins (gods no longer claim drafts): 60% to this nation, 40% to
+        // the other living nations whose research is in its chain, by how much of it.
+        const shares = {};
+        if (check.passed) {
+          const by = {};
+          for (const k of nodes) { const a = s.corpora[c.owned[k].corpus]?.clan; if (a != null && a !== oc.id && s.clans[a]?.alive) by[a] = (by[a] || 0) + 1; }
+          const n = Object.values(by).reduce((x, y) => x + y, 0);
+          const own = n ? CFG.florin.draft * CFG.florin.draftOwn : CFG.florin.draft;
+          earned += own; earnedFor.push(id); shares[oc.id] = own;
+          for (const [o, k] of Object.entries(by)) {
+            const fl = +((CFG.florin.draft - own) * (k / n)).toFixed(4);
+            try { await chain.mint(Number(o), fl, `their research in draft ${id}`); shares[o] = fl; }
+            catch (e) { log({ kind: "error", clan: Number(o), error: `mint share: ${String(e.message || e).slice(0, 160)}` }); }
+          }
+        }
+        log({ kind: "gift", clan: oc.id, draft: id, title: draft.title, passed: check.passed, problems: check.problems, florins: shares, gift: r.value, tx: r.hash });
       }
 
-      // Upkeep in batches
+      // The turn's earnings, minted at once (the record says what for).
+      if (earned > 0) {
+        try {
+          const r = await chain.mint(oc.id, earned, `work on day ${day}: ${earnedFor.join(",")}`.slice(0, 190));
+          wallet += earned;
+          log({ kind: "mint", clan: oc.id, florins: earned, for: earnedFor, tx: r?.hash });
+        } catch (e) { log({ kind: "error", clan: oc.id, error: `mint: ${String(e.message || e).slice(0, 180)}` }); }
+      }
+      // Upkeep in batches: florins burned per citizen per real day (12 engine turns).
       if (!INSTANT && day - c.lastUpkeepDay >= CFG.upkeepEveryDays) {
         const n = agents.filter((a) => a.alive).length;
-        const amount = +(CFG.upkeepPerAgent * n * (day - c.lastUpkeepDay)).toFixed(6);
-        const r = await chain.upkeep(oc.id, amount);
+        const amount = +((CFG.florin.upkeep / 12) * n * (day - c.lastUpkeepDay)).toFixed(4);
+        const r = await chain.burn(oc.id, amount, `upkeep for ${n} citizens`);
         c.lastUpkeepDay = day;
-        log({ kind: "upkeep", clan: oc.id, agents: n, amount, paid: toNear(r.value), tx: r.hash });
+        log({ kind: "upkeep", clan: oc.id, agents: n, florins: amount, paid: toFlorins(r.value), tx: r.hash });
       }
       // Reverence at the end of the turn: how the nation did, the fade, reports, who they follow.
       if (rv) try {
@@ -318,7 +361,7 @@ for (let n = 0; n < days; n++) {
       for (let k = 0; k < catches; k++) RV.nationEvent(rv, "wardenCatch", revCh);
       const nowAgents = await chain.agents(oc.id);
       const living = nowAgents.filter((a) => a.alive);
-      if (!INSTANT) RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh); // the fade is per day
+      if (!INSTANT) RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh, c.mood === "hungry" ? CFG.needs.hungryFade : 1); // the fade is per day
       if (!INSTANT) for (const r of RV.lapseReports(s, rv, oc.id, day, revCh)) log(r);
       const evidence = [
         ...mine.filter((r) => r.kind === "corpus" && r.fake).map((r) => ({ kind: "fake", name: r.scholar })),
@@ -356,26 +399,20 @@ for (let n = 0; n < days; n++) {
     if (!st || !c) continue;
     if (st.status === "Rewarded") c.fortune = Math.min(CFG.fortuneMax, c.fortune * CFG.fortuneReward);
     else if (st.status === "Punished") c.fortune *= CFG.fortunePunish;
-    else if (st.status === "Claimed" || Date.now() - g.at > 24 * 3600e3) {
+    else if (Date.now() - g.at > 24 * 3600e3) {
       c.fortune *= CFG.fortuneUnruled;
-      // Reverence: the gift's own gods let it go unruled; a claimer from the top contributor gains.
+      // Reverence: the draft's own gods let it go unruled (drafts are no longer claimable).
       try {
         const ch = [], rvg = s.rev?.[g.clan];
         if (rvg) for (const god of Object.keys(rvg.gods)) if (!rvg.gods[god].outsider) RV.act(rvg, god, "unruled", day, ch);
-        const rvc = st.status === "Claimed" && s.rev?.[st.top_contributor];
-        if (rvc && rvc.gods[st.ruled_by]) RV.act(rvc, st.ruled_by, "claim", day, ch);
         if (ch.length) log({ kind: "reverence-change", clan: g.clan, gift: gid, changes: ch });
       } catch (e) { log({ kind: "error", clan: g.clan, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
     } else continue;
     g.applied = true;
-    log({ kind: "ruling", gift: gid, clan: g.clan, status: st.status, fortune: +c.fortune.toFixed(3) });
+    log({ kind: "ruling", gift: gid, clan: g.clan, status: st.status === "Pending" ? "Unruled" : st.status, fortune: +c.fortune.toFixed(3) });
   }
 
-  // Fees, root, save
-  if (day % CFG.sweepEveryDays === 0) {
-    const r = await chain.sweep();
-    log({ kind: "sweep", tx: r.hash });
-  }
+  // Root, save (no fee sweep in v2: the 14% sits in the contract as the jackpot)
   await checkpoint();
   const root = W.merkleRoot(rec);
   let rr;
@@ -397,10 +434,10 @@ for (let n = 0; n < days; n++) {
 }
 
 const t = await chain.totals();
-console.log(`\nworld: balance ${toNear(t.balance)} owes ${toNear(t.liabilities)} storage ${toNear(t.storage_locked)} burned ${toNear(t.burned)} fees pending ${toNear(t.fees_pending)} paid ${toNear(t.fees_paid)}`);
+console.log(`\nworld: balance ${toNear(t.balance)} owes ${toNear(t.liabilities)} storage ${toNear(t.storage_locked)} | backing ${toNear(t.backing)} jackpot ${toNear(t.jackpot)} | florins ${toFlorins(t.florins)} worth ${toNear(t.florin_value)} NEAR each, minted ${toFlorins(t.minted)} burned ${toFlorins(t.burned)}`);
 for (const c of await chain.clans()) {
   const st = s.clans[c.id];
-  console.log(`clan ${c.id} ${c.name} (${st?.field}, ${st?.mbti}) play ${toNear(c.play)} reserve ${toNear(c.reserve)} | mindmap ${Object.keys(st?.owned || {}).length} points, depth ${st ? W.chainDepth(st) : 0}, frontier ${Object.keys(st?.frontier || {}).length} | clean gifts ${c.clean_gifts} | fortune ${st?.fortune.toFixed(2)}`);
+  console.log(`clan ${c.id} ${c.name} (${st?.field}, ${st?.mbti}) florins ${toFlorins(c.florins)} in ${toNear(c.total_in)} NEAR | ${st?.mood ?? "?"} | mindmap ${Object.keys(st?.owned || {}).length} points, depth ${st ? W.chainDepth(st) : 0}, frontier ${Object.keys(st?.frontier || {}).length} | clean gifts ${c.clean_gifts} | fortune ${st?.fortune.toFixed(2)}`);
 }
 
 function pickTarget(c) { return W.pickTarget(c); }

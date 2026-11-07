@@ -21,6 +21,31 @@ export const spentToday = () => spentBefore + meter.usd;
 export const canSpend = (kind) => spentToday() + CFG.worstCallUsd[kind] <= CFG.dailyCapUsd;
 export class BudgetError extends Error {}
 
+// Test runs only (ADF_FAKE_LLM=1): no Claude call, $0. Scholars and Drafters return honest,
+// well-formed work built from the real papers and chain, so chain, florin and Warden paths run.
+const FAKE = process.env.ADF_FAKE_LLM === "1";
+function fakeCorpus({ topic, papers }) {
+  return {
+    title: `${topic}: what the papers show`,
+    findings: papers.slice(0, 3).map((p) => ({ claim: `${p.title} bears on ${topic}.`, cites: [p.id] })),
+    open_gaps: [`a cheaper route to ${topic}`, `${topic} at scale`],
+  };
+}
+function fakeDraft({ chain }) {
+  const parts = [10, 20, 30].map((n, i) => ({ n, name: `layer ${i + 1}`, shape: "layer", hatch: "diagonal", thickness: 1, width: 1, offset: 0 }));
+  const steps = [40, 50].map((n, i) => ({ n, name: `step ${i + 1}`, shape: "box", hatch: "none", thickness: 1, width: 1, offset: 0 }));
+  return {
+    title: `Device built on ${chain.at(-1).node}`,
+    abstract: "A test draft (stand-in mind).",
+    claims: chain.map((c) => ({ text: `A device using ${c.node}.`, supported_by: [c.node] })),
+    description: "Layers (10), (20) and (30) are stacked; the method runs (40) then (50).",
+    figures: [
+      { label: "FIG. 1", caption: "The device", kind: "cross_section", parts, links: [] },
+      { label: "FIG. 2", caption: "The method", kind: "flowchart", parts: steps, links: [{ from: 40, to: 50, label: "" }] },
+    ],
+  };
+}
+
 async function json(model, system, user, schema, maxTokens) {
   const kind = model === CFG.draftModel ? "draft" : "agent";
   if (!canSpend(kind)) throw new BudgetError(`daily cap $${CFG.dailyCapUsd} reached ($${spentToday().toFixed(4)} spent today)`);
@@ -59,6 +84,7 @@ const CORPUS = {
 
 /** A Scholar turn: papers -> a corpus whose every finding cites paper ids from the list. */
 export function scholarTurn({ field, topic, parent, papers, temperament, whisper }) {
+  if (FAKE) return Promise.resolve(fakeCorpus({ topic, papers }));
   const listing = papers.map((p) => `[${p.id}] ${p.title} (${p.year})\n${p.abstract}`).join("\n\n");
   return json(
     CFG.agentModel,
@@ -95,6 +121,7 @@ const DRAFT = {
 
 /** A Drafter turn: a chain of corpora -> a patent-style draft with 2 figures (SVG line drawings). */
 export function draftTurn({ field, chain, gaps }) {
+  if (FAKE) return Promise.resolve(fakeDraft({ chain }));
   const corpora = chain
     .map((c) => `[${c.node}] ${c.title}\n` + c.findings.map((f) => `- ${f.claim}`).join("\n"))
     .join("\n\n");

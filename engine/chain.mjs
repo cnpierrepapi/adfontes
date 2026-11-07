@@ -8,6 +8,10 @@ import { NETWORKS } from "./config.mjs";
 const YOCTO = 10n ** 24n;
 export const toYocto = (near) => (BigInt(Math.round(near * 1e6)) * YOCTO) / 1_000_000n;
 export const toNear = (y) => Number(BigInt(y) / 10n ** 18n) / 1e6;
+// Florins (SPEC §14): 1 florin = 10^22 units on chain (100 florins = 1 backing NEAR at the opening price).
+export const toUnits = (fl) => (BigInt(Math.round(fl * 1e6)) * 10n ** 16n).toString();
+export const toFlorins = (u) => Number(BigInt(u) / 10n ** 16n) / 1e6;
+const MINT_MAX = 100; // florins per mint call (the contract's cap)
 const T = (t) => (BigInt(t) * 10n ** 12n).toString();
 
 function operatorAccount(net, provider) {
@@ -49,12 +53,17 @@ export function connect(net) {
     dao: (dao, method, args = {}) => provider.callFunction({ contractId: dao, method, args }),
     tick: (day) => call("tick", { day }),
     spawn: (clanId, name, role) => call("spawn_agent", { clan_id: clanId, name, role }),
-    trade: (buyer, seller, near, memo) => call("trade", { buyer, seller, amount: toYocto(near).toString(), memo }),
-    upkeep: (clanId, near) => call("upkeep", { clan_id: clanId, amount: toYocto(near).toString() }),
-    bounty: (clanId, near, memo) => call("bounty", { clan_id: clanId, amount: toYocto(near).toString(), memo }),
-    giftDraft: (clanId, hash, passed, top) => call("gift", { clan_id: clanId, draft_hash: hash, warden_passed: passed, top_contributor: top }),
+    stake: (clanId, account) => view("get_stake", { clan_id: clanId, account }),
+    // Florins: trades move them, good work mints them, upkeep and Warden fines burn them.
+    trade: (buyer, seller, florins, memo) => call("trade", { buyer, seller, amount: toUnits(florins), memo }),
+    mint: async (clanId, florins, memo) => {
+      let last = null;
+      for (let left = florins; left > 1e-6; left -= MINT_MAX) last = await call("mint", { clan_id: clanId, amount: toUnits(Math.min(MINT_MAX, left)), memo });
+      return last;
+    },
+    burn: (clanId, florins, memo) => call("burn", { clan_id: clanId, amount: toUnits(florins), memo }),
+    giftDraft: (clanId, hash, passed) => call("gift", { clan_id: clanId, draft_hash: hash, warden_passed: passed }),
     setRoot: (day, root) => call("set_root", { day, root }),
     getRoot: (day) => view("get_root", { day }),
-    sweep: () => call("sweep_fees", {}, 60),
   };
 }

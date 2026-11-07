@@ -1,17 +1,18 @@
-//! AD FONTES world contract (Season 1).
+//! AD FONTES world contract, v2 (SPEC §14).
 //!
-//! Holds every clan's NEAR as a ledger, splits deposits 86/14, takes the 14% fee on spend,
-//! pays gods out on withdraw, keeps agents (names unique across the world), gifts and rulings,
-//! and one provenance root per game day. Rules: Documents/NEAR_LAUNCHPAD/SPEC.md §6b, §12b.
-//!
-//! Money words used below:
-//! - play: the clan's 86%, what agents spend.
-//! - reserve: the clan's 14%, where the daily fee comes from.
-//! - fee_due: 14% of what the clan spent since the last sweep.
-//! - liabilities: everything this contract owes clans and gods. The rest of the balance is
-//!   ours (it pays for storage).
+//! Every NEAR a god puts in (after founding costs) splits 86/14:
+//! - 86% goes into the BACKING, the NEAR behind the florin, the world's internal token.
+//!   The god's nation gets florins at the current florin price, and the god gets SHARES of
+//!   their nation's florins (so a late god buys in at today's price, never at earlier gods' cost).
+//! - 14% goes into the JACKPOT, paid after the season ends to the winning nation's gods,
+//!   split by what each put in.
+//! 1 florin is worth backing / florins. The world operator (the engine) mints florins for good
+//! work (at most MINT_MAX per call), burns them for upkeep and Warden fines, and moves them
+//! between nations for trades. A god can claim (withdraw) their florins as NEAR at any time.
+//! There is no floor: a nation's florins can fall to nothing. We take no fee.
+//! Liabilities = backing + jackpot + staking funds + owed payouts; the rest pays for storage.
 
-use near_sdk::json_types::{Base64VecU8, U128};
+use near_sdk::json_types::{Base64VecU8, U128, U64};
 use near_sdk::serde_json::json;
 use near_sdk::store::{IterableMap, LookupMap};
 use near_sdk::{
@@ -20,8 +21,12 @@ use near_sdk::{
 };
 
 const BPS: u128 = 10_000;
-const PLAY_BPS: u128 = 8_600; // 86% to play with
-const FEE_BPS: u128 = 1_400; // 14% of spend goes to us
+const JACKPOT_BPS: u128 = 1_400; // 14% of every NEAR put in, to the season's winner
+/// Florin units: 1 florin = 10^22 units, so at the opening price 100 florins = 1 backing NEAR
+/// (1 unit per yocto).
+const FLORIN: u128 = 10_000_000_000_000_000_000_000;
+/// The most the operator can mint in one call: 100 florins.
+const MINT_MAX: u128 = 100 * FLORIN;
 const GIFT_WINDOW_NS: u64 = 24 * 60 * 60 * 1_000_000_000; // 24h to rule on a gift
 const STUNT_DAYS: u32 = 3;
 const GAS_DAO_CREATE: Gas = Gas::from_tgas(150);
@@ -61,7 +66,6 @@ pub enum GiftStatus {
     Pending,
     Rewarded,
     Punished,
-    Claimed,
 }
 
 #[near(serializers = [borsh, json])]
@@ -77,8 +81,10 @@ pub enum Verdict {
 #[derive(Clone, Debug)]
 pub struct God {
     pub account: AccountId,
-    /// NEAR this god has put in (after costs). Sets their share and vote on money.
+    /// NEAR this god has put in (after costs). Splits the jackpot if their nation wins.
     pub put_in: U128,
+    /// This god's shares of their nation's florins.
+    pub shares: U128,
 }
 
 #[near(serializers = [borsh, json])]
@@ -89,9 +95,10 @@ pub struct Clan {
     pub dao: AccountId,
     pub gods: Vec<God>,
     pub total_in: U128,
-    pub play: U128,
-    pub reserve: U128,
-    pub fee_due: U128,
+    /// The nation's florins (units; 1 florin = 10^22).
+    pub florins: U128,
+    /// Shares its gods hold in those florins.
+    pub shares: U128,
     /// NEAR set aside for the clan's staking contract (deployed separately).
     pub staking_fund: U128,
     pub alive: bool,
@@ -121,8 +128,6 @@ pub struct Gift {
     /// sha256 of the draft as stored off chain.
     pub draft_hash: String,
     pub warden_passed: bool,
-    /// The clan whose corpus contributed most to the draft (may be the same clan).
-    pub top_contributor: u32,
     pub created_ns: u64,
     pub day: u32,
     pub status: GiftStatus,
@@ -133,14 +138,24 @@ pub struct Gift {
 pub struct Config {
     pub owner: AccountId,
     pub operator: AccountId,
-    pub treasury: AccountId,
     pub dao_factory: AccountId,
     pub dao_deposit: U128,
     pub staking_deposit: U128,
     pub min_found: U128,
     pub day: u32,
     pub season: String,
+    /// When the season ends (ns); the jackpot can be awarded after it.
+    pub season_end_ns: U64,
     pub paused: bool,
+}
+
+#[near(serializers = [json])]
+pub struct Stake {
+    /// The god's florins in this nation (units; 1 florin = 10^22).
+    pub florins: U128,
+    /// What claiming them pays now (yocto).
+    pub near: U128,
+    pub put_in: U128,
 }
 
 #[near(serializers = [json])]
@@ -148,8 +163,15 @@ pub struct Totals {
     pub balance: U128,
     pub liabilities: U128,
     pub storage_locked: U128,
-    pub fees_paid: U128,
-    pub fees_pending: U128,
+    /// NEAR behind the florin.
+    pub backing: U128,
+    /// Florins in existence (units).
+    pub florins: U128,
+    /// Yocto per whole florin.
+    pub florin_value: U128,
+    pub jackpot: U128,
+    pub jackpot_paid: bool,
+    pub minted: U128,
     pub burned: U128,
     pub clans: u32,
 }
@@ -159,7 +181,6 @@ pub struct Totals {
 pub struct World {
     owner: AccountId,
     operator: AccountId,
-    treasury: AccountId,
     dao_factory: AccountId,
     dao_deposit: u128,
     staking_deposit: u128,
@@ -174,10 +195,16 @@ pub struct World {
     /// Payouts that failed to send; the account can pull them with claim_owed.
     owed: LookupMap<AccountId, u128>,
     owed_total: u128,
-    /// Fees taken from reserves but not yet sent to the treasury.
-    fees_pending: u128,
-    fees_paid: u128,
-    /// Upkeep leaves the clans and goes to no one. No function can move it.
+    /// NEAR behind the florin (86% of everything put in, less claims and storage).
+    backing: u128,
+    /// Florins in existence (units).
+    florins_total: u128,
+    /// 14% of everything put in, for the season's winner.
+    jackpot: u128,
+    jackpot_paid: bool,
+    season_end_ns: u64,
+    /// Florins minted for work and burned for upkeep and fines (units), for the record.
+    minted: u128,
     burned: u128,
     /// e.g. "S1: energy". The season winner picks the next field; the owner records it.
     season: String,
@@ -205,16 +232,15 @@ impl World {
     pub fn new(
         owner: AccountId,
         operator: AccountId,
-        treasury: AccountId,
         dao_factory: AccountId,
         dao_deposit: U128,
         staking_deposit: U128,
         min_found: U128,
+        season_end_ns: U64,
     ) -> Self {
         let w = Self {
             owner,
             operator,
-            treasury,
             dao_factory,
             dao_deposit: dao_deposit.0,
             staking_deposit: staking_deposit.0,
@@ -228,8 +254,12 @@ impl World {
             roots: LookupMap::new(Key::Roots),
             owed: LookupMap::new(Key::Owed),
             owed_total: 0,
-            fees_pending: 0,
-            fees_paid: 0,
+            backing: 0,
+            florins_total: 0,
+            jackpot: 0,
+            jackpot_paid: false,
+            season_end_ns: season_end_ns.0,
+            minted: 0,
             burned: 0,
             season: "S1: energy".to_string(),
             paused: false,
@@ -241,7 +271,7 @@ impl World {
     // ---------------------------------------------------------------- gods
 
     /// Found a clan. The deposit pays the clan's DAO, its staking fund and its storage; the rest
-    /// is split 86/14. If the DAO can't be made, the whole deposit goes back.
+    /// is split 86% backing (florins) / 14% jackpot. If the DAO can't be made, all of it goes back.
     #[payable]
     pub fn found_clan(&mut self, name: String) -> Promise {
         require!(!self.paused, "Paused: no new money while we check something");
@@ -388,11 +418,10 @@ impl World {
             id,
             name,
             dao,
-            gods: vec![God { account: founder.clone(), put_in: U128(0) }],
+            gods: vec![God { account: founder.clone(), put_in: U128(0), shares: U128(0) }],
             total_in: U128(0),
-            play: U128(0),
-            reserve: U128(0),
-            fee_due: U128(0),
+            florins: U128(0),
+            shares: U128(0),
             staking_fund: U128(self.staking_deposit),
             alive: true,
             born_day: self.day,
@@ -411,8 +440,7 @@ impl World {
             .saturating_sub(storage);
         clan.gods[0].put_in = U128(net);
         clan.total_in = U128(net);
-        clan.play = U128(bps(net, PLAY_BPS));
-        clan.reserve = U128(net - bps(net, PLAY_BPS));
+        self.buy_in(&mut clan, 0, net);
         self.clans.insert(id, clan);
         env::log_str(&format!("clan {id} founded by {founder}, {net} yocto in"));
         true
@@ -436,7 +464,7 @@ impl World {
         let is_new = !clan.gods.iter().any(|g| g.account == who);
         match clan.gods.iter_mut().find(|g| g.account == who) {
             Some(g) => g.put_in = U128(g.put_in.0 + amount),
-            None => clan.gods.push(God { account: who.clone(), put_in: U128(amount) }),
+            None => clan.gods.push(God { account: who.clone(), put_in: U128(amount), shares: U128(0) }),
         }
         self.clans.insert(clan_id, clan.clone());
         self.clans.flush();
@@ -448,8 +476,8 @@ impl World {
             g.put_in = U128(g.put_in.0 - costs);
         }
         clan.total_in = U128(clan.total_in.0 + net);
-        clan.play = U128(clan.play.0 + bps(net, PLAY_BPS));
-        clan.reserve = U128(clan.reserve.0 + net - bps(net, PLAY_BPS));
+        let idx = clan.gods.iter().position(|g| g.account == who).unwrap();
+        self.buy_in(&mut clan, idx, net);
         let dao = clan.dao.clone();
         self.clans.insert(clan_id, clan);
         if !is_new {
@@ -499,11 +527,10 @@ impl World {
         clan.whisper = text;
         self.clans.insert(clan_id, clan.clone());
         self.clans.flush();
-        // A longer whisper costs storage; the clan pays from play money.
+        // A longer whisper costs storage; the nation pays in florins at their NEAR value.
         let cost = self.storage_cost_since(before);
         if cost > 0 {
-            require!(clan.play.0 >= cost, "Clan can't afford to store this whisper");
-            clan.play = U128(clan.play.0 - cost);
+            self.charge_storage(&mut clan, cost);
             self.clans.insert(clan_id, clan);
         }
     }
@@ -552,7 +579,8 @@ impl World {
         ok
     }
 
-    /// A god takes out their share. The clan dies when its last god leaves.
+    /// Claim: a god takes out their florins as NEAR at today's florin value, and leaves.
+    /// The 14% they put into the jackpot stays there. The clan dies when its last god leaves.
     pub fn withdraw(&mut self, clan_id: u32) -> Promise {
         let who = env::predecessor_account_id();
         let mut clan = self.live_clan(clan_id);
@@ -560,28 +588,24 @@ impl World {
         require!(idx.is_some(), "Only a god of this clan can withdraw");
         let idx = idx.unwrap();
 
-        // Settle the fee this clan owes so far, so the leaving god doesn't skip it.
-        Self::settle_fee(&mut clan, &mut self.fees_pending);
-
         let put_in = clan.gods[idx].put_in.0;
+        let my_shares = clan.gods[idx].shares.0;
         let last = clan.gods.len() == 1;
-        let (play_out, reserve_out) = if last || clan.total_in.0 == 0 {
-            (clan.play.0, clan.reserve.0)
+        let fl = if last || clan.shares.0 == 0 {
+            clan.florins.0
         } else {
-            (
-                mul_div(clan.play.0, put_in, clan.total_in.0),
-                mul_div(clan.reserve.0, put_in, clan.total_in.0),
-            )
+            mul_div(clan.florins.0, my_shares, clan.shares.0)
         };
-        let mut payout = play_out + reserve_out;
-        clan.play = U128(clan.play.0 - play_out);
-        clan.reserve = U128(clan.reserve.0 - reserve_out);
-        clan.total_in = U128(clan.total_in.0 - put_in);
+        let mut payout = if self.florins_total == 0 { 0 } else { mul_div(fl, self.backing, self.florins_total) };
+        clan.florins = U128(clan.florins.0 - fl);
+        clan.shares = U128(clan.shares.0.saturating_sub(my_shares));
+        self.florins_total -= fl;
+        self.backing -= payout;
+        clan.total_in = U128(clan.total_in.0.saturating_sub(put_in));
         clan.gods.remove(idx);
         if last {
             payout += clan.staking_fund.0;
             clan.staking_fund = U128(0);
-            clan.fee_due = U128(0);
             clan.alive = false;
             env::log_str(&format!("clan {clan_id} died: its last god left"));
         }
@@ -594,25 +618,6 @@ impl World {
         // DAO too. The 0.01 NEAR bond comes out of their payout.
         Self::propose_god(dao, who.clone(), false).detach();
         self.pay(who, payout - DAO_BOND)
-    }
-
-    /// Nobody ruled within 24h: a god of the clan that contributed most may claim the gift.
-    pub fn claim_gift(&mut self, gift_id: u64) {
-        let mut gift = self.gifts.get(&gift_id).expect("No such gift").clone();
-        require!(gift.status == GiftStatus::Pending, "Gift already settled");
-        require!(
-            env::block_timestamp() >= gift.created_ns + GIFT_WINDOW_NS,
-            "The gift's own gods still have time to rule"
-        );
-        let who = env::predecessor_account_id();
-        let contributor = self.clans.get(&gift.top_contributor).expect("No such clan");
-        require!(
-            contributor.gods.iter().any(|g| g.account == who),
-            "Only a god of the top contributing clan can claim"
-        );
-        gift.status = GiftStatus::Claimed;
-        gift.ruled_by = Some(who);
-        self.gifts.insert(gift_id, gift);
     }
 
     /// Pull a payout that failed to send earlier.
@@ -672,63 +677,62 @@ impl World {
             Agent { name, clan: clan_id, role, alive: true, stunted_until: 0, born_day: self.day },
         );
         self.agents.flush();
-        // The clan pays for its agent's storage out of play money (not counted as spend).
+        // The nation pays for its citizen's storage in florins at their NEAR value.
         let cost = self.storage_cost_since(before);
-        require!(clan.play.0 >= cost, "Clan can't afford the agent's storage");
-        clan.play = U128(clan.play.0 - cost);
+        self.charge_storage(&mut clan, cost);
         self.clans.insert(clan_id, clan);
     }
 
-    /// One clan buys from another. Buying inside your own clan isn't spend, so it's refused here.
+    /// One nation buys from another, in florins (no fee).
     pub fn trade(&mut self, buyer: u32, seller: u32, amount: U128, memo: String) {
         self.only_operator();
         require!(buyer != seller, "Buying inside your own clan isn't a trade");
         require!(memo.len() <= 200, "Memo too long");
         let mut b = self.live_clan(buyer);
         let mut s = self.live_clan(seller);
-        require!(b.play.0 >= amount.0, "Buyer can't afford it");
-        b.play = U128(b.play.0 - amount.0);
-        b.fee_due = U128(b.fee_due.0 + bps(amount.0, FEE_BPS));
-        // Sales income splits 86/14 like a deposit.
-        s.play = U128(s.play.0 + bps(amount.0, PLAY_BPS));
-        s.reserve = U128(s.reserve.0 + amount.0 - bps(amount.0, PLAY_BPS));
+        require!(b.florins.0 >= amount.0, "Buyer can't afford it");
+        b.florins = U128(b.florins.0 - amount.0);
+        s.florins = U128(s.florins.0 + amount.0);
         self.clans.insert(buyer, b);
         self.clans.insert(seller, s);
         env::log_str(&format!("trade {buyer}->{seller} {} {memo}", amount.0));
     }
 
-    /// Daily upkeep. Burned, and counted as spend. A clan that can't pay pays what it has.
-    pub fn upkeep(&mut self, clan_id: u32, amount: U128) -> U128 {
+    /// Florins for good work (clean corpus, passed draft, a tech). At most MINT_MAX a call.
+    /// Minting dilutes every other florin a little: the backing doesn't grow.
+    pub fn mint(&mut self, clan_id: u32, amount: U128, memo: String) {
         self.only_operator();
+        require!(amount.0 > 0 && amount.0 <= MINT_MAX, "Mint 1 unit to 100 florins per call");
+        require!(memo.len() <= 200, "Memo too long");
         let mut c = self.live_clan(clan_id);
-        let paid = amount.0.min(c.play.0);
-        c.play = U128(c.play.0 - paid);
-        c.fee_due = U128(c.fee_due.0 + bps(paid, FEE_BPS));
-        self.burned += paid;
+        require!(c.shares.0 > 0, "Nobody holds this nation's florins");
+        c.florins = U128(c.florins.0 + amount.0);
+        self.florins_total += amount.0;
+        self.minted += amount.0;
         self.clans.insert(clan_id, c);
-        U128(paid)
+        env::log_str(&format!("mint {clan_id} {} {memo}", amount.0));
     }
 
-    /// A Warden caught this clan (fake citation, copied claim). The bounty goes to our treasury
-    /// with the next fee sweep. A clan that can't pay pays what it has.
-    pub fn bounty(&mut self, clan_id: u32, amount: U128, memo: String) -> U128 {
+    /// Upkeep and Warden fines: florins burned (every other florin is worth a little more).
+    /// A nation that can't pay pays what it has.
+    pub fn burn(&mut self, clan_id: u32, amount: U128, memo: String) -> U128 {
         self.only_operator();
         require!(memo.len() <= 200, "Memo too long");
         let mut c = self.live_clan(clan_id);
-        let paid = amount.0.min(c.play.0);
-        c.play = U128(c.play.0 - paid);
-        self.fees_pending += paid;
+        let paid = amount.0.min(c.florins.0);
+        c.florins = U128(c.florins.0 - paid);
+        self.florins_total -= paid;
+        self.burned += paid;
         self.clans.insert(clan_id, c);
-        env::log_str(&format!("bounty {clan_id} {paid} {memo}"));
+        env::log_str(&format!("burn {clan_id} {paid} {memo}"));
         U128(paid)
     }
 
-    /// Record a gift from a clan to its gods.
-    pub fn gift(&mut self, clan_id: u32, draft_hash: String, warden_passed: bool, top_contributor: u32) -> u64 {
+    /// Record a draft (a gift to the nation's gods, theirs to reward or punish).
+    pub fn gift(&mut self, clan_id: u32, draft_hash: String, warden_passed: bool) -> u64 {
         self.only_operator();
         require!(draft_hash.len() == 64, "draft_hash must be a hex sha256");
         let mut clan = self.live_clan(clan_id);
-        require!(self.clans.get(&top_contributor).is_some(), "No such contributing clan");
         let id = self.next_gift;
         self.next_gift += 1;
         if warden_passed {
@@ -742,7 +746,6 @@ impl World {
                 clan: clan_id,
                 draft_hash,
                 warden_passed,
-                top_contributor,
                 created_ns: env::block_timestamp(),
                 day: self.day,
                 status: GiftStatus::Pending,
@@ -758,42 +761,6 @@ impl World {
         require!(root.len() == 64, "root must be a hex sha256");
         require!(self.roots.get(&day).is_none(), "That day already has a root");
         self.roots.insert(day, root);
-    }
-
-    /// Take each clan's fee from its reserve and send the total to the treasury.
-    pub fn sweep_fees(&mut self) -> PromiseOrValue<bool> {
-        self.only_operator();
-        let ids: Vec<u32> = self.clans.keys().copied().collect();
-        for id in ids {
-            let mut c = self.clans.get(&id).unwrap().clone();
-            if c.fee_due.0 > 0 {
-                Self::settle_fee(&mut c, &mut self.fees_pending);
-                self.clans.insert(id, c);
-            }
-        }
-        let amount = self.fees_pending;
-        if amount == 0 {
-            return PromiseOrValue::Value(false);
-        }
-        self.fees_pending = 0;
-        PromiseOrValue::Promise(
-            Promise::new(self.treasury.clone())
-                .transfer(NearToken::from_yoctonear(amount))
-                .then(
-                    Self::ext(env::current_account_id())
-                        .with_static_gas(GAS_CALLBACK)
-                        .on_fees_sent(U128(amount)),
-                ),
-        )
-    }
-
-    #[private]
-    pub fn on_fees_sent(&mut self, amount: U128, #[callback_result] r: Result<(), PromiseError>) {
-        if r.is_ok() {
-            self.fees_paid += amount.0;
-        } else {
-            self.fees_pending += amount.0; // try again next sweep
-        }
     }
 
     #[private]
@@ -814,6 +781,27 @@ impl World {
         self.paused = paused;
     }
 
+    /// After the season ends: pay the jackpot to the winning nation's gods, split by what each
+    /// put in. Once. The winner (#1 on the reverence standings) is read off chain by the owner.
+    pub fn award_jackpot(&mut self, clan_id: u32) {
+        require!(env::predecessor_account_id() == self.owner, "Only the owner");
+        require!(env::block_timestamp() >= self.season_end_ns, "The season isn't over");
+        require!(!self.jackpot_paid, "The jackpot was already paid");
+        let clan = self.clans.get(&clan_id).expect("No such clan").clone();
+        let total: u128 = clan.gods.iter().map(|g| g.put_in.0).sum();
+        require!(total > 0, "That nation has no gods to pay");
+        let pot = self.jackpot;
+        self.jackpot = 0;
+        self.jackpot_paid = true;
+        for g in &clan.gods {
+            let share = mul_div(pot, g.put_in.0, total);
+            if share > 0 {
+                self.pay(g.account.clone(), share).detach();
+            }
+        }
+        env::log_str(&format!("jackpot {pot} to nation {clan_id}"));
+    }
+
     /// Record the season (the winner of the last one picks the field).
     pub fn set_season(&mut self, season: String) {
         require!(env::predecessor_account_id() == self.owner, "Only the owner");
@@ -829,14 +817,14 @@ impl World {
     pub fn set_config(
         &mut self,
         operator: Option<AccountId>,
-        treasury: Option<AccountId>,
         dao_deposit: Option<U128>,
         staking_deposit: Option<U128>,
         min_found: Option<U128>,
+        season_end_ns: Option<U64>,
     ) {
         require!(env::predecessor_account_id() == self.owner, "Only the owner");
         if let Some(v) = operator { self.operator = v; }
-        if let Some(v) = treasury { self.treasury = v; }
+        if let Some(v) = season_end_ns { require!(!self.jackpot_paid, "The jackpot was already paid"); self.season_end_ns = v.0; }
         if let Some(v) = dao_deposit { self.dao_deposit = v.0; }
         if let Some(v) = staking_deposit { self.staking_deposit = v.0; }
         if let Some(v) = min_found { self.min_found = v.0; }
@@ -849,13 +837,13 @@ impl World {
         Config {
             owner: self.owner.clone(),
             operator: self.operator.clone(),
-            treasury: self.treasury.clone(),
             dao_factory: self.dao_factory.clone(),
             dao_deposit: U128(self.dao_deposit),
             staking_deposit: U128(self.staking_deposit),
             min_found: U128(self.min_found),
             day: self.day,
             season: self.season.clone(),
+            season_end_ns: U64(self.season_end_ns),
             paused: self.paused,
         }
     }
@@ -894,22 +882,33 @@ impl World {
 
     /// The solvency check: balance must cover liabilities plus locked storage.
     pub fn get_totals(&self) -> Totals {
-        let liabilities: u128 = self
-            .clans
-            .values()
-            .map(|c| c.play.0 + c.reserve.0 + c.staking_fund.0)
-            .sum::<u128>()
-            + self.fees_pending
+        let liabilities: u128 = self.clans.values().map(|c| c.staking_fund.0).sum::<u128>()
+            + self.backing
+            + self.jackpot
             + self.owed_total;
         Totals {
             balance: U128(env::account_balance().as_yoctonear()),
             liabilities: U128(liabilities),
             storage_locked: U128(env::storage_usage() as u128 * env::storage_byte_cost().as_yoctonear()),
-            fees_paid: U128(self.fees_paid),
-            fees_pending: U128(self.fees_pending),
+            backing: U128(self.backing),
+            florins: U128(self.florins_total),
+            florin_value: U128(self.florin_value()),
+            jackpot: U128(self.jackpot),
+            jackpot_paid: self.jackpot_paid,
+            minted: U128(self.minted),
             burned: U128(self.burned),
             clans: self.clans.len(),
         }
+    }
+
+    /// A god's stake in a nation: their florins and what claiming them pays now (yocto).
+    pub fn get_stake(&self, clan_id: u32, account: AccountId) -> Stake {
+        let none = Stake { florins: U128(0), near: U128(0), put_in: U128(0) };
+        let Some(c) = self.clans.get(&clan_id) else { return none };
+        let Some(g) = c.gods.iter().find(|g| g.account == account) else { return none };
+        let fl = if c.shares.0 == 0 { 0 } else { mul_div(c.florins.0, g.shares.0, c.shares.0) };
+        let near = if self.florins_total == 0 { 0 } else { mul_div(fl, self.backing, self.florins_total) };
+        Stake { florins: U128(fl), near: U128(near), put_in: g.put_in }
     }
 
     // ---------------------------------------------------------------- internals
@@ -933,13 +932,40 @@ impl World {
         }
     }
 
-    /// Move the fee owed from the reserve into fees_pending. If the reserve is short, the rest
-    /// stays owed.
-    fn settle_fee(c: &mut Clan, fees_pending: &mut u128) {
-        let take = c.fee_due.0.min(c.reserve.0);
-        c.reserve = U128(c.reserve.0 - take);
-        c.fee_due = U128(c.fee_due.0 - take);
-        *fees_pending += take;
+    /// Yocto per whole florin (the opening price is 0.01 NEAR).
+    fn florin_value(&self) -> u128 {
+        if self.florins_total == 0 { FLORIN } else { mul_div(FLORIN, self.backing, self.florins_total) }
+    }
+
+    /// NEAR put in by god `idx` of `clan`: 14% to the jackpot, 86% into the backing; the nation
+    /// gets florins at today's price and the god gets shares of the nation's florins.
+    fn buy_in(&mut self, clan: &mut Clan, idx: usize, net: u128) {
+        let jack = bps(net, JACKPOT_BPS);
+        let back = net - jack;
+        self.jackpot += jack;
+        let fl = if self.backing == 0 || self.florins_total == 0 { back } else { mul_div(back, self.florins_total, self.backing) };
+        self.backing += back;
+        self.florins_total += fl;
+        // A nation whose florins are all gone: its gods' old shares are worth nothing; start over.
+        if clan.florins.0 == 0 {
+            for g in clan.gods.iter_mut() { g.shares = U128(0); }
+            clan.shares = U128(0);
+        }
+        let sh = if clan.shares.0 == 0 { fl } else { mul_div(fl, clan.shares.0, clan.florins.0) };
+        clan.florins = U128(clan.florins.0 + fl);
+        clan.shares = U128(clan.shares.0 + sh);
+        clan.gods[idx].shares = U128(clan.gods[idx].shares.0 + sh);
+    }
+
+    /// Storage the nation caused (a citizen, a long whisper): burn florins worth `cost` and take
+    /// that NEAR out of the backing to cover the storage.
+    fn charge_storage(&mut self, clan: &mut Clan, cost: u128) {
+        if cost == 0 { return; }
+        let fl = if self.backing == 0 { u128::MAX } else { mul_div(cost, self.florins_total, self.backing) + 1 };
+        require!(clan.florins.0 >= fl && self.backing >= cost, "The nation can't afford the storage");
+        clan.florins = U128(clan.florins.0 - fl);
+        self.florins_total -= fl;
+        self.backing -= cost;
     }
 
     /// Send NEAR; if it fails, the amount is kept for the account to claim.

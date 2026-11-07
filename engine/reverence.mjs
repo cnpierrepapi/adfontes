@@ -94,10 +94,10 @@ export function nationEvent(rv, kind, changes) {
 }
 
 /** The daily fade, slowed by justice, sped up by enemies and lost faith. */
-export function fade(rv, day, livingNames, changes) {
+export function fade(rv, day, livingNames, changes, mul = 1) {
   for (const [god, g] of Object.entries(rv.gods)) {
     g.enemies = g.enemies.filter((n) => livingNames.has(n));
-    let f = REV.fade + g.enemies.length * REV.enemyFade + (day < g.faithLossUntil ? REV.faithLossFade : 0);
+    let f = (REV.fade + g.enemies.length * REV.enemyFade + (day < g.faithLossUntil ? REV.faithLossFade : 0)) * mul; // mul: hungry citizens lose faith faster
     if (day < g.justiceUntil) f *= REV.justiceFactor;
     move(rv, god, -f, g.enemies.length ? `fade (${g.enemies.length} enem${g.enemies.length === 1 ? "y" : "ies"})` : "fade", changes);
   }

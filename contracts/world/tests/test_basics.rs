@@ -23,10 +23,11 @@ async fn deploys_and_guards() -> testresult::TestResult<()> {
             "new",
             json!({
                 "owner": "world.sandbox", "operator": "operator.sandbox",
-                "treasury": "stranger.sandbox", "dao_factory": "sputnik.sandbox",
+                "dao_factory": "sputnik.sandbox",
                 "dao_deposit": "100000000000000000000000",
                 "staking_deposit": "1200000000000000000000000",
-                "min_found": "2300000000000000000000000"
+                "min_found": "2300000000000000000000000",
+                "season_end_ns": "1796079600000000000"
             }),
         )?
         .with_signer(signer.clone())
