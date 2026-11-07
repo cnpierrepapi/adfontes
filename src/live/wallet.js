@@ -35,6 +35,11 @@ export async function createWallet(net) {
     if (r.error || r.result?.error) throw new Error(r.error?.data || r.error?.message || r.result.error);
     return JSON.parse(dec.decode(new Uint8Array(r.result.result)));
   }
+  /** An account's spendable NEAR (yocto), or null if it doesn't exist. */
+  async function balance(account) {
+    const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method: "query", params: { request_type: "view_account", finality: "optimistic", account_id: account } }) }).then((x) => x.json());
+    return r.result ? BigInt(r.result.amount) : null;
+  }
   async function txStatus(hash, sender) {
     const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method: "tx", params: { tx_hash: hash, sender_account_id: sender, wait_until: "FINAL" } }) }).then((x) => x.json());
     return r.result ?? null;
@@ -97,7 +102,7 @@ export async function createWallet(net) {
     // The very step Meteor and MyNearWallet take to hand the transaction over (their bundles call Buffer).
     return Buffer.from(encodeTransaction(tx)).toString("base64").length;
   }
-  return { net, rpc, view, encodeCheck, txStatus, wallets, signIn, signOut, send, account, onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
+  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
 }
 
 /** Did this outcome fail anywhere? Returns the first failure in plain-ish words, or null. */

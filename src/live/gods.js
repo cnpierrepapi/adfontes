@@ -158,17 +158,27 @@ export async function createGods({ live, W, nav, toast }) {
 
   // ---------------------------------------------------------------- the powers
   function foundCard() {
-    wallet.view(WORLD, "get_config").then((cfg) => {
+    Promise.all([wallet.view(WORLD, "get_config"), wallet.balance(account).catch(() => null)]).then(([cfg, bal]) => {
       const name = input({ placeholder: "Name your nation", maxLength: 40 });
       const amt = input({ value: near(cfg.min_found), inputMode: "decimal" });
+      // Founding pays Sputnik for the nation's DAO, so it can't be cheap. On testnet, say how to
+      // get test NEAR; on mainnet, it's real money.
+      const need = BigInt(cfg.min_found) + 10n ** 23n; // plus about 0.1 NEAR for gas and the account's own reserve
+      const short = bal != null && bal < need;
+      const help = el("p", { className: `fine${short ? " warn" : ""}` },
+        `You have ${bal == null ? "?" : near(bal)} ${W.net === "mainnet" ? "NEAR" : "testnet NEAR"}; founding takes at least ${near(cfg.min_found)} plus a little for gas. `,
+        W.net === "mainnet" ? "This is real NEAR." : el("span", {}, short ? "Not enough yet: " : "Need more? ", el("a", { href: "https://near-faucet.io/", target: "_blank", rel: "noopener", textContent: "get free testnet NEAR from the faucet" }), ", then come back."));
       card({
         title: "Found a nation",
-        fields: [label("Name", name), label("NEAR to put in", amt)],
+        fields: [help, label("Name", name), label("NEAR to put in", amt)],
         words: () => `You found "${name.value.trim() || "…"}" and become its first god. ${near(cfg.dao_deposit)} NEAR makes its DAO, ${near(cfg.staking_deposit)} NEAR goes to its staking fund and a little pays for storage. The rest is the nation's money: 86% for its citizens to spend, 14% kept in reserve.`,
         check: () => {
           if (cfg.paused) return "The world is paused for new money right now.";
           if (!name.value.trim()) return "Give it a name.";
-          try { if (toYocto(amt.value) < BigInt(cfg.min_found)) return `The minimum to found a nation is ${near(cfg.min_found)} NEAR.`; } catch (e) { return e.message; }
+          try {
+            if (toYocto(amt.value) < BigInt(cfg.min_found)) return `The minimum to found a nation is ${near(cfg.min_found)} NEAR.`;
+            if (bal != null && toYocto(amt.value) + 10n ** 23n > bal) return `Your wallet has ${near(bal)} NEAR: not enough for that plus gas.`;
+          } catch (e) { return e.message; }
           return null;
         },
         calls: () => [C.found(WORLD, name.value.trim(), toYocto(amt.value))],
