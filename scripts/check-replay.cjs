@@ -4,6 +4,7 @@ const base = process.argv[2] || "http://localhost:4199", id = Number(process.arg
 (async () => {
   const b = await chromium.launch({ args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"] });
   const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+  await p.addInitScript(() => localStorage.setItem("adf-intro-seen", "1")); // the first-visit intro would take the camera
   const errs = [];
   p.on("pageerror", (e) => errs.push(e.message));
   await p.goto(`${base}/live/`, { waitUntil: "domcontentloaded" });

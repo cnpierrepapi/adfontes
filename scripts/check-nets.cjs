@@ -5,6 +5,8 @@ const base = process.argv[2] || "http://localhost:4301";
   const b = await chromium.launch({ args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"] });
   for (const net of ["mainnet", "testnet"]) {
     const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+    await p.addInitScript(() => localStorage.setItem("adf-intro-seen", "1"));
+  await p.addInitScript(() => localStorage.setItem("adf-intro-seen", "1")); // the first-visit intro would take the camera
     const errs = [];
     p.on("pageerror", (e) => errs.push(e.message));
     p.on("console", (m) => m.type() === "error" && !/favicon|404/.test(m.text()) && errs.push(m.text()));

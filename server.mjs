@@ -50,7 +50,7 @@ function makeApi(NET) {
   const api = {
     // The world now: day, weather, clans (money from the chain, mind from the engine).
     async world() {
-      return cachedN("world", 20_000, async () => {
+      return cachedN("world", 5_000, async () => {
         const [cfg, totals, clans, s] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 }), store.loadState(NET)]);
         const last = await store.getDay(NET, s.day);
         const weather = last.records.find((r) => r.kind === "weather") ?? null;
@@ -151,7 +151,15 @@ function makeApi(NET) {
       return { now_ms: Date.now(), gifts: all.filter((g) => g.clan === id || g.top_contributor === id) };
     },
   
-    // The testnet sponsor pool (SPEC §12m C): how many new testnet nations it can still pay for.
+    // What happened since the last game day, live (SPEC §12n): the instant turns' records, which
+  // become the first records of the next day. ?since=<ms> returns only newer ones.
+  async live(q) {
+    const since = Number(q.get("since")) || 0;
+    const pending = await cachedN("live", 2_500, async () => (await store.loadState(NET)).pending || []);
+    return { now_ms: Date.now(), records: pending.filter((r) => (r.at || 0) > since).slice(-80) };
+  },
+
+  // The testnet sponsor pool (SPEC §12m C): how many new testnet nations it can still pay for.
   async sponsor() {
     if (NET !== "testnet" || !process.env.SPONSOR_ACCOUNT_ID) return { available: false };
     return cachedN("sponsor", 15_000, async () => {

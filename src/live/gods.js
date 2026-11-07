@@ -9,7 +9,7 @@ const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.crea
 const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function createGods({ live, W, nav, toast }) {
+export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   const WORLD = W.world;
   const wallet = await createWallet(W.net);
   let account = wallet.account();
@@ -44,6 +44,13 @@ export async function createGods({ live, W, nav, toast }) {
       return;
     }
     menu.append(el("p", { className: "lead" }, "Signed in as ", el("b", { textContent: account })));
+    // Your route as a god (SPEC §12n): what you've done, and what to try next.
+    if (route) {
+      const steps = route.progress(), nextStep = steps.find((x) => !x.done);
+      const box = el("div", { className: "route" }, el("p", { className: "fine", textContent: `Your route: ${steps.filter((x) => x.done).length} of ${steps.length}` }));
+      for (const x of steps) box.append(el("p", { className: x.done ? "done" : x === nextStep ? "next" : "", textContent: x === nextStep ? `Next: ${x.hint}` : x.title }));
+      menu.append(box);
+    }
     const [clans, owed] = await Promise.all([wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []), wallet.view(WORLD, "get_owed", { account_id: account }).catch(() => "0")]);
     const mine = clans.filter((c) => c.alive && c.gods.some((g) => g.account === account));
     menu.append(el("p", { className: "fine", textContent: mine.length ? "You are a god of:" : "You are not a god of any nation yet. Bless one, or found your own." }));
@@ -71,6 +78,7 @@ export async function createGods({ live, W, nav, toast }) {
       claim.addEventListener("click", () => { menu.hidden = true; claimOwedCard(owed); });
       row.append(claim);
     }
+    if (replayIntro) { const intro = el("button", { type: "button", className: "viewbtn", textContent: "Watch the intro" }); intro.addEventListener("click", () => { menu.hidden = true; replayIntro(); }); row.append(intro); }
     const out = el("button", { type: "button", className: "viewbtn", textContent: "Sign out" });
     out.addEventListener("click", async () => { await wallet.signOut(); menu.hidden = true; });
     row.append(out);
@@ -215,6 +223,7 @@ export async function createGods({ live, W, nav, toast }) {
         after: async () => {
           const want = name.value.trim();
           live.refresh?.(want);
+          route?.founded(want); // your island, confetti, "You are a god", the neighbours' welcome
           return `${want} is founded. Its island rises into the world in a moment, and its first citizens arrive on the next game day.`;
         },
       });

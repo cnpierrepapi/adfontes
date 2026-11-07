@@ -298,7 +298,8 @@ export async function startLive(canvas, hud, opts = {}) {
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
-  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); } });
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); for (const f of recordHooks) f(r); } });
+  const recordHooks = new Set(); // other modules (the god's route) hear every record the world plays
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
   standings.update(W);
@@ -396,14 +397,37 @@ export async function startLive(canvas, hud, opts = {}) {
         if (isl && !c.alive && isl.userData.status !== "dead") { isl.userData.status = "dead"; Object.assign(isl.userData.clan, c); loadMind(c.id); }
       }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
-      for (let d = lastDay + 1; d <= now.day; d++) { const recs = (await api(`day?d=${d}`)).records || []; folk.dayRecords(recs, d); fx.enqueue(recs); }
+      for (let d = lastDay + 1; d <= now.day; d++) { const recs = ((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)); folk.dayRecords(recs, d); fx.enqueue(recs); }
       W.jackpot = now.jackpot;
       standings.update(now);
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
       return now;
     } catch { return null; }
   }
-  setInterval(() => (polling ??= poll().finally(() => (polling = null))), 30000);
+  const pollNow = () => (polling ??= poll().finally(() => (polling = null)));
+  setInterval(pollNow, 30000);
+  // The live feed (SPEC §12n): what the gods' actions and new nations set off between game days,
+  // within seconds. Same queue as the day's records; anything played here is skipped when its day
+  // arrives. New citizens, research and reverence refresh the world at once.
+  const playedLive = new Set();
+  let liveSince = 0, liveBusy = false;
+  async function livePoll() {
+    if (liveBusy) return;
+    liveBusy = true;
+    try {
+      const L = await api(`live?since=${liveSince}`);
+      const fresh = (L.records || []).filter((r) => r.live && !playedLive.has(r.live));
+      for (const r of fresh) { playedLive.add(r.live); liveSince = Math.max(liveSince, r.at || 0); }
+      if (!fresh.length) return;
+      folk.dayRecords(fresh, W.day + 1);
+      for (const r of fresh) if (r.kind === "team" || r.kind === "corpus") loadMind(r.clan);
+      fx.enqueue(fresh);
+      opts.onLive?.(fresh);
+      pollNow(); // reverence, standings, panels
+    } catch {} finally { liveBusy = false; }
+  }
+  setInterval(livePoll, 5000);
+  livePoll();
   // After a god's transaction: look again now and after the API's 20 s cache, and fly to a nation
   // they just founded (by name) once it shows up.
   async function refresh(foundedName) {
@@ -752,7 +776,7 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   frame();
   setTheme(opts.theme || "night");
-  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite, missed: () => missed };
+  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, standingsRank: () => standings.ranks?.() ?? {} };
 }
 
 // A clan's island: size from its mindmap, town from its state.

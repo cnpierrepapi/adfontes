@@ -229,7 +229,12 @@ export async function godActions({ chain, s, oc, rv, day, changes }) {
     rv.putIn[g.account] = g.put_in;
   }
   const last = await chain.dao(oc.dao, "get_last_proposal_id");
-  if (rv.lastProposal == null) { rv.lastProposal = last; rv.open = []; return out; }
+  // First look: a nation that existed before reverence skips its history; a nation founded since
+  // (it starts out waiting) counts everything, so its founder's first whisper isn't lost.
+  if (rv.lastProposal == null && !rv.waiting) { rv.lastProposal = last; rv.open = []; return out; }
+  // A nation still waiting for its first whisper reads its DAO from the start, once, so the
+  // founder's first whisper counts even if it came before the engine first saw the nation.
+  if (rv.waiting && !rv.scannedAll) { rv.lastProposal = 0; rv.open = []; rv.scannedAll = true; }
   const from = Math.min(rv.lastProposal, ...(rv.open || []));
   const props = last > from ? await chain.dao(oc.dao, "get_proposals", { from_index: from, limit: last - from }) : [];
   const open = [];

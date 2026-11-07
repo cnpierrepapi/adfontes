@@ -53,5 +53,5 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
   }
   // What you saw is remembered when you leave, so next visit's arrows say what changed meanwhile.
   addEventListener("pagehide", () => { if (last) localStorage.setItem(key, JSON.stringify(Object.fromEntries(last.map((r, i) => [r.id, i + 1])))); });
-  return { update };
+  return { update, ranks: () => Object.fromEntries((last || []).map((r, i) => [r.id, i + 1])) };
 }

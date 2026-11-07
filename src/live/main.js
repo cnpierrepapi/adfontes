@@ -1,6 +1,7 @@
 import { startLive } from "./live.js";
 import { createWeatherSound, weatherKind } from "./sound.js";
 import { switchNet } from "../net.js";
+import { createRoute, playIntro } from "./route.js";
 
 const $ = (id) => document.getElementById(id);
 let gods = null; // the god panel, once the wallet code has loaded
@@ -69,7 +70,10 @@ function toast(text) {
   setTimeout(() => t.remove(), 6000);
 }
 // The gods' wallet loads after the world is up, so a slow wallet script never holds the world back.
-import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast })).then((g) => {
+// The god's route and the first-visit intro (SPEC §12n).
+const route = createRoute({ live, W, account: () => window.__gods?.wallet.account() ?? null });
+if (!q.has("stills")) setTimeout(() => playIntro(live, W), 1200);
+import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast, route, replayIntro: () => playIntro(live, W, { force: true }) })).then((g) => {
   gods = g;
   window.__gods = g;
   // A panel already open gets its powers now.

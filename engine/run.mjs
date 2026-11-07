@@ -19,7 +19,14 @@ import { renderFigure } from "./figures.mjs";
 
 const net = process.argv[2] || "testnet";
 if (net === "mainnet" && !process.argv.includes("--yes-mainnet")) throw new Error("mainnet needs --yes-mainnet");
-const days = Number(process.argv[process.argv.indexOf("--days") + 1] || 1);
+const days = process.argv.includes("--days") ? Number(process.argv[process.argv.indexOf("--days") + 1]) || 1 : 1; // (without --days it used to read NaN and run nothing)
+// Instant turns (SPEC §12n): `--instant 6[,7] [--fresh]` gives those nations one turn NOW without
+// moving the world's day: citizens if they have none, what their gods just did, one research turn
+// (and, for a nation in its first minutes, its first draft and first report). Records go to
+// s.pending, which become the first records of the next day (proven with its root) and which the
+// site shows live. Started by engine/loop.mjs; a normal day runs exactly as before.
+const INSTANT = process.argv.includes("--instant") ? process.argv[process.argv.indexOf("--instant") + 1].split(",").map(Number) : null;
+const FRESH = process.argv.includes("--fresh");
 const chain = connect(net);
 const s = await store.loadState(net);
 
@@ -28,14 +35,14 @@ const sinceLast = (Date.now() - (s.lastRunAt || 0)) / 60000;
 // A new nation brings a new day at once (his call 7 Nov): a nation on chain the world hasn't seen yet
 // skips the wait.
 const unseen = (await chain.clans()).some((c) => c.alive && !s.clans[c.id]);
-if (!process.argv.includes("--force") && !unseen && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
+if (!INSTANT && !process.argv.includes("--force") && !unseen && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
   console.log(`last run ${sinceLast.toFixed(0)} min ago (under ${CFG.minMinutesBetweenRuns}): nothing to do, the schedule runs the next day`);
   await store.close();
   process.exit(0);
 }
 // Testnet sponsor pool (SPEC §12m C): every 12 hours, fill it from NEAR's testnet helper (10 new
 // accounts of 10 testnet NEAR, each swept straight into the pool). A failed refill never stops a day.
-if (net === "testnet" && process.env.SPONSOR_ACCOUNT_ID && Date.now() - (s.sponsorRefillAt || 0) > SPONSOR.refillHours * 3600e3) {
+if (!INSTANT && net === "testnet" && process.env.SPONSOR_ACCOUNT_ID && Date.now() - (s.sponsorRefillAt || 0) > SPONSOR.refillHours * 3600e3) {
   try {
     const r = await refillPool(process.env.SPONSOR_ACCOUNT_ID);
     // Refused (the helper's 12-hour limit)? Try again right when its limit resets.
@@ -61,11 +68,14 @@ for (let n = 0; n < days; n++) {
   const day = s.day + 1;
   const w = weather(day);
   // Resuming a day that was cut short? Keep its records so far and skip nations already done.
-  const resuming = s.inProgress?.day === day;
-  const rec = resuming ? (await store.getDay(net, day)).records : []; // the day's records -> Merkle root on chain
-  if (!resuming) { s.inProgress = { day, done: [] }; s.lastRunAt = Date.now(); }
-  const log = (r) => { rec.push({ day, ...r }); console.log(`  [${r.kind}]`, JSON.stringify(r).slice(0, 220)); };
-  const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
+  const resuming = !INSTANT && s.inProgress?.day === day;
+  // A new day starts with the instant turns' records since the last day (they belong to it).
+  const rec = INSTANT ? (s.pending ||= []) : resuming ? (await store.getDay(net, day)).records : (s.pending || []); // the day's records -> Merkle root on chain
+  if (!INSTANT) s.pending = [];
+  if (!INSTANT && !resuming) { s.inProgress = { day, done: [] }; s.lastRunAt = Date.now(); }
+  let seq = 0;
+  const log = (r) => { rec.push({ day, ...r, ...(INSTANT ? { live: `${Date.now().toString(36)}-${seq++}`, at: Date.now() } : {}) }); console.log(`  [${r.kind}]`, JSON.stringify(r).slice(0, 220)); };
+  const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
   const capped = (kind) => {
     if (canSpend(kind)) return false;
@@ -74,16 +84,17 @@ for (let n = 0; n < days; n++) {
   };
   if (resuming) console.log(`  resuming day ${day}: ${rec.length} records kept, nations done: ${s.inProgress.done.join(",") || "none"}`);
   // Safe to re-run after a crash mid-day: only tick if the chain is behind.
-  if ((await chain.config()).day < day) await chain.tick(day);
+  if (!INSTANT && (await chain.config()).day < day) await chain.tick(day);
   console.log(`\nDAY ${day} | weather ${w.label} (NEAR ${w.price.toFixed(2)}, ${(w.change * 100).toFixed(1)}% wk of ${w.week}) pace x${w.pace.toFixed(2)} mistakes ${(w.mistake * 100).toFixed(0)}%`);
-  if (!resuming) log({ kind: "weather", week: w.week, price: w.price, change: w.change, pace: w.pace });
+  if (!resuming && !INSTANT) log({ kind: "weather", week: w.week, price: w.price, change: w.change, pace: w.pace });
 
   const onchain = await chain.clans();
-  const live = onchain.filter((c) => c.alive);
-  const avgIn = live.reduce((a, c) => a + toNear(c.total_in), 0) / Math.max(1, live.length);
+  const alive = onchain.filter((c) => c.alive);
+  const live = INSTANT ? alive.filter((c) => INSTANT.includes(c.id)) : alive;
+  const avgIn = alive.reduce((a, c) => a + toNear(c.total_in), 0) / Math.max(1, alive.length);
 
   // Dead clans: their mindmap becomes ruins, unowned.
-  for (const c of onchain.filter((c) => !c.alive)) {
+  for (const c of INSTANT ? [] : onchain.filter((c) => !c.alive)) {
     const st = s.clans[c.id];
     if (st?.alive) {
       st.alive = false;
@@ -93,7 +104,7 @@ for (let n = 0; n < days; n++) {
   }
 
   for (const oc of live) {
-    if (s.inProgress.done.includes(oc.id)) continue;
+    if (!INSTANT && s.inProgress.done.includes(oc.id)) continue;
     const isNew = !s.clans[oc.id];
     const c = s.clans[oc.id] || W.initClan(s, oc);
     // A nation state seen for the first time: the 3D world plays its founding.
@@ -138,10 +149,10 @@ for (let n = 0; n < days; n++) {
 
       // Rich / neglected (SPEC §6) and Tricksters
       const putIn = toNear(oc.total_in);
-      const rich = putIn > avgIn && live.length > 1;
+      const rich = putIn > avgIn && alive.length > 1;
       const neglected = putIn < avgIn / 4;
       const lazy = rich ? CFG.richLazy : neglected ? CFG.neglectSlow : 0;
-      if (neglected && chance(CFG.neglectTrickster * eff.tricksterMul)) {
+      if (!INSTANT && neglected && chance(CFG.neglectTrickster * eff.tricksterMul)) {
         const name = newName(new Set(Object.values(s.clans).flatMap((x) => Object.keys(x.skills))));
         await chain.spawn(oc.id, name, "Trickster");
         c.skills[name] = {};
@@ -184,10 +195,14 @@ for (let n = 0; n < days; n++) {
       }
 
       // Research: each able Scholar takes its turns on the Patron's chosen point.
-      for (const sch of eff.waiting ? [] : able("Scholar")) {
+      // An instant turn: one research turn by one Scholar (in turn), not the day's full share.
+      const scholars = eff.waiting ? [] : able("Scholar");
+      const instantScholar = INSTANT ? scholars[(c.instantTurns = (c.instantTurns || 0) + 1) % Math.max(1, scholars.length)] : null;
+      for (const sch of scholars) {
+        if (INSTANT && sch !== instantScholar) continue;
         const target = pickTarget(c);
         const skill = c.skills[sch.name]?.[target] || 0;
-        for (let t = 0; t < turns(CFG.scholarTurnsPerDay * effort * (1 + skill)); t++) {
+        for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * effort * (1 + skill))); t++) {
           if (capped("agent")) break;
           const node = target && c.frontier[target] ? target : null;
           if (!node && c.owned[c.field].corpus) break;
@@ -225,7 +240,7 @@ for (let n = 0; n < days; n++) {
       if (taken.length) log({ kind: "absorb", clan: oc.id, via: gained, points: taken });
 
       // Smith: a figure kit now and then; clans about to draft buy one from another clan.
-      if (able("Smith").length && chance(0.3 * effort)) {
+      if (!INSTANT && able("Smith").length && chance(0.3 * effort)) {
         const id = `t${s.nextId++}`;
         s.tools[id] = { id, clan: oc.id, day, kind: "figure kit", field: c.field };
         log({ kind: "tool", clan: oc.id, tool: id });
@@ -233,7 +248,10 @@ for (let n = 0; n < days; n++) {
 
       // Drafter
       const depth = W.chainDepth(c);
-      if (!eff.waiting && able("Drafter").length && depth >= CFG.draftMinDepth && day - c.lastDraftDay >= CFG.draftEveryDays && chance(Math.min(1, effort)) && !capped("draft")) {
+      // A new nation's first draft comes as soon as its line is deep enough (its first gift to rule on).
+      const draftDue = INSTANT ? FRESH && !c.firstDraftDone : day - c.lastDraftDay >= CFG.draftEveryDays && chance(Math.min(1, effort));
+      if (!eff.waiting && able("Drafter").length && depth >= CFG.draftMinDepth && draftDue && !capped("draft")) {
+        c.firstDraftDone = true;
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
           if (kit && toNear(oc.play) > CFG.toolPrice) {
@@ -267,7 +285,7 @@ for (let n = 0; n < days; n++) {
       }
 
       // Upkeep in batches
-      if (day - c.lastUpkeepDay >= CFG.upkeepEveryDays) {
+      if (!INSTANT && day - c.lastUpkeepDay >= CFG.upkeepEveryDays) {
         const n = agents.filter((a) => a.alive).length;
         const amount = +(CFG.upkeepPerAgent * n * (day - c.lastUpkeepDay)).toFixed(6);
         const r = await chain.upkeep(oc.id, amount);
@@ -285,14 +303,16 @@ for (let n = 0; n < days; n++) {
       for (let k = 0; k < catches; k++) RV.nationEvent(rv, "wardenCatch", revCh);
       const nowAgents = await chain.agents(oc.id);
       const living = nowAgents.filter((a) => a.alive);
-      RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh);
-      for (const r of RV.lapseReports(s, rv, oc.id, day, revCh)) log(r);
+      if (!INSTANT) RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh); // the fade is per day
+      if (!INSTANT) for (const r of RV.lapseReports(s, rv, oc.id, day, revCh)) log(r);
       const evidence = [
         ...mine.filter((r) => r.kind === "corpus" && r.fake).map((r) => ({ kind: "fake", name: r.scholar })),
         ...living.filter((a) => a.role === "Trickster").map((a) => ({ kind: "trickster", name: a.name })),
         ...(gifts.some((g) => !g.passed) ? able("Drafter").slice(0, 1).map((a) => ({ kind: "rushed", name: a.name })) : []),
       ];
-      const rep = RV.maybeReport(s, oc.id, day, living, evidence, Math.random);
+      // A new nation gets its first report as soon as it has research to argue about.
+      const firstReport = INSTANT && FRESH && !Object.values(s.reports || {}).some((x) => x.clan === oc.id) && Object.values(s.corpora).some((x) => x.clan === oc.id);
+      const rep = RV.maybeReport(s, oc.id, day, living, evidence, firstReport ? () => 0 : Math.random);
       if (rep) log(rep);
       RV.follow(s, oc.id, revCh);
       log(RV.record(rv, oc.id, revCh));
@@ -300,9 +320,17 @@ for (let n = 0; n < days; n++) {
     } catch (e) {
       log({ kind: "error", clan: oc.id, error: String(e.message || e).slice(0, 200) });
     }
-    s.inProgress.done.push(oc.id);
+    if (!INSTANT) s.inProgress.done.push(oc.id);
     await checkpoint();
     if (stopRequested) { console.log("  checkpointed; exiting so the next run resumes this day"); await store.close(); process.exit(0); }
+  }
+
+  // An instant turn ends here: no rulings sweep, fees, root or new day (the next day does those).
+  if (INSTANT) {
+    s.spend.usd = spendBase + meter.usd;
+    await store.saveState(net, s);
+    console.log(`  instant turn for ${INSTANT.join(",")} done: ${rec.length} pending records | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);
+    break;
   }
 
   // Gods' rulings -> fortune
