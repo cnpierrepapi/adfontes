@@ -298,6 +298,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
     p.target = p.open(Math.cos(here + turn) * p.r * 0.68, Math.sin(here + turn) * p.r * 0.68);
     p.c.play("Walk_Loop");
     p.c.mixer.timeScale = 0.7; // heavy
+    p.walkT0 = p.lastT = performance.now() / 1000;
   }
   // 0 = carried on the shoulder, leaning forward; 1 = held straight up to fire.
   function gunPose(g, k) {
@@ -308,8 +309,12 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const { c } = p;
     if (p.phase === "walk") {
       const dx = p.target[0] - p.pos[0], dz = p.target[1] - p.pos[1], dist = Math.hypot(dx, dz);
-      if (dist < 0.02) { p.phase = "aim"; p.t0 = now; c.mixer.timeScale = 1; c.play("Pistol_Aim_Up", 0.3); c.root.rotation.z = 0; return; }
-      const step = Math.min(dist, p.r * 0.075 * dt); // a heavy stagger
+      // Real time, not frames: on a slow machine (few frames a second) the walk would crawl and the
+      // shot never come. And never more than 5 s of walking: they fire from wherever they got to.
+      const rdt = Math.min(0.25, Math.max(0, now - (p.lastT ?? now)));
+      p.lastT = now;
+      if (dist < 0.02 || now - (p.walkT0 ?? now) > 5) { p.phase = "aim"; p.t0 = now; c.mixer.timeScale = 1; c.play("Pistol_Aim_Up", 0.3); c.root.rotation.z = 0; return; }
+      const step = Math.min(dist, p.r * 0.075 * rdt); // a heavy stagger
       p.pos[0] += (dx / dist) * step; p.pos[1] += (dz / dist) * step;
       const want = Math.atan2(dx, dz);
       c.root.rotation.y += Math.atan2(Math.sin(want - c.root.rotation.y), Math.cos(want - c.root.rotation.y)) * Math.min(1, dt * 5);
