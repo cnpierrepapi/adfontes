@@ -400,6 +400,7 @@ export async function startLive(canvas, hud, opts = {}) {
       for (let d = lastDay + 1; d <= now.day; d++) { const recs = ((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)); folk.dayRecords(recs, d); fx.enqueue(recs); }
       W.jackpot = now.jackpot;
       standings.update(now);
+      opts.onPoll?.(now); // the world clock: day or night now
       if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
       return now;
     } catch { return null; }

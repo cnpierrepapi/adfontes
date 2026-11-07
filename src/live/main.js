@@ -31,31 +31,49 @@ function showClan(c, status) {
   p.hidden = false;
 }
 
-// Night by default; the choice is remembered on this device. ?theme=day|night overrides (stills).
+// The sky follows the world (SPEC §14): while NEAR's replayed price rises it is day, while it falls
+// it is night. ?theme=day|night still overrides (stills). Old worlds with no clock stay at night.
 const q = new URLSearchParams(location.search);
-let theme = q.get("theme") || localStorage.getItem("adf-theme") || "night";
+const forcedTheme = q.get("theme");
+let theme = forcedTheme || "night";
+// Filled in below; a poll that lands before then waits for the next one (module-level, no TDZ).
+let liveApi = null, sound = null;
 document.body.classList.toggle("night", theme === "night");
-const live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, stills: q.has("stills"), theme, onDay: (now) => onDay(now) });
-const themeBtn = $("theme");
-const showTheme = () => (themeBtn.innerHTML = theme === "night" ? `☀ <span class="word">Day</span>` : `☾ <span class="word">Night</span>`);
-showTheme();
-themeBtn.addEventListener("click", () => {
-  theme = theme === "night" ? "day" : "night";
-  localStorage.setItem("adf-theme", theme);
-  live.setTheme(theme);
-  showTheme();
-});
+const live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, stills: q.has("stills"), theme, onDay: (now) => onDay(now), onPoll: (now) => onClock(now) });
+function onClock(now) {
+  if (!liveApi || !sound) return;
+  const want = forcedTheme || (now.clock?.phase === "day" ? "day" : "night");
+  if (want !== theme) { theme = want; liveApi.setTheme(theme); }
+  showDial(now);
+  sound.setKind(soundKind(now));
+}
+// Day: birds (a strong rise: hot). Night: wind and rain (a steep fall: a storm).
+function soundKind(W) {
+  const c = W.clock;
+  if (!c) return weatherKind(W.weather?.change);
+  return c.phase === "day" ? (c.change > 0.1 ? "hot" : "mild") : c.change < -0.1 ? "storm" : "cold";
+}
 // The dial says the week in words; the sound plays it (the sky no longer does).
 const MOOD_WORD = { hot: "hot", mild: "mild", cold: "cold", storm: "stormy" };
 function showDial(W) {
+  const c = W.clock;
+  if (c) {
+    const mood = soundKind(W);
+    const pct = `${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}%`;
+    $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
+    $("dial").textContent = `${W.season} · ${c.phase === "day" ? `☀ Day ${c.days}` : `☾ Night ${c.nights}`} · NEAR $${c.price.toFixed(2)} (${pct} since ${c.phase === "day" ? "dawn" : "dusk"})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : " · testnet"}`;
+    return;
+  }
   const w = W.weather, mood = w ? weatherKind(w.change) : "";
   $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
   $("dial").textContent = `${W.season} · day ${W.day}${w ? ` · ${MOOD_WORD[mood]} week, NEAR $${w.price.toFixed(2)} (${w.change > 0 ? "+" : ""}${(w.change * 100).toFixed(1)}%)` : ""}${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : " · testnet"}`;
 }
 const W = live.world;
 showDial(W);
-const sound = createWeatherSound({ button: $("sound"), kind: weatherKind(W.weather?.change) });
-function onDay(now) { showDial(now); sound.setKind(weatherKind(now.weather?.change)); }
+sound = createWeatherSound({ button: $("sound"), kind: soundKind(W) });
+liveApi = live;
+if (!forcedTheme && W.clock?.phase === "day") { theme = "day"; live.setTheme(theme); }
+function onDay(now) { showDial(now); sound.setKind(soundKind(now)); }
 $("home").addEventListener("click", () => live.home());
 // Testnet (practice, free test NEAR) or mainnet (real NEAR): same world, same rules.
 const netBtn = $("net");

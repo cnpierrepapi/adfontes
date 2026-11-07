@@ -8,7 +8,7 @@ import { refill as refillPool, nationsLeft, SPONSOR } from "./sponsor.mjs";
 import fs from "node:fs";
 import { CFG } from "./config.mjs";
 import { connect, toNear } from "./chain.mjs";
-import { weather } from "./weather.mjs";
+import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
 import { scholarTurn, draftTurn, meter, setSpentToday, spentToday, canSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
@@ -66,7 +66,11 @@ process.on("SIGTERM", () => { stopRequested = true; console.log("  stop requeste
 
 for (let n = 0; n < days; n++) {
   const day = s.day + 1;
-  const w = weather(day);
+  // The world clock (SPEC §14): NEAR's hourly prices replayed 5x; a rise is day, a fall is night.
+  s.clock ||= { startNear: seasonStartNear(), rows: [] };
+  try { await extendHours(s.clock, s.clock.startNear); } catch (e) { console.log("  price feed:", String(e.message || e).slice(0, 120)); }
+  const k = clockAt(s.clock.rows, Date.now()) || { phase: "day", price: null, unit: 1, days: 1, nights: 0, cycle: 1, change: 0, nearTime: s.clock.startNear };
+  const w = { phase: k.phase, price: k.price, pace: 1, mistake: CFG.baseMistake };
   // Resuming a day that was cut short? Keep its records so far and skip nations already done.
   const resuming = !INSTANT && s.inProgress?.day === day;
   // A new day starts with the instant turns' records since the last day (they belong to it).
@@ -85,8 +89,14 @@ for (let n = 0; n < days; n++) {
   if (resuming) console.log(`  resuming day ${day}: ${rec.length} records kept, nations done: ${s.inProgress.done.join(",") || "none"}`);
   // Safe to re-run after a crash mid-day: only tick if the chain is behind.
   if (!INSTANT && (await chain.config()).day < day) await chain.tick(day);
-  console.log(`\nDAY ${day} | weather ${w.label} (NEAR ${w.price.toFixed(2)}, ${(w.change * 100).toFixed(1)}% wk of ${w.week}) pace x${w.pace.toFixed(2)} mistakes ${(w.mistake * 100).toFixed(0)}%`);
-  if (!resuming && !INSTANT) log({ kind: "weather", week: w.week, price: w.price, change: w.change, pace: w.pace });
+  console.log(`\nDAY ${day} | ${k.phase} ${k.unit} (cycle ${k.cycle}; NEAR $${k.price ?? "?"} at ${new Date(k.nearTime).toISOString().slice(0, 13)}h)`);
+  if (!resuming && !INSTANT) {
+    // Days and nights that began since the last turn (a short one can begin and end in between).
+    const begun = k.days + k.nights - (s.clock.lastCount ?? k.days + k.nights);
+    if (begun > 0) log({ kind: k.phase === "day" ? "dawn" : "dusk", days: k.days, nights: k.nights, cycle: k.cycle, price: k.price, begun });
+    s.clock.lastCount = k.days + k.nights;
+    log({ kind: "clock", phase: k.phase, unit: k.unit, days: k.days, nights: k.nights, cycle: k.cycle, price: k.price, change: k.change, near: new Date(k.nearTime).toISOString() });
+  }
 
   const onchain = await chain.clans();
   const alive = onchain.filter((c) => c.alive);
@@ -204,7 +214,7 @@ for (let n = 0; n < days; n++) {
         if (INSTANT && sch !== instantScholar) continue;
         const target = pickTarget(c);
         const skill = c.skills[sch.name]?.[target] || 0;
-        for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * effort * (1 + skill))); t++) {
+        for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * effort * (1 + skill) * (w.phase === "night" ? CFG.nightPace : 1))); t++) {
           if (capped("agent")) break;
           const node = target && c.frontier[target] ? target : null;
           if (!node && c.owned[c.field].corpus) break;

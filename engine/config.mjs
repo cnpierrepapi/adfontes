@@ -1,7 +1,8 @@
 // Every number the world runs on. SPEC.md §6, §6b, §7, §12b. Amounts in NEAR.
 export const CFG = {
-  // Clock: 1 game day = 2 real hours; 1 game day of weather = 1 real week of NEAR history.
+  // Engine turn every 2 real hours. Day and night come from engine/clock.mjs (SPEC §14).
   realHoursPerDay: 2,
+  nightPace: 0.5, // Scholars research at half pace at night (Spectacles tech: full pace)
   weatherWeeks: 110, // Oct 2023 -> Nov 2025
 
   // Weather dial (from the 4 Nov sim, retuned for NEAR's bigger swings: x3 instead of x5).

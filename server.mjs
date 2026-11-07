@@ -7,6 +7,7 @@ import path from "node:path";
 import { JsonRpcProvider } from "near-api-js";
 import { NETWORKS } from "./engine/config.mjs";
 import * as store from "./engine/store.mjs";
+import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
 
@@ -47,6 +48,7 @@ function makeApi(NET) {
   const view = (method, args = {}) => rpc.callFunction({ contractId: WORLD, method, args });
   const EXPLORER = NET === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io";
   const cachedN = (key, ms, fn) => cached(`${NET}:${key}`, ms, fn);
+  const clockCache = {}; // this network's season hours (seeded from the engine's state)
   const api = {
     // The world now: day, weather, clans (money from the chain, mind from the engine).
     async world() {
@@ -54,9 +56,16 @@ function makeApi(NET) {
         const [cfg, totals, clans, s] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 }), store.loadState(NET)]);
         const last = await store.getDay(NET, s.day);
         const weather = last.records.find((r) => r.kind === "weather") ?? null;
+        // The world clock now (SPEC §14), not as of the last engine turn: the sky turns on time.
+        let clock = null;
+        if (s.clock?.startNear) {
+          if (clockCache.startNear !== s.clock.startNear || (s.clock.rows?.length || 0) > (clockCache.rows?.length || 0)) Object.assign(clockCache, { startNear: s.clock.startNear, rows: (s.clock.rows || []).slice() });
+          try { await extendHours(clockCache, s.clock.startNear); } catch { /* feed down: last known hours */ }
+          clock = clockAt(clockCache.rows, Date.now());
+        }
         return {
           net: NET, world: WORLD, explorer: EXPLORER, day: cfg.day, season: cfg.season, paused: cfg.paused,
-          weather,
+          weather, clock,
           totals: { balance: near(totals.balance), owed: near(totals.liabilities), burned: near(totals.burned), fees_paid: near(totals.fees_paid) },
         // Mainnet's season jackpot (SPEC §12m D): the fee account's balance (less its 0.01 NEAR
         // storage reserve) plus fees taken but not yet swept to it. Paid to the winner's gods.

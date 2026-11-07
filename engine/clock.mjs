@@ -61,6 +61,8 @@ export function clockAt(rows, realMs, c = CLOCK) {
   return {
     nearTime: Math.round(t * 1000),
     price: upTo.at(-1)[1],
+    startPrice: cur.startPrice,
+    change: +(upTo.at(-1)[1] / cur.startPrice - 1).toFixed(4), // how far this rise/fall has gone
     phase: cur.day ? "day" : "night",
     phaseStartedNear: cur.start * 1000,
     phaseStartedReal: Math.round(realTimeAt(cur.start * 1000, c)),
@@ -70,6 +72,27 @@ export function clockAt(rows, realMs, c = CLOCK) {
     days, nights,
     cycle: Math.min(days, nights) + 1,
   };
+}
+
+export const hourFloor = (ms) => Math.floor(ms / CLOCK.hour) * CLOCK.hour;
+
+/** A new season's first NEAR hour, if it started at real time `realMs` (one hour back, so the
+ *  world has a price from its first second). */
+export const seasonStartNear = (realMs = Date.now()) => hourFloor(nearTimeAt(realMs)) - CLOCK.hour;
+
+/**
+ * Bring `cache.rows` (in place) up to the world's NEAR time now: only NEAR hours that are over in
+ * the world (an hour's close is never shown before the world reaches its end). Returns the rows.
+ */
+export async function extendHours(cache, startNear, realMs = Date.now()) {
+  if (cache.startNear !== startNear) { cache.startNear = startNear; cache.rows = []; }
+  cache.rows ||= [];
+  const upTo = nearTimeAt(realMs);
+  const last = cache.rows.length ? cache.rows.at(-1)[0] * 1000 : startNear - CLOCK.hour;
+  if (upTo - last < 2 * CLOCK.hour) return cache.rows; // the next hour isn't over yet
+  const more = await fetchHours(last + CLOCK.hour, upTo);
+  for (const r of more) if (r[0] * 1000 > last && r[0] * 1000 >= startNear && r[0] * 1000 + CLOCK.hour <= upTo) cache.rows.push(r);
+  return cache.rows;
 }
 
 /** Hourly closes from Coinbase between two ms times, [[unixSec, close], ...] sorted, no gaps filled. */
