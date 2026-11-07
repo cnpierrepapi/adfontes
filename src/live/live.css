@@ -174,3 +174,5 @@ body.night .standings { background: rgba(20, 18, 50, 0.78); color: #f1ecff; }
 body.night .standings .mv.up { color: #6fe3a5; }
 body.night .standings .mv.down { color: #ff8fb8; }
 @media (max-width: 700px) { .standings { top: 118px; left: 12px; width: 200px; } }
+.walletpick.stake { display: grid; gap: 2px; }
+.walletpick.stake small { font-family: var(--mono); font-weight: 400; font-size: 0.68rem; opacity: 0.75; }

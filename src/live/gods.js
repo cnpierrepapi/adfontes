@@ -47,8 +47,18 @@ export async function createGods({ live, W, nav, toast }) {
     const [clans, owed] = await Promise.all([wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []), wallet.view(WORLD, "get_owed", { account_id: account }).catch(() => "0")]);
     const mine = clans.filter((c) => c.alive && c.gods.some((g) => g.account === account));
     menu.append(el("p", { className: "fine", textContent: mine.length ? "You are a god of:" : "You are not a god of any nation yet. Bless one, or found your own." }));
+    // Your stakes: each nation's rank in the season, your reverence there, and what your share is
+    // worth now (your put-in share of what the nation holds; it's what a withdrawal would pay).
+    const ranked = (live.world.clans || []).filter((k) => k.alive !== false).sort((x, y) => (y.reverence?.standing ?? 0) - (x.reverence?.standing ?? 0));
     for (const c of mine) {
-      const b = el("button", { type: "button", className: "walletpick" }, el("span", { textContent: c.name }));
+      const me = c.gods.find((g) => g.account === account);
+      const held = BigInt(c.play) + BigInt(c.reserve), total = BigInt(c.total_in || 0);
+      const share = total > 0n ? (held * BigInt(me.put_in)) / total : held;
+      const w = live.world.clans.find((k) => k.id === c.id);
+      const rank = ranked.findIndex((k) => k.id === c.id) + 1;
+      const myRev = w?.reverence?.gods?.[account]?.r;
+      const b = el("button", { type: "button", className: "walletpick stake" }, el("span", { textContent: c.name }),
+        el("small", { textContent: `${rank ? `#${rank} of ${ranked.length}` : ""}${myRev != null ? ` · your reverence ${myRev}` : ""} · your share ${near(share)} NEAR` }));
       b.addEventListener("click", () => { menu.hidden = true; live.flyTo(c.id); });
       menu.append(b);
     }
