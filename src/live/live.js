@@ -378,6 +378,14 @@ export async function startLive(canvas, hud, opts = {}) {
         if (focusId == null && !flying) controls.setLookAt(...HOME.pos, ...HOME.target, true);
         riseNation(c.id); loadMind(c.id);
       }
+      // Reverence moves every game day: the plates, panels and towns read the latest.
+      for (const c of now.clans) {
+        const isl = islands.get(c.id);
+        if (!isl || !c.reverence) continue;
+        isl.userData.clan.reverence = c.reverence;
+        const span = isl.userData.plate?.querySelector("span");
+        if (span && isl.userData.status !== "dead") span.textContent = span.textContent.replace(/reverence [\d.]+|\d+ points/, `reverence ${c.reverence.standing}`);
+      }
       // A nation a god just left for good: its island goes to ruins now, not on the next game day.
       for (const c of now.clans) {
         const isl = islands.get(c.id);

@@ -105,7 +105,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
       const spots = life.stations.get(a.role), k = taken.get(a.role) ?? 0;
       taken.set(a.role, k + 1);
       const spot = spots?.[k % spots.length];
-      const p = { c, a, R, r, s, stunted, open, station: spot ? [spot.x, spot.z] : open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), stationFace: spot?.face, stationClip: spot?.clip, pos: [0, 0], target: null, until: 0, mode: "idle" };
+      const p = { c, a, R, r, s, stunted, open, isl, station: spot ? [spot.x, spot.z] : open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), stationFace: spot?.face, stationClip: spot?.clip, pos: [0, 0], target: null, until: 0, mode: "idle" };
       const a0 = R() * 6.28, rad = r * (0.38 + R() * 0.15);
       p.pos = open(Math.cos(a0) * rad, Math.sin(a0) * rad);
       c.root.position.set(p.pos[0], groundY(r, ...p.pos), p.pos[1]);
@@ -169,8 +169,21 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const { c, a, R, r } = p;
     if (p.mode === "walk") return;
     if (now < p.until) return;
-    const work = R() < 0.45;
-    const [tx, tz] = work ? p.station : (() => { const ang = R() * 6.28, rad = r * (0.38 + R() * 0.16); return p.open(Math.cos(ang) * rad, Math.sin(ang) * rad); })();
+    // Reverence (SPEC §12m) shows in the town: waiting for a first whisper, they stand in the
+    // plaza facing the temple; revered, they work more; neglected, they drift to the edge.
+    const rev = p.isl?.userData.clan?.reverence;
+    if (rev?.waiting && a.role !== "Trickster") {
+      const ang = R() * 6.28;
+      p.target = p.open(Math.cos(ang) * r * 0.24, Math.sin(ang) * r * 0.24);
+      p.next = "Idle_Loop"; p.atWork = false; p.faceTemple = true; p.mode = "walk";
+      c.play("Walk_Loop");
+      return;
+    }
+    p.faceTemple = false;
+    const standing = rev?.standing ?? 50;
+    const work = R() < (standing < 30 ? 0.15 : standing > 70 ? 0.6 : 0.45);
+    const far = standing < 30; // they've stopped listening: away from the temple, to the edge
+    const [tx, tz] = work ? p.station : (() => { const ang = R() * 6.28, rad = r * (far ? 0.62 + R() * 0.16 : 0.38 + R() * 0.16); return p.open(Math.cos(ang) * rad, Math.sin(ang) * rad); })();
     p.target = [tx, tz];
     p.next = work ? (p.stationClip ?? ROLES[a.role]?.work ?? "Idle_Loop") : R() < 0.3 ? "Idle_Talking_Loop" : "Idle_Loop";
     p.atWork = work;
@@ -215,6 +228,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
             p.until = now + 3 + p.R() * 6;
             p.c.play(p.next);
             if (p.atWork) p.c.root.rotation.y = p.stationFace ?? Math.atan2(-p.pos[0], -p.pos[1]); // facing their work (or the temple)
+            else if (p.faceTemple) p.c.root.rotation.y = Math.atan2(-p.pos[0], -p.pos[1]); // waiting on their god
           } else {
             const step = Math.min(dist, speed * dt);
             p.pos[0] += (dx / dist) * step; p.pos[1] += (dz / dist) * step;
