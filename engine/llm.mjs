@@ -12,7 +12,18 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || env.ANTH
 const PRICE = { "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10] }; // $ per M tokens
 export const meter = { calls: 0, usd: 0 };
 
+// The daily cap (CFG.dailyCapUsd). run.mjs tells us what today cost before this process started;
+// a call only starts if its worst case still fits. Callers ask canSpend() first and skip the turn;
+// json() refuses as a last guard so nothing can slip past.
+let spentBefore = 0;
+export function setSpentToday(usd) { spentBefore = usd; }
+export const spentToday = () => spentBefore + meter.usd;
+export const canSpend = (kind) => spentToday() + CFG.worstCallUsd[kind] <= CFG.dailyCapUsd;
+export class BudgetError extends Error {}
+
 async function json(model, system, user, schema, maxTokens) {
+  const kind = model === CFG.draftModel ? "draft" : "agent";
+  if (!canSpend(kind)) throw new BudgetError(`daily cap $${CFG.dailyCapUsd} reached ($${spentToday().toFixed(4)} spent today)`);
   const msg = await client.messages.create({
     model,
     max_tokens: maxTokens,

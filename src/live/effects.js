@@ -184,7 +184,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   const queue = [];
   let nextAt = 0;
   function enqueue(records) {
-    for (const r of records) if (!["weather", "upkeep", "team", "sweep", "error"].includes(r.kind)) queue.push(r);
+    for (const r of records) if (!["weather", "upkeep", "team", "sweep", "error", "budget"].includes(r.kind)) queue.push(r);
   }
   function update() {
     if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }

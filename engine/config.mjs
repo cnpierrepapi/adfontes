@@ -40,6 +40,14 @@ export const CFG = {
   maxDepth: 6, // lines stop here; the Patron branches out instead
   draftEveryDays: 8, // a clan tries at most one draft this often
 
+  // Spend guard (his call, 7 Nov): never more than this on Claude in one UTC day, whatever happens.
+  dailyCapUsd: 0.5,
+  // The most one call has cost so far, plus margin: a call only starts if it fits under the cap.
+  worstCallUsd: { agent: 0.002, draft: 0.05 },
+  // Only the 2-hour schedule moves the world. A deploy starts the engine too; a run this soon
+  // after the last one exits without doing anything (a cut-off day still resumes).
+  minMinutesBetweenRuns: 110,
+
   // Starting team (SPEC §12b.13).
   team: ["Patron", "Scholar", "Scholar", "Smith", "Drafter", "Broker"],
 

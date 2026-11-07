@@ -9,7 +9,7 @@ import { CFG } from "./config.mjs";
 import { connect, toNear } from "./chain.mjs";
 import { weather } from "./weather.mjs";
 import { papersFor } from "./papers.mjs";
-import { scholarTurn, draftTurn, meter } from "./llm.mjs";
+import { scholarTurn, draftTurn, meter, setSpentToday, spentToday, canSpend } from "./llm.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
 import * as store from "./store.mjs";
@@ -20,6 +20,20 @@ if (net === "mainnet" && !process.argv.includes("--yes-mainnet")) throw new Erro
 const days = Number(process.argv[process.argv.indexOf("--days") + 1] || 1);
 const chain = connect(net);
 const s = await store.loadState(net);
+
+// Only the schedule moves the world (see CFG.minMinutesBetweenRuns). --force skips this check.
+const sinceLast = (Date.now() - (s.lastRunAt || 0)) / 60000;
+if (!process.argv.includes("--force") && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
+  console.log(`last run ${sinceLast.toFixed(0)} min ago (under ${CFG.minMinutesBetweenRuns}): nothing to do, the schedule runs the next day`);
+  await store.close();
+  process.exit(0);
+}
+// Today's Claude spend so far (UTC day), carried between runs so the cap covers the whole day.
+const today = new Date().toISOString().slice(0, 10);
+if (s.spend?.date !== today) s.spend = { date: today, usd: 0 };
+const spendBase = s.spend.usd;
+setSpentToday(spendBase);
+let capNoted = false;
 const chance = (p) => Math.random() < p;
 const turns = (x) => Math.floor(x) + (chance(x - Math.floor(x)) ? 1 : 0); // 1.4 -> 1 or 2
 
@@ -34,9 +48,15 @@ for (let n = 0; n < days; n++) {
   // Resuming a day that was cut short? Keep its records so far and skip nations already done.
   const resuming = s.inProgress?.day === day;
   const rec = resuming ? (await store.getDay(net, day)).records : []; // the day's records -> Merkle root on chain
-  if (!resuming) s.inProgress = { day, done: [] };
+  if (!resuming) { s.inProgress = { day, done: [] }; s.lastRunAt = Date.now(); }
   const log = (r) => { rec.push({ day, ...r }); console.log(`  [${r.kind}]`, JSON.stringify(r).slice(0, 220)); };
-  const checkpoint = async () => { await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
+  const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
+  // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
+  const capped = (kind) => {
+    if (canSpend(kind)) return false;
+    if (!capNoted) { capNoted = true; log({ kind: "budget", cap: CFG.dailyCapUsd, spent: +spentToday().toFixed(4), note: "daily Claude cap reached: research and drafts wait for tomorrow (UTC)" }); }
+    return true;
+  };
   if (resuming) console.log(`  resuming day ${day}: ${rec.length} records kept, nations done: ${s.inProgress.done.join(",") || "none"}`);
   // Safe to re-run after a crash mid-day: only tick if the chain is behind.
   if ((await chain.config()).day < day) await chain.tick(day);
@@ -138,6 +158,7 @@ for (let n = 0; n < days; n++) {
         const target = pickTarget(c);
         const skill = c.skills[sch.name]?.[target] || 0;
         for (let t = 0; t < turns(CFG.scholarTurnsPerDay * effort * (1 + skill)); t++) {
+          if (capped("agent")) break;
           const node = target && c.frontier[target] ? target : null;
           if (!node && c.owned[c.field].corpus) break;
           const topic = node || c.field;
@@ -182,7 +203,7 @@ for (let n = 0; n < days; n++) {
 
       // Drafter
       const depth = W.chainDepth(c);
-      if (able("Drafter").length && depth >= CFG.draftMinDepth && day - c.lastDraftDay >= CFG.draftEveryDays && chance(Math.min(1, effort))) {
+      if (able("Drafter").length && depth >= CFG.draftMinDepth && day - c.lastDraftDay >= CFG.draftEveryDays && chance(Math.min(1, effort)) && !capped("draft")) {
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
           if (kit && toNear(oc.play) > CFG.toolPrice) {
@@ -267,7 +288,7 @@ for (let n = 0; n < days; n++) {
   s.day = day;
   delete s.inProgress;
   await store.saveState(net, s);
-  console.log(`  root ${root.slice(0, 16)}... on chain (${rr.hash}) | LLM so far: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);
+  console.log(`  root ${root.slice(0, 16)}... on chain (${rr.hash}) | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)} | today (UTC): $${spentToday().toFixed(4)} of $${CFG.dailyCapUsd}`);
 }
 
 const t = await chain.totals();
