@@ -1,6 +1,7 @@
 // The gods' wallet (SPEC §12j): connect with Meteor, MyNearWallet or HOT, read the chain straight
 // from the browser, and send exactly the call the confirm card showed. Nothing here ever sees a key:
 // the wallet signs, we only hand it the transaction.
+import "./buffer-shim.js"; // must stay the first import
 import { setupWalletSelector, actionCreators } from "@near-wallet-selector/core";
 import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";
 import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
@@ -86,7 +87,17 @@ export async function createWallet(net) {
     }
     return outs.filter(Boolean);
   }
-  return { net, rpc, view, txStatus, wallets, signIn, signOut, send, account, onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
+  // Dev check (scripts/check-preload.cjs): build and encode a real transaction with the same
+  // libraries the wallets use, so a missing browser global shows up without a wallet.
+  async function encodeCheck(c) {
+    const { createTransaction, encodeTransaction } = await import("@near-js/transactions");
+    const { KeyPair } = await import("@near-js/crypto");
+    const pk = KeyPair.fromRandom("ed25519").getPublicKey();
+    const tx = createTransaction("someone.testnet", pk, c.receiver, 1n, [actionCreators.functionCall(c.method, enc.encode(JSON.stringify(c.args)), BigInt(c.gas), BigInt(c.deposit))], new Uint8Array(32));
+    // The very step Meteor and MyNearWallet take to hand the transaction over (their bundles call Buffer).
+    return Buffer.from(encodeTransaction(tx)).toString("base64").length;
+  }
+  return { net, rpc, view, encodeCheck, txStatus, wallets, signIn, signOut, send, account, onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
 }
 
 /** Did this outcome fail anywhere? Returns the first failure in plain-ish words, or null. */

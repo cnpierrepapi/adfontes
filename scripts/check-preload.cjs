@@ -21,6 +21,10 @@ const base = process.argv[2] || "http://localhost:4198";
   console.log("people at Carbon Choir right after the fly-in:", await p.evaluate(() => window.__live.folk.crowds.get(3)?.people.length), "visible:", await p.evaluate(() => window.__live.folk.crowds.get(3)?.group.visible));
   console.log("wallet chip:", await p.evaluate(() => document.querySelector(".chip.wallet")?.textContent));
   console.log("panel powers:", await p.evaluate(() => document.querySelector(".powers")?.innerText.replace(/\n/g, " | ")));
+  await p.waitForFunction(() => window.__gods, null, { timeout: 30000 });
+  console.log("encode a whisper proposal like a wallet would:", await p.evaluate(async () => {
+    try { return "ok, " + await window.__gods.wallet.encodeCheck({ receiver: "dao.testnet", method: "add_proposal", args: { proposal: { description: "x", kind: { FunctionCall: { receiver_id: "w.testnet", actions: [] } } } }, deposit: 10n ** 22n, gas: 5n * 10n ** 13n }) + " bytes"; } catch (e) { return "FAILED: " + e.message; }
+  }));
   await p.screenshot({ path: "stills/preload-flyin.png" });
   console.log("errors:", errs.length ? errs.slice(0, 6) : "none");
   await b.close();
