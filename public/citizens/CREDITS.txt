@@ -1,0 +1,3 @@
+Citizens of the AD FONTES live world. All CC0 (public domain) by Quaternius (quaternius.com):
+Universal Base Characters (heads, hair), Modular Character Outfits - Fantasy (peasant, ranger),
+Universal Animation Library (clips). Packed by scripts/pack-citizens.mjs (512px WebP, meshopt).
