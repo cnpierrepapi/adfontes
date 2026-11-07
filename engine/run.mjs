@@ -10,6 +10,7 @@ import { connect, toNear } from "./chain.mjs";
 import { weather } from "./weather.mjs";
 import { papersFor } from "./papers.mjs";
 import { scholarTurn, draftTurn, meter, setSpentToday, spentToday, canSpend } from "./llm.mjs";
+import * as RV from "./reverence.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
 import * as store from "./store.mjs";
@@ -106,19 +107,34 @@ for (let n = 0; n < days; n++) {
       }
       const able = (role) => agents.filter((a) => a.role === role && a.alive && a.stunted_until <= day);
 
+      // Reverence (SPEC §12m): read what the gods did since last time, then let it shape today.
+      // A reverence bug must never cost the nation its day: on any error it falls back to the old
+      // rules (the on-chain whisper, no modifiers) and the error is logged.
+      let rv = null, eff = { waiting: false, whisper: oc.whisper, effortMul: 1, mistakeAdd: 0, tricksterMul: 1 };
+      const revCh = [];
+      try {
+        rv = RV.ensure(s, oc, day, { fresh: isNew });
+        for (const r of await RV.godActions({ chain, s, oc, rv, day, changes: revCh })) log(r);
+        RV.follow(s, oc.id, revCh);
+        const fol = rv.followed && rv.gods[rv.followed];
+        if (fol?.outsider) fol.text = Object.values(s.rev).find((o) => o !== rv && o.followed === rv.followed)?.gods[rv.followed]?.text ?? fol.text;
+        eff = RV.effects(rv);
+        if (eff.waiting) log({ kind: "waiting", clan: oc.id, note: "the citizens wait in the plaza for their god's first whisper" });
+      } catch (e) { rv = null; log({ kind: "error", clan: oc.id, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
+
       // Rich / neglected (SPEC §6) and Tricksters
       const putIn = toNear(oc.total_in);
       const rich = putIn > avgIn && live.length > 1;
       const neglected = putIn < avgIn / 4;
       const lazy = rich ? CFG.richLazy : neglected ? CFG.neglectSlow : 0;
-      if (neglected && chance(CFG.neglectTrickster)) {
+      if (neglected && chance(CFG.neglectTrickster * eff.tricksterMul)) {
         const name = newName(new Set(Object.values(s.clans).flatMap((x) => Object.keys(x.skills))));
         await chain.spawn(oc.id, name, "Trickster");
         c.skills[name] = {};
         c.tricksters++;
         log({ kind: "trickster", clan: oc.id, name });
       }
-      const effort = w.pace * (1 - lazy) * c.fortune;
+      const effort = w.pace * (1 - lazy) * c.fortune * eff.effortMul;
 
       const before = new Set(Object.keys(c.owned));
 
@@ -154,7 +170,7 @@ for (let n = 0; n < days; n++) {
       }
 
       // Research: each able Scholar takes its turns on the Patron's chosen point.
-      for (const sch of able("Scholar")) {
+      for (const sch of eff.waiting ? [] : able("Scholar")) {
         const target = pickTarget(c);
         const skill = c.skills[sch.name]?.[target] || 0;
         for (let t = 0; t < turns(CFG.scholarTurnsPerDay * effort * (1 + skill)); t++) {
@@ -168,7 +184,7 @@ for (let n = 0; n < days; n++) {
           // Anchor every search to the clan's field so the line of knowledge doesn't drift off it.
           const papers = await papersFor(topic === c.field ? topic : `${c.field} ${topic}`, 10);
           if (!papers.length) { delete c.frontier[topic]; break; }
-          const corpus = await scholarTurn({ field: c.field, topic, parent, papers, temperament: c.mbti, whisper: oc.whisper });
+          const corpus = await scholarTurn({ field: c.field, topic, parent, papers, temperament: c.mbti, whisper: eff.whisper });
           // A Trickster in the clan slips a made-up citation in.
           if (c.tricksters && chance(0.5)) corpus.findings[0]?.cites.push("W" + Math.floor(Math.random() * 1e10));
           const check = W.wardenCorpus(corpus, papers.map((p) => p.id));
@@ -203,7 +219,7 @@ for (let n = 0; n < days; n++) {
 
       // Drafter
       const depth = W.chainDepth(c);
-      if (able("Drafter").length && depth >= CFG.draftMinDepth && day - c.lastDraftDay >= CFG.draftEveryDays && chance(Math.min(1, effort)) && !capped("draft")) {
+      if (!eff.waiting && able("Drafter").length && depth >= CFG.draftMinDepth && day - c.lastDraftDay >= CFG.draftEveryDays && chance(Math.min(1, effort)) && !capped("draft")) {
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
           if (kit && toNear(oc.play) > CFG.toolPrice) {
@@ -218,7 +234,7 @@ for (let n = 0; n < days; n++) {
         // The figure kit draws each described figure in patent style.
         for (const f of draft.figures) f.svg = renderFigure(f);
         // Rushing in hot weather (halved with a figure kit): one claim leans on something outside the chain.
-        const rushRate = (w.mistake + c.tricksters * CFG.tricksterMistake) * (c.hasKit ? 0.5 : 1);
+        const rushRate = (w.mistake + eff.mistakeAdd + c.tricksters * CFG.tricksterMistake) * (c.hasKit ? 0.5 : 1);
         const rushed = chance(rushRate);
         if (rushed && draft.claims[0]) draft.claims[0].supported_by.push("an unrelated preprint");
         const check = W.wardenDraft(draft, nodes);
@@ -244,6 +260,29 @@ for (let n = 0; n < days; n++) {
         c.lastUpkeepDay = day;
         log({ kind: "upkeep", clan: oc.id, agents: n, amount, paid: toNear(r.value), tx: r.hash });
       }
+      // Reverence at the end of the turn: how the nation did, the fade, reports, who they follow.
+      if (rv) try {
+      const mine = rec.filter((r) => r.clan === oc.id || r.buyer === oc.id);
+      const cleanCorpora = mine.filter((r) => r.kind === "corpus" && !r.fake).length;
+      const gifts = mine.filter((r) => r.kind === "gift");
+      const catches = mine.filter((r) => r.kind === "warden").length;
+      RV.flourish(rv, cleanCorpora + gifts.filter((g) => g.passed).length * 3 - catches);
+      for (const g of gifts) if (g.passed) RV.nationEvent(rv, "cleanGift", revCh);
+      for (let k = 0; k < catches; k++) RV.nationEvent(rv, "wardenCatch", revCh);
+      const nowAgents = await chain.agents(oc.id);
+      const living = nowAgents.filter((a) => a.alive);
+      RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh);
+      for (const r of RV.lapseReports(s, rv, oc.id, day, revCh)) log(r);
+      const evidence = [
+        ...mine.filter((r) => r.kind === "corpus" && r.fake).map((r) => ({ kind: "fake", name: r.scholar })),
+        ...living.filter((a) => a.role === "Trickster").map((a) => ({ kind: "trickster", name: a.name })),
+        ...(gifts.some((g) => !g.passed) ? able("Drafter").slice(0, 1).map((a) => ({ kind: "rushed", name: a.name })) : []),
+      ];
+      const rep = RV.maybeReport(s, oc.id, day, living, evidence, Math.random);
+      if (rep) log(rep);
+      RV.follow(s, oc.id, revCh);
+      log(RV.record(rv, oc.id, revCh));
+      } catch (e) { log({ kind: "error", clan: oc.id, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
     } catch (e) {
       log({ kind: "error", clan: oc.id, error: String(e.message || e).slice(0, 200) });
     }
@@ -260,8 +299,17 @@ for (let n = 0; n < days; n++) {
     if (!st || !c) continue;
     if (st.status === "Rewarded") c.fortune = Math.min(CFG.fortuneMax, c.fortune * CFG.fortuneReward);
     else if (st.status === "Punished") c.fortune *= CFG.fortunePunish;
-    else if (Date.now() - g.at > 24 * 3600e3) c.fortune *= CFG.fortuneUnruled;
-    else continue;
+    else if (st.status === "Claimed" || Date.now() - g.at > 24 * 3600e3) {
+      c.fortune *= CFG.fortuneUnruled;
+      // Reverence: the gift's own gods let it go unruled; a claimer from the top contributor gains.
+      try {
+        const ch = [], rvg = s.rev?.[g.clan];
+        if (rvg) for (const god of Object.keys(rvg.gods)) if (!rvg.gods[god].outsider) RV.act(rvg, god, "unruled", day, ch);
+        const rvc = st.status === "Claimed" && s.rev?.[st.top_contributor];
+        if (rvc && rvc.gods[st.ruled_by]) RV.act(rvc, st.ruled_by, "claim", day, ch);
+        if (ch.length) log({ kind: "reverence-change", clan: g.clan, gift: gid, changes: ch });
+      } catch (e) { log({ kind: "error", clan: g.clan, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
+    } else continue;
     g.applied = true;
     log({ kind: "ruling", gift: gid, clan: g.clan, status: st.status, fortune: +c.fortune.toFixed(3) });
   }

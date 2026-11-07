@@ -193,11 +193,45 @@ export async function createGods({ live, W, nav, toast }) {
   function section(c, status) {
     const box = el("section", { className: "powers" });
     let token = 0;
+    // Reverence and reports (SPEC §12m): everyone sees them; a god can answer a report.
+    const rev = el("div", { className: "reverence" });
+    async function drawReverence(me, seated, clan) {
+      const info = await fetch(`/api/clan?id=${c.id}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      rev.replaceChildren();
+      const R = info?.reverence;
+      if (!R) return;
+      rev.append(el("h4", { textContent: "Reverence" }));
+      const who = (a) => (a === account ? "you" : short(a));
+      if (R.waiting) rev.append(el("p", { className: "fine warn", textContent: "Its citizens are waiting in the plaza for their god's first whisper. Nothing gets researched until then." }));
+      else if (R.followed) rev.append(el("p", { className: "fine" }, `Its citizens follow ${who(R.followed)}${R.claimed_by ? " (an outside god who claimed this nation after it turned on its own)" : ""}. Standing: `, el("b", { textContent: String(R.standing) }), " of 100."));
+      else rev.append(el("p", { className: "fine warn", textContent: "Its citizens follow no god right now." }));
+      const list = el("div", { className: "revlist" });
+      for (const [a, g] of Object.entries(R.gods).sort((x, y) => y[1].r - x[1].r)) {
+        const bar = el("i", {}); bar.style.width = `${g.r}%`;
+        list.append(el("div", { className: `revrow${a === account ? " me" : ""}` }, el("span", { textContent: who(a) + (g.outsider ? " (outside god)" : "") }), el("span", { className: "bar" }, bar), el("b", { textContent: String(g.r) }), g.enemies ? el("small", { textContent: `${g.enemies} enem${g.enemies === 1 ? "y" : "ies"}` }) : null));
+      }
+      rev.append(list);
+      const mine = R.gods[account];
+      if (mine && mine.r < 30) rev.append(el("p", { className: "fine warn", textContent: mine.r === 0 ? "This nation has turned on you. Your whispers are ignored." : "Your reverence is low: the citizens ignore your whispers and go their own way. Whisper, rule well and let the nation do well to win them back." }));
+      for (const r of (info.reports || []).filter((x) => !x.settled)) {
+        const row = el("div", { className: "gift report" }, el("span", { textContent: `Report, day ${r.day}: ${r.claim}. Lapses on day ${r.lapses_day}.` }));
+        if (me && seated) {
+          const b = el("button", { type: "button", className: "viewbtn", textContent: `Stunt ${r.accused}` });
+          b.addEventListener("click", () => smiteCard(clan, r.accused));
+          row.append(b, el("small", { textContent: "or do nothing and let it lapse. Stunt the guilty and the nation sees justice; stunt the innocent and you make an enemy; ignore a true report and the accuser loses faith." }));
+        }
+        rev.append(row);
+      }
+      for (const r of (info.reports || []).filter((x) => x.settled).slice(0, 2))
+        rev.append(el("p", { className: "fine" }, `Settled: ${r.claim}. `, el("b", { textContent: r.truth ? "It was true" : "It was a grudge" }), r.outcome === "stunted" ? `, and ${r.accused} was stunted.` : ", and nobody acted."));
+    }
     async function draw() {
       const my = ++token;
       box.replaceChildren(el("h4", { textContent: "Gods" }));
       if (status === "dead" || c.alive === false) { box.append(el("p", { className: "fine", textContent: "Ruins. Its last god left, so there is nothing left to command." })); return; }
       if (!account) {
+        box.append(rev);
+        drawReverence(false, false, null).catch(() => {});
         const b = el("button", { type: "button", className: "viewbtn gold", textContent: "Connect a wallet" });
         b.addEventListener("click", openMenu);
         box.append(el("p", { className: "fine", textContent: "Anyone can bless this nation with NEAR and become one of its gods." }), b);
@@ -209,6 +243,7 @@ export async function createGods({ live, W, nav, toast }) {
       const me = clan.gods.find((g) => g.account === account);
       const seats = policy?.roles.find((r) => r.name === "gods")?.kind?.Group ?? [];
       box.replaceChildren(el("h4", { textContent: me ? "Your powers" : "Gods" }));
+      drawReverence(!!me, seats.includes(account), clan).catch(() => {});
       box.append(el("p", { className: "fine", textContent: me ? `You are one of ${clan.gods.length} god${clan.gods.length === 1 ? "" : "s"} here, with ${near(me.put_in)} NEAR put in.` : `${clan.gods.length} god${clan.gods.length === 1 ? "" : "s"} watch over ${clan.name}.` }));
       const grid = el("div", { className: "views" });
       const power = (label, fn, cls = "") => { const b = el("button", { type: "button", className: `viewbtn ${cls}`, textContent: label }); b.addEventListener("click", fn); grid.append(b); };
@@ -222,7 +257,7 @@ export async function createGods({ live, W, nav, toast }) {
         }
         power("Withdraw your share", () => withdrawCard(clan, me));
       }
-      box.append(grid);
+      box.append(grid, rev);
       if (clan.whisper) box.append(el("p", { className: "fine" }, "The gods' last whisper: ", el("i", { textContent: `"${clan.whisper}"` })));
       // Gifts to rule on (own, within 24h) and to claim (as top contributor, after 24h).
       if (me) {
@@ -329,10 +364,11 @@ export async function createGods({ live, W, nav, toast }) {
     return { sel, agents };
   }
   const verdictPicker = () => el("select", { className: "txin" }, el("option", { value: "Stunt", textContent: "Stunt: no work or learning for 3 game days" }), el("option", { value: "Kill", textContent: "Kill: gone for good (the name stays taken)" }));
-  async function smiteCard(clan) {
+  async function smiteCard(clan, accused = null) {
     const [{ sel, agents }, p] = await Promise.all([citizenPicker(clan), prepDao(clan)]);
     if (!agents.length) return toast(`${clan.name} has no living citizens to smite.`);
     const v = verdictPicker();
+    if (accused && agents.some((a) => a.name === accused)) { sel.value = accused; v.value = "Stunt"; } // answering a report
     card({
       title: "Smite a citizen",
       fields: [label("Citizen", sel), label("Verdict", v)],

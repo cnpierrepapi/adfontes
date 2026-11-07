@@ -176,7 +176,7 @@ export async function startLive(canvas, hud, opts = {}) {
     plate.className = `plate ${status}`;
     plate.innerHTML = `<b></b><span></span>`;
     plate.querySelector("b").textContent = c.name;
-    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.points} points${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : status === "new" ? " · new" : ""}`;
+    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.reverence && status !== "dead" ? `reverence ${c.reverence.standing}` : `${c.points} points`}${status === "dead" ? " · ruins" : status === "rich" ? " · rich, lazy" : status === "neglected" ? " · neglected" : status === "new" ? " · new" : ""}`;
     plate.addEventListener("click", () => flyTo(c.id));
     const lbl = new CSS2DObject(plate);
     lbl.position.set(0, r * 0.75 + 1.5, 0);
@@ -307,7 +307,7 @@ export async function startLive(canvas, hud, opts = {}) {
   // Every world event that plays while you aren't watching that nation up close (or from before
   // you arrived) is kept per nation. Fly in and they play again in order, with the Scholars firing
   // their star-guns, under a strip that says what's replaying and lets you skip.
-  const REPLAY = new Set(["corpus", "gift", "warden", "ruling", "trade", "tool", "trickster", "absorb"]);
+  const REPLAY = new Set(["corpus", "gift", "warden", "ruling", "trade", "tool", "trickster", "absorb", "report", "report-settled"]);
   const missed = new Map(), missedKeys = new Set();
   let nearNow = 0, replaying = false, replay = null;
   const ownerOf = (r) => (r.kind === "trade" ? r.buyer : r.clan);
@@ -338,6 +338,7 @@ export async function startLive(canvas, hud, opts = {}) {
     warden: () => "the Warden caught a fake citation", ruling: () => "the gods ruled on a gift",
     trade: (r) => (r.tool ? `bought a tool from ${clanName(r.seller)}` : `bought research from ${clanName(r.seller)}`),
     tool: () => "the Smith built a tool", trickster: () => "a Trickster moved in", absorb: () => "absorbed ruins",
+    report: (r) => `a report: ${r.claim}`, "report-settled": (r) => `a report about ${r.accused} was settled`,
   };
   function stepReplay(now) {
     // Left the nation mid-replay: what didn't play yet waits for the next visit.

@@ -45,6 +45,8 @@ export function connect(net) {
     clans: () => view("list_clans", { limit: 100 }),
     agents: (clanId) => view("list_agents", { clan_id: clanId, limit: 100 }),
     gift: (giftId) => view("get_gift", { gift_id: giftId }),
+    // A nation's Sputnik DAO (read only): its proposals carry who proposed each god power.
+    dao: (dao, method, args = {}) => provider.callFunction({ contractId: dao, method, args }),
     tick: (day) => call("tick", { day }),
     spawn: (clanId, name, role) => call("spawn_agent", { clan_id: clanId, name, role }),
     trade: (buyer, seller, near, memo) => call("trade", { buyer, seller, amount: toYocto(near).toString(), memo }),

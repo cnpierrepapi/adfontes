@@ -176,6 +176,9 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "smite": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), text, "warden"); break;
       case "staking": beam(islands.get(r.clan), CYAN); bubble(islands.get(r.clan), text, "trade"); break;
       case "withdraw": bubble(islands.get(r.clan), text, "absorb"); break;
+      // Reverence (SPEC §12m): a citizen reports another; later the truth comes out.
+      case "report": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), `${r.claim}.`, "warden"); break;
+      case "report-settled": bubble(islands.get(r.clan), r.outcome === "stunted" ? `${r.accused} was stunted. ${r.truth ? "The report was true." : "The report was a grudge: an innocent was punished."}` : `Nobody acted on the report about ${r.accused}. ${r.truth ? "It was true." : "It was a grudge."}`, r.truth === (r.outcome === "stunted") ? "gift" : "warden"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }
   }
@@ -184,7 +187,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   const queue = [];
   let nextAt = 0;
   function enqueue(records) {
-    for (const r of records) if (!["weather", "upkeep", "team", "sweep", "error", "budget"].includes(r.kind)) queue.push(r);
+    for (const r of records) if (!["weather", "upkeep", "team", "sweep", "error", "budget", "reverence", "reverence-change", "waiting"].includes(r.kind)) queue.push(r);
   }
   function update() {
     if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }

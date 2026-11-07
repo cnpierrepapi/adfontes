@@ -137,3 +137,18 @@ body.night .godpanel .viewbtn.gold { background: var(--gold); color: var(--ink);
 body.night .replay { background: rgba(20, 18, 50, 0.86); color: #f1ecff; }
 body.night .replay button { background: var(--gold); color: var(--ink); }
 @media (max-width: 700px) { .replay { bottom: auto; top: 112px; font-size: 0.72rem; } }
+
+/* Reverence (SPEC §12m) in the nation panel. */
+.godpanel .reverence { display: grid; gap: 6px; }
+.godpanel .reverence:empty { display: none; }
+.godpanel .warn { color: #b0306a; }
+body.night .godpanel .warn { color: #ff9fc4; }
+.godpanel .revlist { display: grid; gap: 4px; }
+.godpanel .revrow { display: grid; grid-template-columns: minmax(0, 1fr) 90px 34px auto; align-items: center; gap: 8px; font-size: 0.76rem; font-family: var(--mono); }
+.godpanel .revrow.me span:first-child { font-weight: 700; color: var(--violet); }
+.godpanel .revrow .bar { height: 6px; border-radius: 3px; background: rgba(29, 20, 48, 0.12); overflow: hidden; }
+.godpanel .revrow .bar i { display: block; height: 100%; background: var(--gold); }
+body.night .godpanel .revrow .bar { background: rgba(255, 255, 255, 0.14); }
+.godpanel .revrow small { font-size: 0.68rem; color: #b0306a; }
+.godpanel .report { border-left-color: #d12a6b; }
+.godpanel .report small { flex: 1 1 100%; font-size: 0.7rem; opacity: 0.8; }

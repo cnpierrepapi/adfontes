@@ -19,6 +19,12 @@ export function says(r, clanName) {
     case "sweep": return "The day's fees went to the treasury.";
     case "weather": return `Weather: NEAR ${n2(r.price)} in the week of ${r.week}.`;
     case "error": return `${c(r.clan)} had a bad day (a service didn't answer).`;
+    case "budget": return "The day's research budget ran out: research and drafts wait until tomorrow.";
+    case "waiting": return `${c(r.clan)}'s citizens wait in the plaza for their god's first whisper.`;
+    case "reverence": return `${c(r.clan)}'s reverence: ${Object.entries(r.gods || {}).map(([g, v]) => `${g.split(".")[0]} ${v}`).join(", ") || "no gods"}${r.followed ? `; it follows ${r.followed.split(".")[0]}` : ""}.`;
+    case "reverence-change": return `Reverence changed after a gift: ${(r.changes || []).map((x) => `${x.god.split(".")[0]} ${x.d > 0 ? "+" : ""}${x.d} (${x.why})`).join(", ")}.`;
+    case "report": return `In ${c(r.clan)}: ${r.claim}.`;
+    case "report-settled": return `In ${c(r.clan)}: the report about ${r.accused} was ${r.truth ? "true" : "a grudge"}; ${r.outcome === "stunted" ? "they were stunted" : "nobody acted"}.`;
     default: return r.kind;
   }
 }

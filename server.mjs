@@ -28,6 +28,20 @@ async function cached(key, ms, fn) {
   return v;
 }
 
+// Reverence (SPEC §12m) as the site sees it: who the nation follows and how much each god is revered.
+// A nation's standing is the reverence of the god it follows.
+function revOf(s, id) {
+  const rv = s.rev?.[id];
+  if (!rv) return null;
+  const gods = Object.fromEntries(Object.entries(rv.gods).map(([a, g]) => [a, { r: Math.round(g.r * 10) / 10, enemies: g.enemies.length, outsider: !!g.outsider }]));
+  return { followed: rv.followed, claimed_by: rv.claimedBy, waiting: !!rv.waiting, standing: rv.followed ? gods[rv.followed]?.r ?? 0 : 0, gods };
+}
+// Reports: open ones without the truth (the god must decide blind); settled ones with it.
+function reportsOf(s, id) {
+  return Object.values(s.reports || {}).filter((r) => r.clan === id).sort((a, b) => b.day - a.day).slice(0, 8)
+    .map((r) => ({ id: r.id, day: r.day, accuser: r.accuser, accused: r.accused, claim: r.claim, settled: r.settled, ...(r.settled ? { outcome: r.outcome, truth: r.truth } : { lapses_day: r.day + 12 }) }));
+}
+
 const api = {
   // The world now: day, weather, clans (money from the chain, mind from the engine).
   async world() {
@@ -55,6 +69,7 @@ const api = {
             seen: !!s.clans[c.id], tricksters: st.tricksters ?? 0,
             points: Object.keys(st.owned || {}).length, depth: st.owned ? chainDepth(st) : 0,
             line: st.owned ? deepestChain(st) : [],
+            reverence: revOf(s, c.id),
           };
         }),
         ruins: Object.keys(s.ruins || {}).length,
@@ -87,6 +102,7 @@ const api = {
         id, field: st.field, mbti: st.mbti, fortune: st.fortune, alive: !dead, points, frontier,
         frontier_total: Object.keys(st.frontier).length, line: deepestChain(st), depth: chainDepth(st),
         drafts: drafts.map((x) => ({ id: x.id, day: x.day, passed: x.passed, title: x.title })), agents,
+        reverence: revOf(s, id), reports: reportsOf(s, id),
       };
     });
   },
