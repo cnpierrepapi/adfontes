@@ -296,9 +296,75 @@ export async function startLive(canvas, hud, opts = {}) {
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
-  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => mindRecord(r) });
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); } });
   let lastDay = W.day;
   api(`day?d=${W.day}`).then((d) => { folk.dayRecords(d.records, W.day); fx.enqueue(d.records || []); }).catch(() => {});
+  // The game days before it in the last 24 hours (11 more) don't play on the world view, but
+  // count as missed: flying in replays them.
+  for (let d = Math.max(1, W.day - 11); d < W.day; d++) api(`day?d=${d}`).then((x) => (x.records || []).forEach((r) => noteMissed(r, true))).catch(() => {});
+
+  // ---- replay what you missed (SPEC §12k) ----
+  // Every world event that plays while you aren't watching that nation up close (or from before
+  // you arrived) is kept per nation. Fly in and they play again in order, with the Scholars firing
+  // their star-guns, under a strip that says what's replaying and lets you skip.
+  const REPLAY = new Set(["corpus", "gift", "warden", "ruling", "trade", "tool", "trickster", "absorb"]);
+  const missed = new Map(), missedKeys = new Set();
+  let nearNow = 0, replaying = false, replay = null;
+  const ownerOf = (r) => (r.kind === "trade" ? r.buyer : r.clan);
+  const watching = (id) => focusId === id && nearNow > 0.5 && !!folk.crowds.get(id)?.group.visible;
+  function noteMissed(r, old = false) {
+    if (replaying || !REPLAY.has(r.kind)) return;
+    const id = ownerOf(r), key = `${r.day}:${r.i ?? JSON.stringify(r).length}:${r.kind}:${id}`;
+    if (id == null || missedKeys.has(key) || (!old && watching(id))) return;
+    missedKeys.add(key);
+    const list = missed.get(id) || [];
+    list.push(r);
+    list.sort((a, b) => (a.day - b.day) || ((a.i ?? 0) - (b.i ?? 0)));
+    missed.set(id, list.slice(-12)); // the latest dozen is plenty
+  }
+  const strip = document.createElement("div");
+  strip.className = "replay";
+  strip.hidden = true;
+  const stripText = document.createElement("span");
+  const skip = document.createElement("button");
+  skip.type = "button";
+  skip.textContent = "Skip";
+  skip.addEventListener("click", () => { if (replay) { replay.i = replay.list.length; replay.skipped = true; } });
+  strip.append(stripText, skip);
+  hud.visor.append(strip);
+  const WHAT = {
+    corpus: (r) => `${r.scholar ?? "a Scholar"}'s new research${r.fake ? " (a made-up citation)" : ""}`,
+    gift: (r) => `a draft offered to the gods${r.passed === false ? " (the Warden failed it)" : ""}`,
+    warden: () => "the Warden caught a fake citation", ruling: () => "the gods ruled on a gift",
+    trade: (r) => (r.tool ? `bought a tool from ${clanName(r.seller)}` : `bought research from ${clanName(r.seller)}`),
+    tool: () => "the Smith built a tool", trickster: () => "a Trickster moved in", absorb: () => "absorbed ruins",
+  };
+  function stepReplay(now) {
+    // Left the nation mid-replay: what didn't play yet waits for the next visit.
+    if (replay && (replay.id !== focusId || nearNow < 0.3)) {
+      const rest = replay.list.slice(replay.i);
+      if (rest.length) missed.set(replay.id, [...rest, ...(missed.get(replay.id) || [])]);
+      replay = null;
+      strip.hidden = true;
+    }
+    if (!replay && focusId != null && !flying && watching(focusId) && missed.get(focusId)?.length) {
+      replay = { id: focusId, list: missed.get(focusId), i: 0, next: now + 1200 };
+      missed.delete(focusId);
+    }
+    if (!replay) return;
+    if (replay.i >= replay.list.length) {
+      if (now >= replay.next || replay.skipped) { replay = null; strip.hidden = true; }
+      return;
+    }
+    const r = replay.list[replay.i];
+    strip.hidden = false;
+    stripText.textContent = `While you were away in ${clanName(replay.id)}: ${WHAT[r.kind]?.(r) ?? r.kind} (${replay.i + 1} of ${replay.list.length}, day ${r.day})`;
+    if (now < replay.next) return;
+    replaying = true;
+    try { fx.play(r); } finally { replaying = false; }
+    replay.i++;
+    replay.next = now + (r.kind === "corpus" ? 8000 : 2500); // a star-gun shot takes about 8 s
+  }
   let polling = null;
   async function poll() {
     try {
@@ -644,6 +710,8 @@ export async function startLive(canvas, hud, opts = {}) {
     if (focusId == null) folkFor = null; // coming back later rebuilds them if they were let go
     if (focusId != null && focusNear > 0.3 && folkFor !== focusId) { folkFor = focusId; folk.focus(focusId); }
     folk.update(dt, camera, focusId, focusNear);
+    nearNow = focusNear;
+    stepReplay(performance.now());
     if ((frameN++ & 1) === 0) hoverMinds();
     fx.update();
     if (bokeh) bokeh.uniforms.focus.value = controls.distance;
@@ -667,7 +735,7 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   frame();
   setTheme(opts.theme || "night");
-  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite };
+  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite, missed: () => missed };
 }
 
 // A clan's island: size from its mindmap, town from its state.

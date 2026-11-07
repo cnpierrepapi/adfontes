@@ -127,3 +127,13 @@ body.night .godpanel .powers { border-top-color: rgba(255, 255, 255, 0.14); }
 body.night .godpanel .gift { background: rgba(255, 255, 255, 0.07); }
 body.night .godpanel .viewbtn.gold { background: var(--gold); color: var(--ink); }
 .hud-top nav { white-space: nowrap; }
+
+/* Replay what you missed (SPEC §12k): a strip at the bottom while a nation's missed events replay. */
+.replay { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 36px);
+  padding: 8px 8px 8px 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(29, 20, 48, 0.18);
+  font-family: var(--body); font-size: 0.8rem; color: var(--ink); border-left: 4px solid var(--gold); }
+.replay[hidden] { display: none; }
+.replay button { font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.78rem; border: 0; border-radius: 999px; padding: 6px 12px; cursor: pointer; background: var(--ink); color: #fff; }
+body.night .replay { background: rgba(20, 18, 50, 0.86); color: #f1ecff; }
+body.night .replay button { background: var(--gold); color: var(--ink); }
+@media (max-width: 700px) { .replay { bottom: auto; top: 112px; font-size: 0.72rem; } }
