@@ -410,7 +410,7 @@ export async function startLive(canvas, hud, opts = {}) {
   controls.smoothTime = 0.45;
   controls.draggingSmoothTime = 0.18;
   controls.dollyToCursor = true;
-  controls.minDistance = 4;
+  controls.minDistance = 1.2; // close enough to meet a citizen
   controls.maxDistance = 95;
   controls.maxPolarAngle = Math.PI * 0.47; // never below the horizon
   controls.minPolarAngle = Math.PI * 0.08;
@@ -471,8 +471,11 @@ export async function startLive(canvas, hud, opts = {}) {
   fitWorld();
   controls.setLookAt(...HOME.pos, ...HOME.target, false);
 
-  let lastInput = performance.now(), flying = null, focusId = null;
+  let lastInput = performance.now(), flying = null, focusId = null, following = null;
   for (const ev of ["pointerdown", "wheel", "touchstart", "keydown"]) window.addEventListener(ev, () => (lastInput = performance.now()), { passive: true });
+  // Grabbing the camera stops following a citizen.
+  renderer.domElement.addEventListener("pointerdown", () => (following = null));
+  renderer.domElement.addEventListener("wheel", () => (following = null), { passive: true });
 
   // Fly to a clan on a curve; the lens widens mid-flight and settles (the "dolly" feel).
   function flyTo(id) {
@@ -487,10 +490,51 @@ export async function startLive(canvas, hud, opts = {}) {
     focusId = id;
     controls.setLookAt(dest.x, dest.y, dest.z, p.x, lookY, p.z, true);
     flying = { t0: performance.now(), dur: 1400 };
+    following = null;
     opts.onSelect?.(isl.userData.clan, isl.userData.status);
     lastInput = performance.now();
   }
+  // Close views of a nation (the panel's buttons). Plaza: a three-quarter look at the island top.
+  // Citizen: the next citizen in turn, framed head to toe from the open side.
+  const citizenTurn = new Map();
+  async function viewPlaza(id) {
+    const isl = islands.get(id);
+    if (!isl) return;
+    focusId = id;
+    const p = isl.getWorldPosition(new THREE.Vector3()), r = isl.userData.r;
+    const dir = new THREE.Vector3().subVectors(camera.position, p).setY(0).normalize();
+    const d = p.clone().addScaledVector(dir, r * 1.55).setY(p.y + r * 0.85);
+    controls.setLookAt(d.x, d.y, d.z, p.x, p.y + r * 0.08, p.z, true);
+    flying = { t0: performance.now(), dur: 1400 };
+    lastInput = performance.now();
+    folkFor = id;
+    await folk.focus(id);
+  }
+  async function viewCitizen(id) {
+    const isl = islands.get(id);
+    if (!isl) return null;
+    focusId = id;
+    folkFor = id;
+    await folk.focus(id);
+    const people = folk.crowds.get(id)?.people ?? [];
+    if (!people.length) { viewPlaza(id); return null; }
+    const k = ((citizenTurn.get(id) ?? -1) + 1) % people.length;
+    citizenTurn.set(id, k);
+    const who = people[k];
+    const v = who.c.root.getWorldPosition(new THREE.Vector3()), c = isl.getWorldPosition(new THREE.Vector3());
+    const out = new THREE.Vector3(v.x - c.x, 0, v.z - c.z);
+    if (out.lengthSq() < 1e-4) out.set(1, 0, 0);
+    out.normalize();
+    const side = new THREE.Vector3(-out.z, 0, out.x), h = who.s * 1.8;
+    const d = v.clone().addScaledVector(out, h * 1.7).addScaledVector(side, h * 0.8).setY(v.y + h * 0.75);
+    controls.setLookAt(d.x, d.y, d.z, v.x, v.y + h * 0.5, v.z, true);
+    flying = { t0: performance.now(), dur: 1100 };
+    lastInput = performance.now();
+    following = { who, h };
+    return { name: who.a.name, role: who.a.role, n: k + 1, of: people.length };
+  }
   function home() {
+    following = null;
     focusId = null;
     controls.setLookAt(...HOME.pos, ...HOME.target, true);
     flying = { t0: performance.now(), dur: 1400 };
@@ -602,6 +646,12 @@ export async function startLive(canvas, hud, opts = {}) {
     if (focusId == null) folkFor = null; // coming back later rebuilds them if they were let go
     if (focusId != null && focusNear > 0.3 && folkFor !== focusId) { folkFor = focusId; folk.focus(focusId); }
     folk.update(dt, camera, focusId, focusNear);
+    // Following a citizen: the camera keeps them in frame as they walk.
+    if (following && !flying) {
+      const v = following.who.c.root.getWorldPosition(tmpV);
+      controls.getTarget(tmpT);
+      controls.moveTo(tmpT.x + (v.x - tmpT.x) * 0.06, tmpT.y + (v.y + following.h * 0.5 - tmpT.y) * 0.06, tmpT.z + (v.z - tmpT.z) * 0.06, false);
+    }
     if ((frameN++ & 1) === 0) hoverMinds();
     fx.update();
     if (bokeh) bokeh.uniforms.focus.value = controls.distance;
@@ -625,7 +675,7 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   frame();
   setTheme(opts.theme || "night");
-  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk };
+  return { world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, viewCitizen };
 }
 
 // A clan's island: size from its mindmap, town from its state.
