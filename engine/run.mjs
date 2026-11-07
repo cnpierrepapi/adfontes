@@ -6,7 +6,7 @@
 // everything, gifts go on chain, upkeep is charged; then the day's root goes on chain.
 import { refill as refillPool, nationsLeft, SPONSOR } from "./sponsor.mjs";
 import fs from "node:fs";
-import { CFG } from "./config.mjs";
+import { CFG, florinRates } from "./config.mjs";
 import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
@@ -19,6 +19,7 @@ import { renderFigure } from "./figures.mjs";
 
 const net = process.argv[2] || "testnet";
 if (net === "mainnet" && !process.argv.includes("--yes-mainnet")) throw new Error("mainnet needs --yes-mainnet");
+const FL = florinRates(net); // florin amounts, scaled down on testnet
 const days = process.argv.includes("--days") ? Number(process.argv[process.argv.indexOf("--days") + 1]) || 1 : 1; // (without --days it used to read NaN and run nothing)
 // Instant turns (SPEC §12n): `--instant 6[,7] [--fresh]` gives those nations one turn NOW without
 // moving the world's day: citizens if they have none, what their gods just did, one research turn
@@ -215,7 +216,7 @@ for (let n = 0; n < days; n++) {
         if (deal) {
           const holders = Object.values(s.clans).filter((o) => Object.values(o.owned).some((v) => s.corpora[v.corpus]?.children.includes(deal.point))).length;
           const depth = c.frontier[deal.point].depth;
-          const price = +(CFG.corpusBasePrice * (1 + depth) * (live.length / (1 + holders))).toFixed(4);
+          const price = +(FL.corpusBase * (1 + depth) * (live.length / (1 + holders))).toFixed(4);
           if (wallet > price) {
             const r = await chain.trade(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
             wallet -= price;
@@ -262,10 +263,10 @@ for (let n = 0; n < days; n++) {
             delete c.frontier[topic];
             W.grow(c, topic, children);
             W.learn(c, sch.name, topic);
-            earned += CFG.florin.corpus; earnedFor.push(id);
+            earned += FL.corpus; earnedFor.push(id);
           } else {
-            const r = await chain.burn(oc.id, CFG.florin.fine, `fake citation in ${id}`);
-            wallet = Math.max(0, wallet - CFG.florin.fine);
+            const r = await chain.burn(oc.id, FL.fine, `fake citation in ${id}`);
+            wallet = Math.max(0, wallet - FL.fine);
             log({ kind: "warden", clan: oc.id, catch: id, fake: check.fake, fine: toFlorins(r.value), tx: r.hash });
           }
         }
@@ -291,11 +292,11 @@ for (let n = 0; n < days; n++) {
         c.firstDraftDone = true;
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
-          if (kit && wallet > CFG.toolPrice) {
-            const r = await chain.trade(oc.id, kit.clan, CFG.toolPrice, `tool:${kit.id}`);
-            wallet -= CFG.toolPrice;
+          if (kit && wallet > FL.kit) {
+            const r = await chain.trade(oc.id, kit.clan, FL.kit, `tool:${kit.id}`);
+            wallet -= FL.kit;
             c.hasKit = true;
-            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: CFG.toolPrice, tx: r.hash });
+            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: FL.kit, tx: r.hash });
           }
         }
         const nodes = W.deepestChain(c).filter((k) => c.owned[k].corpus);
@@ -324,10 +325,10 @@ for (let n = 0; n < days; n++) {
           const by = {};
           for (const k of nodes) { const a = s.corpora[c.owned[k].corpus]?.clan; if (a != null && a !== oc.id && s.clans[a]?.alive) by[a] = (by[a] || 0) + 1; }
           const n = Object.values(by).reduce((x, y) => x + y, 0);
-          const own = n ? CFG.florin.draft * CFG.florin.draftOwn : CFG.florin.draft;
+          const own = n ? FL.draft * FL.draftOwn : FL.draft;
           earned += own; earnedFor.push(id); shares[oc.id] = own;
           for (const [o, k] of Object.entries(by)) {
-            const fl = +((CFG.florin.draft - own) * (k / n)).toFixed(4);
+            const fl = +((FL.draft - own) * (k / n)).toFixed(4);
             try { await chain.mint(Number(o), fl, `their research in draft ${id}`); shares[o] = fl; }
             catch (e) { log({ kind: "error", clan: Number(o), error: `mint share: ${String(e.message || e).slice(0, 160)}` }); }
           }
@@ -348,7 +349,7 @@ for (let n = 0; n < days; n++) {
       const upkeepHours = (Date.now() - c.lastUpkeepAt) / 3600e3;
       if (!INSTANT && upkeepHours >= CFG.upkeepEveryHours) {
         const n = agents.filter((a) => a.alive).length;
-        const amount = +((CFG.florin.upkeep / 24) * n * upkeepHours).toFixed(4);
+        const amount = +((FL.upkeep / 24) * n * upkeepHours).toFixed(4);
         const r = await chain.burn(oc.id, amount, `upkeep for ${n} citizens`);
         c.lastUpkeepDay = day;
         c.lastUpkeepAt = Date.now();

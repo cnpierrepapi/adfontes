@@ -42,6 +42,11 @@ export const CFG = {
   },
   // Upkeep and the draft limit run on REAL time, not engine turns (a burst of foundings starts
   // turns minutes apart). ADF_UPKEEP_HOURS only for test runs.
+  // Testnet scale (his call 7 Nov): a testnet founding puts ~0.89 NEAR in (the testnet DAO factory
+  // takes 5.5 of 6.5); mainnet ~6.2. Every florin amount on testnet x k x (0.89 / 6.2), with
+  // k = 1.5: like mainnet, a little more chaotic (sim: strong 1.94x vs 1.82x, rich 0.56x vs 0.60x).
+  florinK: 1.5,
+  startNear: { testnet: 0.89, mainnet: 6.2 },
   upkeepEveryHours: Number(process.env.ADF_UPKEEP_HOURS) || 12,
   corpusBasePrice: 1, // florins; x (1 + depth) x scarcity
   toolPrice: 1, // florins for a figure kit
@@ -80,3 +85,10 @@ export const NETWORKS = {
     operatorEnv: "ADFONTES_OPERATOR", // keys from Documents/env.txt
   },
 };
+
+/** Florin amounts for a network (testnet scaled by k, SPEC §14). */
+export function florinRates(net) {
+  const f = net === "testnet" ? CFG.florinK * (CFG.startNear.testnet / CFG.startNear.mainnet) : 1;
+  const out = Object.fromEntries(Object.entries(CFG.florin).map(([k, v]) => [k, k === "draftOwn" ? v : v * f]));
+  return { ...out, corpusBase: CFG.corpusBasePrice * f, kit: CFG.toolPrice * f, scale: f };
+}

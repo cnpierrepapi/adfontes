@@ -28,8 +28,9 @@ const NEED = { content: 1, hungry: 0.8, sated: 0.6 };
 const pick = (xs) => { let t = xs.reduce((a, o) => a + o.points, 0) * Math.random(); for (const o of xs) if ((t -= o.points) <= 0) return o; return xs.at(-1); };
 const poisson = (l) => { let k = 0, p = Math.exp(-l), s = p, u = Math.random(); while (u > s) { k++; p *= l / k; s += p; } return k; };
 
-function season(R) {
-  const N = Object.entries(KINDS).map(([kind, k]) => {
+function season(R, putScale = 1) {
+  const N = Object.entries(KINDS).map(([kind, k0]) => {
+    const k = { ...k0, putIn: k0.putIn * putScale }; // testnet: smaller starts
     const back = k.putIn * 0.86;
     return { kind, ...k, back, fl: back * 100, points: 1, techs: new Set(), drafts: 0 };
   });
@@ -72,9 +73,9 @@ function season(R) {
   return N.map((n) => ({ kind: n.kind, putIn: n.putIn, stake: (n.fl / F) * backing, techs: n.techs.size, drafts: n.drafts, jackpot }));
 }
 
-export function run(R = RATES, runs = RUNS) {
+export function run(R = RATES, runs = RUNS, putScale = 1) {
   const acc = {};
-  for (let i = 0; i < runs; i++) for (const r of season(R)) {
+  for (let i = 0; i < runs; i++) for (const r of season(R, putScale)) {
     const a = (acc[r.kind] ||= { putIn: r.putIn, stake: [], techs: 0, drafts: 0 });
     a.stake.push(r.stake); a.techs += r.techs / runs; a.drafts += r.drafts / runs;
   }
