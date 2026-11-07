@@ -49,7 +49,7 @@ const MOOD_WORD = { hot: "hot", mild: "mild", cold: "cold", storm: "stormy" };
 function showDial(W) {
   const w = W.weather, mood = w ? weatherKind(w.change) : "";
   $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
-  $("dial").textContent = `${W.season} · day ${W.day}${w ? ` · ${MOOD_WORD[mood]} week, NEAR $${w.price.toFixed(2)} (${w.change > 0 ? "+" : ""}${(w.change * 100).toFixed(1)}%)` : ""}${W.net === "mainnet" ? "" : " · testnet"}`;
+  $("dial").textContent = `${W.season} · day ${W.day}${w ? ` · ${MOOD_WORD[mood]} week, NEAR $${w.price.toFixed(2)} (${w.change > 0 ? "+" : ""}${(w.change * 100).toFixed(1)}%)` : ""}${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : " · testnet"}`;
 }
 const W = live.world;
 showDial(W);

@@ -57,6 +57,10 @@ function makeApi(NET) {
           net: NET, world: WORLD, explorer: EXPLORER, day: cfg.day, season: cfg.season, paused: cfg.paused,
           weather,
           totals: { balance: near(totals.balance), owed: near(totals.liabilities), burned: near(totals.burned), fees_paid: near(totals.fees_paid) },
+        // Mainnet's season jackpot (SPEC §12m D): the fee account's balance (less its 0.01 NEAR
+        // storage reserve) plus fees taken but not yet swept to it. Paid to the winner's gods.
+        jackpot: NET === "mainnet" ? await rpc.query({ request_type: "view_account", finality: "final", account_id: cfg.treasury })
+          .then((a) => ({ account: cfg.treasury, near: Math.max(0, near(a.amount) - 0.01) + near(totals.fees_pending) }), () => null) : null,
           clans: clans.map((c) => {
             const st = s.clans[c.id] || {};
             // Founded but not seen by the engine yet: predict its field exactly as the engine will
