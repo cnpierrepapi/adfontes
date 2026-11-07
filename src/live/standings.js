@@ -8,7 +8,22 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
   const box = el("aside", { className: "standings" });
   const head = el("button", { type: "button", className: "head" });
   const list = el("ol");
-  box.append(head, list);
+  // The event list (SPEC §14): what just happened, newest on top; tap a line to fly there.
+  const evHead = el("button", { type: "button", className: "head ev-head" });
+  const events = el("ul", { className: "events" });
+  box.append(head, list, evHead, events);
+  let evOpen = innerWidth > 700;
+  const drawEvHead = () => { evHead.textContent = `${evOpen ? "▾" : "▸"} Events`; events.hidden = !evOpen; };
+  drawEvHead();
+  evHead.addEventListener("click", () => { evOpen = !evOpen; drawEvHead(); });
+  const MAX_EVENTS = 30;
+  function event({ text, kind, clan }) {
+    if (!text) return;
+    const li = el("li", { className: `ev ${kind || ""}${clan != null ? " go" : ""}`, textContent: text, title: clan != null ? "Fly there" : "" });
+    if (clan != null) li.addEventListener("click", () => flyTo(clan));
+    events.prepend(li);
+    while (events.children.length > MAX_EVENTS) events.lastChild.remove();
+  }
   visor.append(box);
   let open = innerWidth > 700; // phones start folded
   head.addEventListener("click", () => { open = !open; draw(last); });
@@ -53,5 +68,5 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
   }
   // What you saw is remembered when you leave, so next visit's arrows say what changed meanwhile.
   addEventListener("pagehide", () => { if (last) localStorage.setItem(key, JSON.stringify(Object.fromEntries(last.map((r, i) => [r.id, i + 1])))); });
-  return { update, ranks: () => Object.fromEntries((last || []).map((r, i) => [r.id, i + 1])) };
+  return { update, event, ranks: () => Object.fromEntries((last || []).map((r, i) => [r.id, i + 1])) };
 }

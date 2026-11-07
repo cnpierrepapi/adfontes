@@ -298,11 +298,16 @@ export async function startLive(canvas, hud, opts = {}) {
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
   const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
-  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); for (const f of recordHooks) f(r); } });
+  // Event lines go to the list under the standings; held until that list exists (no TDZ).
+  const early = [];
+  let eventSink = (e) => early.push(e);
+  const fx = createEffects({ scene, islands, curves, clanName, onFounded: (id) => riseNation(id), onRecord: (r) => { noteMissed(r); mindRecord(r); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
   const recordHooks = new Set(); // other modules (the god's route) hear every record the world plays
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
   standings.update(W);
+  eventSink = standings.event;
+  early.splice(0).forEach(standings.event);
   let lastDay = W.day;
   api(`day?d=${W.day}`).then((d) => { folk.dayRecords(d.records, W.day); fx.enqueue(d.records || []); }).catch(() => {});
   // The game days before it in the last 24 hours (11 more) don't play on the world view, but

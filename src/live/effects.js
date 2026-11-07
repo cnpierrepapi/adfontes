@@ -1,48 +1,21 @@
 // World events played out in place: each record from the engine becomes a short effect at the
-// island where it happened, plus a bubble of plain words rising from it.
+// island where it happened, and a line of plain words in the event list (onEvent).
 import * as THREE from "three";
-import { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { says } from "../says.js";
 
 // Colours above 1.0 so only these effects bloom (bloom threshold sits just above white).
 const HDR = (r, g, b) => new THREE.Color(r, g, b);
 const GOLD = HDR(2.2, 1.6, 0.5), RED = HDR(3.4, 0.5, 0.6), CYAN = HDR(0.8, 2.6, 3.2), WHITE = HDR(2.6, 2.6, 2.4), VIOLET = HDR(1.9, 1.1, 3.4);
 
-export function createEffects({ scene, islands, curves, clanName, onFounded, onRecord }) {
+export function createEffects({ scene, islands, curves, clanName, onFounded, onRecord, onEvent }) {
   const live = [];
   const add = (fx) => live.push(fx);
   const top = (isl) => isl.position.clone().add(new THREE.Vector3(0, 0.6, 0));
 
-  // One bubble per island at a time, above its name plate, one sentence long.
-  const current = new Map();
-  let crowd = 3; // how many islands may show a bubble at once (1 when zoomed out: plates sit close)
+  // The words go to the event list under the season standings (SPEC §14), not over the islands:
+  // the effect still plays where it happened.
   function bubble(isl, text, kind) {
-    if (!isl) return;
-    current.get(isl)?.();
-    while (current.size >= crowd) { const [k, kill] = current.entries().next().value; kill(); current.delete(k); }
-    if (text.length > 110) text = text.slice(0, 107).replace(/\s+\S*$/, "") + "…";
-    // Anchored at the name plate and lifted in screen pixels, so it always sits just above
-    // its own plate whatever the zoom (a world-space gap shrinks to nothing far away).
-    const el = document.createElement("div");
-    el.className = "bubble-anchor";
-    const inner = document.createElement("div");
-    inner.className = `bubble ${kind}`;
-    inner.textContent = text;
-    el.append(inner);
-    const obj = new CSS2DObject(el);
-    const r = isl.userData.r;
-    obj.position.set(0, r * 0.75 + 1.5, 0);
-    isl.add(obj);
-    const t0 = performance.now();
-    let gone = false;
-    current.set(isl, () => { gone = true; });
-    add(() => {
-      const k = gone ? 1 : (performance.now() - t0) / 6000;
-      inner.style.transform = `translate(-50%, ${-k * 26}px)`;
-      el.style.opacity = String(k < 0.1 ? k * 10 : k > 0.75 ? Math.max(0, (1 - k) * 4) : 1);
-      if (k >= 1) { isl.remove(obj); el.remove(); if (current.get(isl) && gone === false) current.delete(isl); return false; }
-      return true;
-    });
+    onEvent?.({ text, kind, clan: isl?.userData?.clan?.id ?? null });
   }
 
   // A comet of knowledge along the bridge, seller -> buyer.
@@ -182,6 +155,9 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       // Reverence (SPEC §12m): a citizen reports another; later the truth comes out.
       case "report": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), `${r.claim}.`, "warden"); break;
       case "report-settled": bubble(islands.get(r.clan), r.outcome === "stunted" ? `${r.accused} was stunted. ${r.truth ? "The report was true." : "The report was a grudge: an innocent was punished."}` : `Nobody acted on the report about ${r.accused}. ${r.truth ? "It was true." : "It was a grudge."}`, r.truth === (r.outcome === "stunted") ? "gift" : "warden"); break;
+      // The world clock and a nation's needs: words only.
+      case "dawn": case "dusk": bubble(null, text, r.kind === "dawn" ? "gift" : "corpus"); break;
+      case "needs": bubble(islands.get(r.clan), text, r.mood === "content" ? "trade" : "warden"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }
   }
@@ -190,11 +166,11 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   const queue = [];
   let nextAt = 0;
   function enqueue(records) {
-    for (const r of records) if (!["weather", "upkeep", "team", "sweep", "error", "budget", "reverence", "reverence-change", "waiting"].includes(r.kind)) queue.push(r);
+    for (const r of records) if (!["weather", "clock", "mint", "upkeep", "team", "sweep", "error", "budget", "reverence", "reverence-change", "waiting"].includes(r.kind)) queue.push(r);
   }
   function update() {
     if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  return { play, enqueue, update, pending: () => queue.length, setCrowd: (n) => (crowd = n) };
+  return { play, enqueue, update, pending: () => queue.length, setCrowd: () => {} };
 }
