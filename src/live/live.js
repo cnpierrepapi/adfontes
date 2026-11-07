@@ -356,10 +356,11 @@ export async function startLive(canvas, hud, opts = {}) {
       if (now >= replay.next || replay.skipped) { replay = null; strip.hidden = true; }
       return;
     }
+    if (now < replay.next) return;
     const r = replay.list[replay.i];
+    // The strip names the event that's playing now (it stays up while a star-gun shot runs).
     strip.hidden = false;
     stripText.textContent = `While you were away in ${clanName(replay.id)}: ${WHAT[r.kind]?.(r) ?? r.kind} (${replay.i + 1} of ${replay.list.length}, day ${r.day})`;
-    if (now < replay.next) return;
     replaying = true;
     try { fx.play(r); } finally { replaying = false; }
     replay.i++;
