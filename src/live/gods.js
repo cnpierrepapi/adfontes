@@ -207,7 +207,7 @@ export async function createGods({ live, W, nav, toast }) {
           if (!name.value.trim()) return "Give it a name.";
           try {
             if (toYocto(amt.value) < BigInt(cfg.min_found)) return `The minimum to found a nation is ${near(cfg.min_found)} NEAR.`;
-            if (bal != null && toYocto(amt.value) + 10n ** 23n > bal) return `Your wallet has ${near(bal)} NEAR: not enough for that plus gas.`;
+            if (bal != null && toYocto(amt.value) + 10n ** 23n > bal) return `You can put in at most ${near(bal - 10n ** 23n)} NEAR (your wallet has ${near(bal)}; 0.1 stays for gas).`;
           } catch (e) { return e.message; }
           return null;
         },

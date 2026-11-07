@@ -8,7 +8,7 @@ import { Account, JsonRpcProvider, KeyPair } from "near-api-js";
 export const SPONSOR = {
   rpc: "https://rpc.testnet.fastnear.com",
   helper: "https://helper.testnet.near.org/account",
-  perNation: 62n * 10n ** 23n, // 6.2 testnet NEAR: the founding minimum (6) plus gas
+  perNation: 65n * 10n ** 23n, // 6.5 testnet NEAR: the founding minimum (6) plus room for gas (6.2 was too tight)
   keep: 2n * 10n ** 24n, // the pool keeps 2 NEAR back for its own gas and storage
   refillHours: 12, // the helper allows 10 new accounts per 12 hours
   refillCount: 10,
