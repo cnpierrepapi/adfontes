@@ -152,7 +152,9 @@ for (let n = 0; n < days; n++) {
       const rich = putIn > avgIn && alive.length > 1;
       const neglected = putIn < avgIn / 4;
       const lazy = rich ? CFG.richLazy : neglected ? CFG.neglectSlow : 0;
-      if (!INSTANT && neglected && chance(CFG.neglectTrickster * eff.tricksterMul)) {
+      // No Trickster in a nation's first real day: a new god's first research mustn't be sabotaged.
+      const settled = day - (c.bornDay ?? -99) >= 12;
+      if (!INSTANT && settled && neglected && chance(CFG.neglectTrickster * eff.tricksterMul)) {
         const name = newName(new Set(Object.values(s.clans).flatMap((x) => Object.keys(x.skills))));
         await chain.spawn(oc.id, name, "Trickster");
         c.skills[name] = {};
@@ -215,7 +217,9 @@ for (let n = 0; n < days; n++) {
           if (!papers.length) { delete c.frontier[topic]; break; }
           const corpus = await scholarTurn({ field: c.field, topic, parent, papers, temperament: c.mbti, whisper: eff.whisper });
           // A Trickster in the clan slips a made-up citation in.
-          if (c.tricksters && chance(0.5)) corpus.findings[0]?.cites.push("W" + Math.floor(Math.random() * 1e10));
+          // Only a living, unstunted Trickster does it: stunting or killing it stops the fakes.
+          const tricksters = agents.filter((a) => a.role === "Trickster" && a.alive && a.stunted_until <= day).length;
+          if (tricksters && chance(0.5)) corpus.findings[0]?.cites.push("W" + Math.floor(Math.random() * 1e10));
           const check = W.wardenCorpus(corpus, papers.map((p) => p.id));
           const id = `c${s.nextId++}`;
           const children = [...new Set(papers.flatMap((p) => p.keywords))].slice(0, 12);
@@ -266,7 +270,8 @@ for (let n = 0; n < days; n++) {
         // The figure kit draws each described figure in patent style.
         for (const f of draft.figures) f.svg = renderFigure(f);
         // Rushing in hot weather (halved with a figure kit): one claim leans on something outside the chain.
-        const rushRate = (w.mistake + eff.mistakeAdd + c.tricksters * CFG.tricksterMistake) * (c.hasKit ? 0.5 : 1);
+        const activeTricksters = agents.filter((a) => a.role === "Trickster" && a.alive && a.stunted_until <= day).length;
+        const rushRate = (w.mistake + eff.mistakeAdd + activeTricksters * CFG.tricksterMistake) * (c.hasKit ? 0.5 : 1);
         const rushed = chance(rushRate);
         if (rushed && draft.claims[0]) draft.claims[0].supported_by.push("an unrelated preprint");
         const check = W.wardenDraft(draft, nodes);

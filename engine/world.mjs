@@ -30,7 +30,8 @@ export function initClan(s, clan) {
     fortune: 1,
     tricksters: 0,
     lastDraftDay: -99,
-    lastUpkeepDay: 0,
+    lastUpkeepDay: s.day, // upkeep counts from founding (from 0, a new nation paid for every day since the world began)
+    bornDay: s.day,
     skills: {}, // agent name -> { node: skill }
     hasKit: false,
     // mindmap: owned points and the frontier (points one step out, not yet owned)

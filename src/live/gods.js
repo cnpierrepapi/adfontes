@@ -178,7 +178,10 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   function foundCard() {
     Promise.all([wallet.view(WORLD, "get_config"), wallet.balance(account).catch(() => null), W.net === "testnet" ? api("sponsor").catch(() => null) : null]).then(([cfg, bal, sp]) => {
       const name = input({ placeholder: "Name your nation", maxLength: 40 });
-      const amt = input({ value: near(cfg.min_found), inputMode: "decimal" });
+      // Testnet: put in everything you have (less 0.15 for gas), since 5.5 of the minimum makes the DAO
+      // and a nation founded at the bare minimum has almost nothing left to spend.
+      const most = bal != null ? bal - 15n * 10n ** 22n : 0n;
+      const amt = input({ value: near(W.net === "testnet" && most > BigInt(cfg.min_found) ? most : cfg.min_found), inputMode: "decimal" });
       // Founding pays Sputnik for the nation's DAO, so it can't be cheap. Mainnet: real NEAR. Testnet:
       // the sponsor pool tops a founder up once (SPEC §12m C); when the pool is spent, new testnet
       // nations are full and the way in is blessing a nation.
