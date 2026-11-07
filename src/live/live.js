@@ -510,6 +510,30 @@ export async function startLive(canvas, hud, opts = {}) {
     folkFor = id;
     await folk.focus(id);
   }
+  // Frame a citizen: from in front of them if the view is clear, otherwise the nearest clear angle
+  // round them (temple columns, roofs, trees and props block the line of sight; people don't).
+  const sightRay = new THREE.Raycaster();
+  function blocked(eye, cam, solid) {
+    const to = cam.clone().sub(eye), len = to.length();
+    sightRay.set(eye, to.normalize());
+    sightRay.far = len;
+    return sightRay.intersectObjects(solid, false).length > 0;
+  }
+  function frameCitizen(f, dur) {
+    const { who, h, solid } = f;
+    const v = who.c.root.getWorldPosition(new THREE.Vector3());
+    const facing = who.c.root.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
+    const eye = v.clone().setY(v.y + h * 0.55);
+    let d = null;
+    for (const turn of [0.35, -0.35, 0.9, -0.9, 1.5, -1.5, 2.2, -2.2, Math.PI]) {
+      const dir = facing.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), turn);
+      const cand = v.clone().addScaledVector(dir, h * (camera.aspect > 1.8 ? 2.6 : 2.2)).setY(v.y + h * 0.95);
+      if (!blocked(eye, cand, solid)) { d = cand; break; }
+    }
+    d ??= v.clone().addScaledVector(facing, h * 1.9).setY(v.y + h * 1.8); // nothing clear: look down from above
+    controls.setLookAt(d.x, d.y, d.z, v.x, v.y + h * 0.6, v.z, true);
+    flying = { t0: performance.now(), dur };
+  }
   async function viewCitizen(id) {
     const isl = islands.get(id);
     if (!isl) return null;
@@ -521,29 +545,12 @@ export async function startLive(canvas, hud, opts = {}) {
     const k = ((citizenTurn.get(id) ?? -1) + 1) % people.length;
     citizenTurn.set(id, k);
     const who = people[k];
-    const v = who.c.root.getWorldPosition(new THREE.Vector3()), h = who.s * 1.8;
-    // Look from in front of them if the view is clear; otherwise the nearest clear angle round
-    // them (temple columns, roofs, trees and props block the line of sight; people don't).
-    const facing = who.c.root.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
-    const eye = v.clone().setY(v.y + h * 0.55);
-    const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
+    const h = who.s * 1.8;
     const solid = [];
-    town?.traverse((o) => o.isMesh && !o.isSkinnedMesh && o.visible && solid.push(o));
-    const ray = new THREE.Raycaster();
-    let d = null;
-    for (const turn of [0.35, -0.35, 0.9, -0.9, 1.5, -1.5, 2.2, -2.2, Math.PI]) {
-      const dir = facing.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), turn);
-      const cand = v.clone().addScaledVector(dir, h * (camera.aspect > 1.8 ? 2.6 : 2.2)).setY(v.y + h * 0.95);
-      const to = cand.clone().sub(eye), len = to.length();
-      ray.set(eye, to.normalize());
-      ray.far = len;
-      if (!ray.intersectObjects(solid, false).length) { d = cand; break; }
-    }
-    d ??= v.clone().addScaledVector(facing, h * 1.9).setY(v.y + h * 1.6); // nothing clear: look down from above
-    controls.setLookAt(d.x, d.y, d.z, v.x, v.y + h * 0.6, v.z, true);
-    flying = { t0: performance.now(), dur: 1100 };
+    isl.children.find((ch) => ch.isGroup && ch.children.length)?.traverse((o) => o.isMesh && !o.isSkinnedMesh && o.visible && solid.push(o));
+    following = { who, h, solid, checked: 0 };
+    frameCitizen(following, 1100);
     lastInput = performance.now();
-    following = { who, h };
     return { name: who.a.name, role: who.a.role, n: k + 1, of: people.length };
   }
   function home() {
@@ -664,10 +671,18 @@ export async function startLive(canvas, hud, opts = {}) {
       const again = folk.crowds.get(focusId)?.people.find((q) => q.a.name === following.who.a.name);
       if (again) following.who = again; else following = null;
     }
+    // Following a citizen like a camera operator: stand still and turn to keep them in frame; walk
+    // to a new clear spot when they get too far away, too close, or something comes between you.
     if (following && !flying) {
-      const v = following.who.c.root.getWorldPosition(tmpV);
+      const v = following.who.c.root.getWorldPosition(tmpV), h = following.h;
       controls.getTarget(tmpT);
-      controls.moveTo(tmpT.x + (v.x - tmpT.x) * 0.06, tmpT.y + (v.y + following.h * 0.6 - tmpT.y) * 0.06, tmpT.z + (v.z - tmpT.z) * 0.06, false);
+      controls.setTarget(tmpT.x + (v.x - tmpT.x) * 0.08, tmpT.y + (v.y + h * 0.6 - tmpT.y) * 0.08, tmpT.z + (v.z - tmpT.z) * 0.08, false);
+      if (performance.now() - following.checked > 200) {
+        following.checked = performance.now();
+        const dist = Math.hypot(camera.position.x - v.x, camera.position.z - v.z);
+        const head = new THREE.Vector3(v.x, v.y + h * 0.85, v.z), hips = new THREE.Vector3(v.x, v.y + h * 0.45, v.z);
+        if (dist > h * 4.2 || dist < h * 1.1 || blocked(head, camera.position, following.solid) || blocked(hips, camera.position, following.solid)) frameCitizen(following, 900);
+      }
     }
     if ((frameN++ & 1) === 0) hoverMinds();
     fx.update();
