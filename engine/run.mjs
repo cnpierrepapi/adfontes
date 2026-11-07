@@ -29,7 +29,7 @@ const days = process.argv.includes("--days") ? Number(process.argv[process.argv.
 const INSTANT = process.argv.includes("--instant") ? process.argv[process.argv.indexOf("--instant") + 1].split(",").map(Number) : null;
 const FRESH = process.argv.includes("--fresh");
 const chain = connect(net);
-const s = await store.loadState(net);
+const s = await store.ensureWorld(net, chain.world); // a new world contract on testnet starts clean
 
 // Only the schedule moves the world (see CFG.minMinutesBetweenRuns). --force skips this check.
 const sinceLast = (Date.now() - (s.lastRunAt || 0)) / 60000;

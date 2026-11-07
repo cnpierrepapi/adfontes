@@ -22,7 +22,7 @@ const MIN_DAY_GAP_MS = 10 * 60e3; // a burst of foundings shares one day
 const say = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const worlds = {};
 for (const net of NETS) {
-  const s = await store.loadState(net);
+  const s = await store.ensureWorld(net, connect(net).world); // a new testnet world starts clean
   worlds[net] = {
     net, chain: connect(net),
     known: new Set(Object.keys(s.clans).map(Number)),

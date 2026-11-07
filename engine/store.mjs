@@ -53,6 +53,32 @@ export async function loadState(net) {
   return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : EMPTY();
 }
 
+/**
+ * The world this network's saved state belongs to (SPEC §14, wipe day). On TESTNET only: if the
+ * engine is pointed at a different world contract than the one its state was built for, that
+ * network's state, records, roots and drafts are deleted and a fresh state starts. The papers
+ * cache and the sponsored-accounts list are kept. Mainnet is never wiped here.
+ */
+export async function ensureWorld(net, world) {
+  const s = await loadState(net);
+  const used = s.day > 0 || Object.keys(s.clans || {}).length > 0;
+  if (s.world === world || (!used && !s.world)) {
+    if (!s.world) { s.world = world; await saveState(net, s); }
+    return s;
+  }
+  if (net !== "testnet") throw new Error(`${net} state belongs to ${s.world ?? "an older world"}, not ${world}: refusing to touch it`);
+  const p = await db();
+  if (p) for (const t of ["records", "drafts", "roots", "world_state"]) await p.query(`delete from ${t} where net = $1`, [net]);
+  else {
+    fs.rmSync(`engine/state/${net}`, { recursive: true, force: true });
+    fs.rmSync(`engine/state/${net}.json`, { force: true });
+  }
+  console.log(`  ${net}: new world ${world} (was ${s.world ?? "an older world"}): old state, days, roots and drafts cleared`);
+  const fresh = { ...EMPTY(), world };
+  await saveState(net, fresh);
+  return fresh;
+}
+
 export async function saveState(net, s) {
   const p = await db();
   if (p) {
