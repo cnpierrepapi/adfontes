@@ -672,6 +672,8 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   controls.boundaryEnclosesCamera = false;
   controls.mouseButtons.left = CameraControls.ACTION.ROTATE;
+  // His preference (8 Nov): dragging up tips the view down, dragging down tips it up (inverted vertical).
+  controls.polarRotateSpeed = -1;
   controls.mouseButtons.right = CameraControls.ACTION.TRUCK;
   controls.mouseButtons.wheel = CameraControls.ACTION.DOLLY;
   controls.touches.one = CameraControls.ACTION.TOUCH_ROTATE;
