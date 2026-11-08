@@ -94,6 +94,8 @@ netBtn.addEventListener("click", () => switchNet(W.net === "mainnet" ? "testnet"
 setTimeout(() => ($("hint").style.opacity = 0), 9000);
 // A short line at the bottom for wallet news (a refused connection, nothing to smite).
 function toast(text) {
+  // One notice at a time: a new one replaces the last (two used to print on top of each other).
+  for (const old of document.querySelectorAll(".toast")) old.remove();
   const t = Object.assign(document.createElement("p"), { className: "toast", textContent: text });
   $("visor").append(t);
   setTimeout(() => t.remove(), 6000);

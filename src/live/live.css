@@ -288,3 +288,7 @@ body.night .walletmenu .viewbtn.gold { background: var(--gold); color: var(--ink
 /* War (the finale): the nation panel's war line. */
 #panel .warline { margin: 8px 0 0; padding: 7px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; background: rgba(232, 50, 94, 0.12); color: #b3123c; border: 1px solid rgba(232, 50, 94, 0.3); }
 body.night #panel .warline { color: #ff8aa5; background: rgba(232, 50, 94, 0.16); }
+
+/* Wallet menu, his note 8 Nov: with the route, stakes and "Save your key" it ran past the bottom of the
+   screen. Never taller than the window; it scrolls inside instead. */
+.walletmenu { max-height: calc(100dvh - 88px); overflow-y: auto; overscroll-behavior: contain; }
