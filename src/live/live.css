@@ -293,3 +293,24 @@ body.night #panel .warline { color: #ff8aa5; background: rgba(232, 50, 94, 0.16)
    screen. Never taller than the window; it scrolls inside instead. */
 .walletmenu { max-height: calc(100dvh - 88px); overflow-y: auto; overscroll-behavior: contain; }
 .cine-begin:disabled { animation: none; opacity: 0.75; cursor: progress; }
+
+/* Phones (his note 8 Nov: "the mobile view is shit"). One slim top bar; standings folded into a
+   pill at the bottom; the nation panel and the wallet menu are bottom sheets; smaller name plates. */
+@media (max-width: 700px) {
+  .hud-top { top: 10px; left: 10px; right: 10px; gap: 6px; row-gap: 6px; }
+  .hud-top .brand img, .hud-top .brand svg { width: 34px; height: 34px; }
+  .chip { padding: 7px 10px; }
+  .dial { font-size: 0.66rem; padding: 5px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .standings { top: auto; bottom: 12px; left: 10px; width: auto; max-width: min(300px, calc(100vw - 20px)); padding: 6px 10px; }
+  .standings .head { font-size: 0.74rem; }
+  .standings ol, .standings .events { max-height: 34vh; overflow-y: auto; }
+  body.panel-open .standings { display: none; }
+  .godpanel { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 55dvh; overflow-y: auto; border-radius: 22px 22px 0 0; padding-top: 22px; }
+  .godpanel::before { content: ""; position: absolute; top: 8px; left: 50%; width: 44px; height: 5px; margin-left: -22px; border-radius: 3px; background: rgba(29, 20, 48, 0.2); }
+  body.night .godpanel::before { background: rgba(255, 255, 255, 0.3); }
+  .walletmenu { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; max-height: 72dvh; }
+  .plate { padding: 4px 9px; border-radius: 10px; }
+  .plate b { font-size: 0.82rem; }
+  .plate span { display: none; }
+  .replay { top: 96px; }
+}

@@ -14,7 +14,7 @@ const n3 = (x) => (Math.round(x * 1000) / 1000).toString();
 
 function showClan(c, status) {
   const p = $("panel");
-  if (!c) { p.hidden = true; return; }
+  if (!c) { p.hidden = true; phoneSheet(); return; }
   p.replaceChildren();
   const h = document.createElement("h2"); h.textContent = c.name;
   const m = document.createElement("p"); m.className = "meta";
@@ -40,7 +40,17 @@ function showClan(c, status) {
   p.append(h, m, nums, line, ...(war.textContent ? [war] : []), views);
   if (gods) p.append(gods.section(c, status)); // the god panel: bless, and your powers if you're a god here
   p.hidden = false;
+  phoneSheet();
 }
+// Phones: the panel is a bottom sheet; the world slides up so the nation stays in view above it.
+const phone = () => innerWidth <= 700;
+function phoneSheet() {
+  const p = $("panel"), open = !p.hidden;
+  document.body.classList.toggle("panel-open", open);
+  try { live.setViewShift(open && phone() ? Math.min(p.offsetHeight, innerHeight * 0.55) / 2 : 0); } catch { /* the world isn't up yet */ }
+}
+new ResizeObserver(() => phoneSheet()).observe(document.getElementById("panel"));
+addEventListener("resize", () => phoneSheet());
 
 // The sky follows the world (SPEC §14): while NEAR's replayed price rises it is day, while it falls
 // it is night. ?theme=day|night still overrides (stills). Old worlds with no clock stay at night.
@@ -72,6 +82,7 @@ function showDial(W) {
     const mood = soundKind(W);
     const pct = `${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}%`;
     $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
+    if (phone()) { $("dial").textContent = `turn ${W.day} · ${c.phase === "day" ? "☀" : "☾"} · NEAR $${c.price.toFixed(2)} (${pct})`; return; } // one short line on phones
     $("dial").textContent = `${W.season} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"} · NEAR $${c.price.toFixed(2)} (${pct})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
     return;
   }

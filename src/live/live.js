@@ -754,12 +754,16 @@ export async function startLive(canvas, hud, opts = {}) {
     composer.addPass(new OutputPass());
   }
 
+  // Phones (his note 8 Nov): with the nation's sheet open at the bottom, the view slides up by
+  // `viewShift` px so the island sits in the open top part of the screen, not under the sheet.
+  let viewShift = 0;
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     renderer.setSize(w, h, false);
     labels.setSize(w, h);
     composer?.setSize(w, h);
     camera.aspect = w / h;
+    if (viewShift) camera.setViewOffset(w, h, 0, viewShift, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   }
   window.addEventListener("resize", resize);
@@ -856,7 +860,7 @@ export async function startLive(canvas, hud, opts = {}) {
   frame();
   setTheme(opts.theme || "night");
   // setWars: show war lines without a world refresh (the intro recorder; display only).
-  return { setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, standingsRank: () => standings.ranks?.() ?? {} };
+  return { setViewShift: (px) => { viewShift = Math.max(0, Math.round(px)); resize(); }, setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, standingsRank: () => standings.ranks?.() ?? {} };
 }
 
 // A clan's island: size from its mindmap, town from its state.
