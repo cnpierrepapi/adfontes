@@ -3,6 +3,7 @@
 import { createStandings } from "./standings.js";
 import { api as netApi } from "../net.js";
 import * as THREE from "three";
+import { createWarLayer } from "./war.js";
 import CameraControls from "camera-controls";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -365,6 +366,9 @@ export async function startLive(canvas, hud, opts = {}) {
       // Citizens run their errands for what just happened (SPEC §14b).
       if (r.kind === "tool") errandLater(r.clan, "tool"); else if (r.kind === "trade") errandLater(r.buyer, "trade"); else if (r.kind === "gift") errandLater(r.clan, "draft"); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
   const recordHooks = new Set(); // other modules (the god's route) hear every record the world plays
+  // War on screen between rounds: cannon fire, fires and smoke, walls (src/live/war.js).
+  const warLayer = createWarLayer({ islands, fx });
+  warLayer.update(W);
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
   standings.update(W);
@@ -468,7 +472,7 @@ export async function startLive(canvas, hud, opts = {}) {
       }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
-      W.wars = now.wars || []; updateWars();
+      W.wars = now.wars || []; updateWars(); warLayer.update(now);
       for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; } }
       for (let d = lastDay + 1; d <= now.day; d++) { const recs = ((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)); folk.dayRecords(recs, d); fx.enqueue(recs); }
       W.jackpot = now.jackpot;
@@ -556,6 +560,8 @@ export async function startLive(canvas, hud, opts = {}) {
   // with the star-gun (it lights when it lands); otherwise the star just lights in place.
   // A made-up citation misfires (the Warden's ring follows from its own record).
   async function starGun(r) {
+    // At war the citizens fight, not research: no star-gun shots, the star just lights.
+    if (warLayer.atWar(r.clan)) { await loadMind(r.clan); return minds.get(r.clan)?.light([r.point]); }
     if (!r.fake) await loadMind(r.clan);
     const m = minds.get(r.clan), isl = islands.get(r.clan);
     if (!m || !isl) return;
@@ -799,6 +805,7 @@ export async function startLive(canvas, hud, opts = {}) {
     updateRising();
     for (const isl of islands.values()) isl.position.y = isl.userData.baseY + (isl.userData.riseY || 0) + Math.sin(t * 0.45 + isl.userData.bob) * 0.3;
     warMat.opacity = 0.55 + 0.35 * Math.sin(t * 3);
+    warLayer.tick(t, performance.now());
     const sp = sea.geometry.attributes.position;
     for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
     sp.needsUpdate = true;

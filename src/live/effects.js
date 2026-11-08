@@ -254,5 +254,5 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  return { play, enqueue, update, pending: () => queue.length, setCrowd: () => {} };
+  return { play, enqueue, update, cannon, crumble, pending: () => queue.length, setCrowd: () => {} };
 }
