@@ -40,6 +40,9 @@ function operatorAccount(net, provider) {
 // can call just its one method on the world contract: agent_buy (Broker) or agent_spend (Patron).
 const ROLE_METHOD = { Broker: "agent_buy", Patron: "agent_spend" };
 const AGENT_FUND = 10n ** 23n; // 0.1 NEAR: storage plus a few hundred calls of gas
+// Named nation accounts (9 Nov): <name>.<world>, made by the world contract, paid by the operator.
+const ALIAS_DEPOSIT = 3n * 10n ** 22n; // 0.03 NEAR (the contract's ALIAS_DEPOSIT)
+const FORWARD_MIN = 10n ** 21n; // only call forward() when at least 0.001 NEAR is waiting
 function agentKeyPair(opKey, world, clanId, role) {
   const seed = createHash("sha256").update(`adf-agent|${opKey}|${world}|${clanId}|${role}`).digest();
   const pub = ed25519.getPublicKey(seed);
@@ -107,6 +110,33 @@ export function connect(net) {
         made.push(id);
       }
       return made;
+    },
+    // ---- named nation accounts ----
+    /** Make sure this nation has its named account; returns it (or null if the world can't make one yet). */
+    async ensureAlias(clanId) {
+      const have = await view("get_alias", { clan_id: clanId }).catch(() => undefined);
+      if (have === undefined) return null; // a world contract from before named accounts
+      if (have) return have;
+      const r = await op.callFunctionRaw({ contractId: world, methodName: "create_alias", args: { clan_id: clanId }, deposit: ALIAS_DEPOSIT, gas: T(60) });
+      const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+      if (fail) throw new Error(`create_alias failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
+      // Testnet view reads lag behind a fresh write: ask again for up to ~10 s.
+      for (let i = 0; i < 5; i++) {
+        await new Promise((res) => setTimeout(res, 2000));
+        const a = await view("get_alias", { clan_id: clanId }).catch(() => null);
+        if (a) return a;
+      }
+      return null; // made but not readable yet: the next turn picks it up
+    },
+    /** Send whatever is waiting at a nation's named account on to its DAO. Returns { near, hash } or null. */
+    async forwardAlias(alias) {
+      const a = await provider.query({ request_type: "view_account", finality: "final", account_id: alias });
+      const waiting = BigInt(a.amount) - BigInt(a.storage_usage) * 10n ** 19n - 5n * 10n ** 21n;
+      if (waiting < FORWARD_MIN) return null;
+      const r = await op.callFunctionRaw({ contractId: alias, methodName: "forward", args: {}, gas: T(10) });
+      const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+      if (fail) throw new Error(`forward failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 200)}`);
+      return { near: Number(waiting / 10n ** 18n) / 1e6, hash: r.transaction.hash };
     },
     /** The nation's Broker buys from another nation, signing from its own wallet. */
     agentBuy: (clanId, seller, florins, memo) => agentCall(clanId, "Broker", "agent_buy", { seller, amount: toUnits(florins), memo }),

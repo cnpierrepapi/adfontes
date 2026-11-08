@@ -177,6 +177,15 @@ for (let n = 0; n < days; n++) {
         try { const made = await chain.ensureAgents(oc.id); c.agentWallets = true; if (made.length) log({ kind: "wallets", clan: oc.id, accounts: made }); }
         catch (e) { log({ kind: "error", clan: oc.id, error: `agent wallets: ${String(e.message || e).slice(0, 160)}` }); }
       }
+      // Its named account (<name>.<world>, his call 9 Nov), once; then each scheduled turn anything
+      // sent there goes on to the nation's DAO.
+      if (!c.alias) {
+        try { const a = await chain.ensureAlias(oc.id); if (a) { c.alias = a; log({ kind: "alias", clan: oc.id, account: a, dao: oc.dao }); } }
+        catch (e) { log({ kind: "error", clan: oc.id, error: `named account: ${String(e.message || e).slice(0, 160)}` }); }
+      } else if (!INSTANT) {
+        try { const f = await chain.forwardAlias(c.alias); if (f) log({ kind: "forwarded", clan: oc.id, account: c.alias, dao: oc.dao, near: f.near, tx: f.hash }); }
+        catch (e) { log({ kind: "error", clan: oc.id, error: `forward: ${String(e.message || e).slice(0, 160)}` }); }
+      }
 
       // Reverence (SPEC §12m): read what the gods did since last time, then let it shape today.
       // A reverence bug must never cost the nation its day: on any error it falls back to the old
