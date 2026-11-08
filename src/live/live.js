@@ -834,8 +834,9 @@ export async function startLive(canvas, hud, opts = {}) {
     for (const [id, m] of minds) {
       const isl = islands.get(id);
       const focused = id !== focusId || isl.userData.rose === "rising" ? 0 : zoomK * (1 - THREE.MathUtils.smoothstep(offOf(id), m.layout.reach + 1, m.layout.reach + 6));
-      // At night every nation's sky can be seen dimly from the whole world; by day only the focused one.
-      const near = Math.max(focused, theme === "night" && isl.userData.rose !== "rising" ? (focusId == null ? 0.38 : 0) : 0); // flown in: only your nation's sky
+      // Every nation's sky can be seen dimly from the whole world, day or night (his note 8 Nov: by day
+      // they all vanished when the clock turned). Flown in: only your nation's sky.
+      const near = Math.max(focused, isl.userData.rose !== "rising" && focusId == null ? (theme === "night" ? 0.38 : 0.34) : 0);
       m.update(near, px, focused);
       if (id === focusId) focusNear = focused;
     }

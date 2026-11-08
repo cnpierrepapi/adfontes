@@ -59,15 +59,8 @@ export function playCinematic({ force = false } = {}) {
       title.classList.add("gone");
       video.play().catch(() => end()); // can't play: straight to the world
     });
-    // A stall on 1080p mid-film: switch to the 720p copy at the same moment and carry on.
-    let switched = false;
-    video.addEventListener("waiting", () => {
-      if (switched || !video.currentSrc.endsWith("/intro.mp4") || video.currentTime < 0.5) return;
-      switched = true;
-      const t = video.currentTime;
-      video.src = "/intro/intro-720.mp4";
-      video.addEventListener("loadedmetadata", () => { video.currentTime = t; video.play().catch(() => {}); }, { once: true });
-    });
+    // (No mid-film switch to 720p: swapping the file played the opening again for a moment and then
+    // skipped a scene, his note 8 Nov. A stall now just waits, like any video.)
     video.addEventListener("timeupdate", () => {
       const t = video.currentTime, c = CAPTIONS.find(([a, b]) => t >= a && t < b);
       const text = c ? c[2] : "";
