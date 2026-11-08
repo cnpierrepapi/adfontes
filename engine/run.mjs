@@ -18,6 +18,7 @@ import { warCouncil } from "./llm.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
 import { researchPrice, kitPrice } from "./prices.mjs";
+import * as TK from "./tokens.mjs";
 import * as store from "./store.mjs";
 import { renderFigure } from "./figures.mjs";
 
@@ -377,6 +378,7 @@ for (let n = 0; n < days; n++) {
             const r = await agentBuy(oc.id, kit.clan, kp, `tool:${kit.id}`);
             wallet -= kp;
             c.hasKit = true;
+            (c.kits ||= []).push(kit.id); // its copy of the kit token (engine/tokens.mjs)
             log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: kp, priceWhy, tx: r.hash, signer: r.signer ?? "operator", why: "our Drafter wants figures before the next patent draft: a kit halves its mistakes" });
           }
         }
@@ -573,6 +575,36 @@ for (let n = 0; n < days; n++) {
         try { await chain.spawn(winner, name, role); Wc.skills[name] = {}; refugees.push(`${name} (${role})`); } catch (e) { log({ kind: "error", clan: winner, error: `refugee: ${String(e.message || e).slice(0, 120)}` }); }
       }
       log({ kind: "fallen", war: w.id, clan: loser, name: nameOf(loser), by: winner, byName: nameOf(winner), rounds: w.rounds, ...(surrendered ? { surrendered: true } : {}), loot, knowledge: taken.length, refugees, tx });
+    }
+  }
+
+  // Research, patents and kits as NEP-245 tokens held by each nation's DAO (engine/tokens.mjs):
+  // mint whatever the records say a nation holds and the chain doesn't have yet. Scheduled turns only;
+  // at most 150 a turn, so the first backfill spreads over a couple of turns.
+  if (!INSTANT) {
+    try { await mtSync(); } catch (e) { log({ kind: "error", error: `tokens: ${String(e.message || e).slice(0, 200)}` }); }
+  }
+  async function mtSync() {
+    const chainNow = await chain.clans();
+    const daoOf = Object.fromEntries(chainNow.map((x) => [x.id, x.dao]));
+    const list = TK.toMint(s, (id) => daoOf[id] ?? null).slice(0, 150);
+    if (!list.length) return;
+    s.mtDone ||= [];
+    // Anything already on NEAR (a record lost on our side) is marked done, never minted twice.
+    const fresh = [];
+    const byOwner = {};
+    for (const m of list) (byOwner[m.owner_id] ||= []).push(m);
+    for (const [owner, items] of Object.entries(byOwner)) {
+      const have = await chain.mtBalances(owner, items.map((m) => m.token_id));
+      if (have == null) return; // the world contract has no tokens yet
+      items.forEach((m, i) => (BigInt(have[i] || 0) > 0n ? s.mtDone.push(m.key) : fresh.push(m)));
+    }
+    for (let i = 0; i < fresh.length; i += 50) {
+      const part = fresh.slice(i, i + 50);
+      const r = await chain.mtMint(part.map((m) => ({ token_id: m.token_id, owner_id: m.owner_id, amount: "1", title: m.title })), `turn ${day}`);
+      s.mtDone.push(...part.map((m) => m.key));
+      const n = (p) => part.filter((m) => m.token_id.startsWith(p)).length;
+      log({ kind: "tokens", minted: part.length, research: n("r:"), patents: n("p:"), kits: n("k:"), tx: r.hash });
     }
   }
 

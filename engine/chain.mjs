@@ -111,6 +111,17 @@ export function connect(net) {
       }
       return made;
     },
+    // ---- research as NEP-245 tokens (engine/tokens.mjs) ----
+    /** Mint up to 50 tokens; the operator attaches 0.01 NEAR a token for their storage (a new token
+     *  takes up to ~0.008) and the contract sends back what wasn't used. */
+    async mtMint(mints, memo) {
+      const r = await op.callFunctionRaw({ contractId: world, methodName: "mt_mint_batch", args: { mints, memo }, deposit: BigInt(mints.length) * 10n ** 22n, gas: T(150) });
+      const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+      if (fail) throw new Error(`mt_mint_batch failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
+      return { hash: r.transaction.hash };
+    },
+    /** What an account already holds of these tokens (null: a world from before tokens). */
+    mtBalances: (owner, tokenIds) => view("mt_batch_balance_of", { account_id: owner, token_ids: tokenIds }).catch(() => null),
     // ---- named nation accounts ----
     /** Make sure this nation has its named account; returns it (or null if the world can't make one yet). */
     async ensureAlias(clanId) {
