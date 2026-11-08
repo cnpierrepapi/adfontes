@@ -29,8 +29,15 @@ export function connectSim(file) {
     clans: async () => S.clans,
     agents: async (id) => S.agents[id] || [],
     gift: async (id) => S.gifts[id] ?? null,
-    // No god acts during the simulation: the DAOs are quiet.
-    dao: async (dao, method) => (method === "get_last_proposal_id" ? 0 : []),
+    // The DAOs: quiet unless scripts/sim-gods.mjs wrote simulated gods' proposals between turns
+    // (S.daos[dao] = proposals in Sputnik's shape, already voted through).
+    dao: async (dao, method, args = {}) => {
+      const list = S.daos?.[dao] || [];
+      if (method === "get_last_proposal_id") return list.length;
+      if (method === "get_proposals") return list.slice(args.from_index, args.from_index + args.limit);
+      if (method === "get_proposal") return list[args.id] ?? null;
+      return [];
+    },
     tick: async (day) => { S.config.day = day; save(); return tx(); },
     spawn: async (id, name, role) => { (S.agents[id] ||= []).push({ name, role, clan_id: Number(id), alive: true, stunted_until: 0, born_day: S.config.day }); save(); return tx(); },
     stake: async () => ({ florins: "0", near: "0", put_in: "0" }),

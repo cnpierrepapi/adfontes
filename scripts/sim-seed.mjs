@@ -1,11 +1,11 @@
 // Seeds the fast-forward simulation with a copy of the live testnet world, as of now, from public
 // data only: the site's API (each nation's knowledge, drafts, techs, wars, reverence) and NEAR view
 // calls (nations, money, citizens). Nothing is written anywhere but debug/sim/.
-//   node scripts/sim-seed.mjs
+//   node scripts/sim-seed.mjs [dir=debug/sim]
 import fs from "node:fs";
 import { JsonRpcProvider } from "near-api-js";
 
-const OUT = "debug/sim", SITE = "https://adfontes.fun", WORLD = "w6.adf-pool1-hf0w8.testnet";
+const OUT = process.argv[2] || "debug/sim", SITE = "https://adfontes.fun", WORLD = "w6.adf-pool1-hf0w8.testnet";
 const api = (p) => fetch(`${SITE}/api/${p}${p.includes("?") ? "&" : "?"}net=testnet`).then((r) => r.json());
 const T0 = Date.now(), H = 3600e3;
 
@@ -53,5 +53,6 @@ for (const wc of W.clans) {
 }
 for (const w of W.wars || []) s.wars[w.id] = { id: w.id, a: w.a, b: w.b, status: "on", startedDay: w.since, startedAt: T0 - 6 * H, rounds: w.rounds, ...(w.offer ? { offer: { by: w.offer } } : {}) };
 fs.writeFileSync(`${OUT}/state/testnet.json`, JSON.stringify(s));
+fs.writeFileSync(`${OUT}/before-world.json`, JSON.stringify(W));
 fs.writeFileSync(`${OUT}/seed.json`, JSON.stringify({ seededAt: T0, day: W.day }));
 console.log(`seeded at turn ${W.day}: ${W.clans.length} nations (${W.clans.map((c) => c.name).join(", ")}), ${Object.keys(s.corpora).length} research pieces, ${Object.keys(s.drafts).length} drafts, ${Object.keys(s.wars).length} war(s)`);

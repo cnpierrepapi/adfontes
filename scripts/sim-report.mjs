@@ -2,10 +2,11 @@
 import fs from "node:fs";
 import { standings } from "../engine/reverence.mjs";
 
-const S = JSON.parse(fs.readFileSync("debug/sim/state/testnet.json", "utf8"));
-const C = JSON.parse(fs.readFileSync("debug/sim/chain.json", "utf8"));
-const before = JSON.parse(fs.readFileSync("debug/sim-before-world.json", "utf8"));
-const dir = "debug/sim/state/testnet";
+const DIR = process.argv[2] || "debug/sim"; // node scripts/sim-report.mjs [dir]
+const S = JSON.parse(fs.readFileSync(`${DIR}/state/testnet.json`, "utf8"));
+const C = JSON.parse(fs.readFileSync(`${DIR}/chain.json`, "utf8"));
+const before = JSON.parse(fs.readFileSync(fs.existsSync(`${DIR}/before-world.json`) ? `${DIR}/before-world.json` : "debug/sim-before-world.json", "utf8"));
+const dir = `${DIR}/state/testnet`;
 const days = fs.readdirSync(dir).filter((f) => /^day-\d+\.json$/.test(f)).map((f) => Number(f.match(/\d+/)[0])).sort((a, b) => a - b);
 const recs = days.flatMap((d) => JSON.parse(fs.readFileSync(`${dir}/day-${d}.json`, "utf8")).map((r) => ({ ...r, day: d })));
 const name = (id) => C.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
