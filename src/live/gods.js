@@ -228,6 +228,9 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     if (W.net !== "testnet") return;
     const clans = await wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []);
     if (clans.some((c) => c.alive && c.gods.some((g) => g.account === account))) return;
+    // A named account from the pool (9 Nov) arrives already funded: straight to naming the nation.
+    const sent = wallet.takeSponsored?.();
+    if (sent) { toast(`You're ${account}, with ${sent} free testnet NEAR. Now name your nation.`); setTimeout(foundCard, 2500); return; }
     toast("Your account is ready. Getting you free testnet NEAR to found a nation…");
     const r = await fetch("/api/sponsor", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ account }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world." }));
     if (r.ok) toast(`${r.sent} testnet NEAR sent to you. Now name your nation.`);

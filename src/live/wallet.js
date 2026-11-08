@@ -53,9 +53,10 @@ export async function createWallet(net) {
   }
   const selector = await setupWalletSelector({ network: net === "mainnet" ? "mainnet" : "testnet", modules });
   const listeners = new Set();
-  // Play without a wallet (testnet only, 8 Nov): a NEAR key made in this browser. The account is
-  // the key's implicit account (64 hex characters); the sponsor pool funds it so a new player can
-  // found a nation at once. Never offered on mainnet: a key in a browser shouldn't hold real money.
+  // Play without a wallet (testnet only, 8 Nov): a NEAR key made in this browser. Since 9 Nov the
+  // sponsor pool makes the player a named account for that key (amber-quill-417.<pool>), already
+  // funded to found a nation. If the pool can't (limits, empty), the key's implicit account (64 hex
+  // characters) is used as before. Never offered on mainnet: a key in a browser shouldn't hold real money.
   const LOCAL = `adf-local-key-${net}`;
   const localKey = () => { try { return JSON.parse(localStorage.getItem(LOCAL) || "null"); } catch { return null; } };
   const localOn = () => net === "testnet" && localStorage.getItem(`${LOCAL}-on`) === "1" && !!localKey();
@@ -70,15 +71,24 @@ export async function createWallet(net) {
     for (const m of selector.store.getState().modules) out.push({ id: m.id, name: m.metadata.name, icon: m.metadata.iconUrl, available: m.metadata.available !== false });
     return out;
   }
+  /** Set once when "Play without a wallet" made a named, already funded account (then cleared). */
+  function takeSponsored() {
+    const lk = localKey();
+    if (!lk?.sponsored) return null;
+    localStorage.setItem(LOCAL, JSON.stringify({ ...lk, sponsored: null }));
+    return lk.sponsored;
+  }
   async function signIn(walletId) {
     if (walletId === "local") {
       if (net !== "testnet") throw new Error("Playing without a wallet is for testnet only.");
       if (!localKey()) {
         const { KeyPair } = await import("@near-js/crypto");
         const kp = KeyPair.fromRandom("ed25519");
-        const pub = kp.getPublicKey().data;
-        const accountId = [...pub].map((b) => b.toString(16).padStart(2, "0")).join("");
-        localStorage.setItem(LOCAL, JSON.stringify({ account: accountId, key: kp.toString() }));
+        const pub = kp.getPublicKey();
+        let accountId = [...pub.data].map((b) => b.toString(16).padStart(2, "0")).join(""), sponsored = null;
+        const r = await fetch("/api/sponsor", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ public_key: pub.toString() }) }).then((x) => x.json()).catch(() => ({}));
+        if (r.ok && r.account) { accountId = r.account; sponsored = r.sent; }
+        localStorage.setItem(LOCAL, JSON.stringify({ account: accountId, key: kp.toString(), sponsored }));
       }
       localStorage.setItem(`${LOCAL}-on`, "1");
       tell();
@@ -134,7 +144,7 @@ export async function createWallet(net) {
   }
   /** The browser key, for the player to save (only when playing without a wallet). */
   const exportKey = () => (localOn() ? { account: localKey().account, private_key: localKey().key, network: net } : null);
-  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
+  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, takeSponsored, isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
 }
 
 /** Did this outcome fail anywhere? Returns the first failure in plain-ish words, or null. */

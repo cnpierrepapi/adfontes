@@ -55,3 +55,32 @@ export async function topUp(poolId, poolKey, to, amount) {
   const r = await pool.transfer({ receiverId: to, amount });
   return r?.transaction?.hash ?? null;
 }
+
+// Named accounts for players (his call 9 Nov): "Play without a wallet" used to give a 64-character
+// hex account. Now the pool makes a readable one under its own name, e.g.
+// amber-quill-417.adf-pool1-hf0w8.testnet, funds it and puts the player's browser key on it, all in
+// one transaction. The key is the player's; the pool keeps no key on it.
+const ADJ = ["amber", "ashen", "azure", "bright", "brisk", "copper", "crimson", "dusky", "gilded", "golden", "hazel", "ivory", "jade", "lucid", "merry", "misty", "noble", "olive", "quiet", "russet", "scarlet", "silver", "sly", "stout", "swift", "tawny", "umber", "velvet", "wild", "wry"];
+const NOUN = ["quill", "lantern", "compass", "falcon", "heron", "orchard", "atlas", "lute", "abacus", "beacon", "cipher", "codex", "comet", "ember", "fresco", "galleon", "harbor", "inkwell", "kestrel", "loom", "mortar", "nova", "obelisk", "prism", "quarry", "raven", "sextant", "spire", "tallow", "vellum"];
+export function randomName(rand = Math.random) {
+  const pick = (a) => a[Math.floor(rand() * a.length)];
+  return `${pick(ADJ)}-${pick(NOUN)}-${100 + Math.floor(rand() * 900)}`;
+}
+export const PUBLIC_KEY = /^ed25519:[1-9A-HJ-NP-Za-km-z]{43,44}$/;
+
+/** Make a named player account under the pool, funded with `amount`, owned by `publicKey`. */
+export async function createNamed(poolId, poolKey, publicKey, amount) {
+  const { actions, PublicKey } = await import("near-api-js");
+  const pool = new Account(poolId, provider(), poolKey);
+  for (let i = 0; i < 6; i++) {
+    const account = `${randomName()}.${poolId}`;
+    if ((await balanceOf(account)) != null) continue; // taken: draw again
+    const r = await pool.signAndSendTransaction({ receiverId: account, actions: [
+      actions.createAccount(), actions.transfer(amount), actions.addFullAccessKey(PublicKey.fromString(publicKey)),
+    ] });
+    const fail = r.receipts_outcome?.find((o) => o.outcome.status.Failure);
+    if (fail) throw new Error(`couldn't make ${account}: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 160)}`);
+    return { account, tx: r?.transaction?.hash ?? null };
+  }
+  throw new Error("no free name after 6 tries");
+}

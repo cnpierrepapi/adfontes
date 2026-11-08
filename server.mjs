@@ -9,7 +9,7 @@ import { JsonRpcProvider } from "near-api-js";
 import { NETWORKS } from "./engine/config.mjs";
 import * as store from "./engine/store.mjs";
 import { clockAt, extendHours } from "./engine/clock.mjs";
-import { SPONSOR, nationsLeft, balanceOf, topUp } from "./engine/sponsor.mjs";
+import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, PUBLIC_KEY } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
@@ -348,8 +348,11 @@ async function sponsorPost(req, res) {
   if (!pool || !key) return json(503, { error: "Sponsorship isn't set up." });
   let body = "";
   for await (const chunk of req) { body += chunk; if (body.length > 512) return json(413, { error: "Too long." }); }
-  let account = "";
-  try { account = String(JSON.parse(body).account || "").trim().toLowerCase(); } catch { return json(400, { error: "Send {\"account\": \"you.testnet\"}." }); }
+  let account = "", publicKey = "";
+  try { const b = JSON.parse(body); account = String(b.account || "").trim().toLowerCase(); publicKey = String(b.public_key || "").trim(); } catch { return json(400, { error: "Send {\"account\": \"you.testnet\"}." }); }
+  // Play without a wallet (9 Nov): {public_key} -> the pool makes the player a named account
+  // (amber-quill-417.<pool>), funded to found a nation, with that key on it. Same limits as below.
+  if (publicKey) return sponsorNamed(req, res, json, pool, key, publicKey);
   if (!/^[a-z0-9_\-.]{2,64}$/.test(account) || !(account.endsWith(".testnet") || /^[0-9a-f]{64}$/.test(account))) return json(400, { error: "That isn't a testnet account." });
   if (account.startsWith("adf-") || account === pool) return json(400, { error: "That account belongs to the world." });
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
@@ -372,6 +375,25 @@ async function sponsorPost(req, res) {
   } catch (e) {
     console.error("sponsor", e);
     return json(500, { error: "The pool couldn't send just now. Try again in a minute." });
+  }
+}
+
+async function sponsorNamed(req, res, json, pool, key, publicKey) {
+  if (!PUBLIC_KEY.test(publicKey)) return json(400, { error: "That isn't a NEAR public key." });
+  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  const today = (sponsorByIp.get(ip) || []).filter((t) => Date.now() - t < 24 * 3600e3);
+  if (today.length >= 2) return json(429, { error: "Two sponsorships a day from one connection. Try again tomorrow, or bless a nation instead." });
+  if ((await nationsLeft(pool)) < 1) return json(410, { error: "New testnet nations are full for now. Bless a nation to become one of its gods." });
+  sponsorByIp.set(ip, [...today, Date.now()]); // counted before the send, so two quick clicks can't both pass
+  try {
+    const { account, tx } = await createNamed(pool, key, publicKey, SPONSOR.perNation);
+    await store.markSponsored("testnet", account, tx);
+    cache.delete("testnet:sponsor");
+    return json(200, { ok: true, account, sent: near(SPONSOR.perNation.toString()), tx });
+  } catch (e) {
+    sponsorByIp.set(ip, today); // nothing was sent: the try doesn't count
+    console.error("sponsor named", e);
+    return json(500, { error: "The pool couldn't make your account just now. Try again in a minute." });
   }
 }
 
