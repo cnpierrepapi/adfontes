@@ -1141,5 +1141,9 @@ impl World {
     }
 }
 
+// Research, patents and kits as NEP-245 multi-tokens (9 Nov).
+mod mt;
+pub use mt::{MtInfo, MtMint, MtToken};
+
 #[cfg(test)]
 mod tests;

@@ -717,3 +717,115 @@ fn new_daos_carry_the_nation_name() {
     // The DAO name is built inside found_clan; the next founding's would read adf-salamanco-creek-<block>.
     assert!(format!("adf-{}-{}", slugify("Salamanco creek"), env::block_height()).starts_with("adf-salamanco-creek-"));
 }
+
+// ---------------------------------------------------------------- research as NEP-245 tokens (9 Nov)
+
+fn mint(w: &mut World, token: &str, owner: &str, amount: u128) {
+    set("operator.adfontes.near", NEAR / 10);
+    w.mt_mint_batch(vec![MtMint { token_id: token.into(), owner_id: acc(owner), amount: U128(amount), title: Some(format!("title of {token}")) }], None);
+}
+fn ids(v: Vec<MtToken>) -> Vec<String> {
+    let mut x: Vec<String> = v.into_iter().map(|t| t.token_id).collect();
+    x.sort();
+    x
+}
+
+#[test]
+fn research_is_copied_to_every_nation_that_learns_it() {
+    let mut w = new_world();
+    mint(&mut w, "r:c43", "dao-a.near", 1);
+    mint(&mut w, "r:c43", "dao-b.near", 1); // a buyer's copy: the seller keeps its own
+    assert_eq!(w.mt_balance_of(acc("dao-a.near"), "r:c43".into()).0, 1);
+    assert_eq!(w.mt_balance_of(acc("dao-b.near"), "r:c43".into()).0, 1);
+    assert_eq!(w.mt_supply("r:c43".into()).unwrap().0, 2);
+    let info = w.mt_token_info("r:c43".into()).unwrap();
+    assert_eq!((info.kind.as_str(), info.title.as_str()), ("research", "title of r:c43"));
+    assert!(w.mt_token(vec!["r:c43".into()])[0].as_ref().unwrap().owner_id.is_none(), "copyable: no single owner");
+    assert_eq!(w.mt_supply("r:nope".into()), None);
+}
+
+#[test]
+fn a_patent_is_one_of_a_kind() {
+    let mut w = new_world();
+    mint(&mut w, "p:d59", "dao-a.near", 1);
+    assert_eq!(w.mt_token(vec!["p:d59".into()])[0].as_ref().unwrap().owner_id, Some(acc("dao-a.near")));
+    let again = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| mint(&mut w, "p:d59", "dao-b.near", 1)));
+    assert!(again.is_err(), "a second patent of the same draft is refused");
+}
+
+#[test]
+#[should_panic(expected = "Only the world operator")]
+fn only_the_world_mints() {
+    let mut w = new_world();
+    set("god1.near", 0);
+    w.mt_mint_batch(vec![MtMint { token_id: "r:c1".into(), owner_id: acc("god1.near"), amount: U128(1), title: None }], None);
+}
+
+#[test]
+fn a_holder_transfers_with_one_yocto_and_the_lists_follow() {
+    let mut w = new_world();
+    mint(&mut w, "p:d59", "dao-a.near", 1);
+    mint(&mut w, "r:c1", "dao-a.near", 1);
+    mint(&mut w, "k:t1", "dao-a.near", 1);
+    assert_eq!(ids(w.mt_tokens_for_owner(acc("dao-a.near"), None, None)), vec!["k:t1", "p:d59", "r:c1"]);
+    set("dao-a.near", 1);
+    w.mt_transfer(acc("dao-b.near"), "p:d59".into(), U128(1), None, Some("sold".into()));
+    assert_eq!(w.mt_balance_of(acc("dao-a.near"), "p:d59".into()).0, 0);
+    assert_eq!(w.mt_balance_of(acc("dao-b.near"), "p:d59".into()).0, 1);
+    assert_eq!(w.mt_token(vec!["p:d59".into()])[0].as_ref().unwrap().owner_id, Some(acc("dao-b.near")), "the patent's owner moved with it");
+    assert_eq!(ids(w.mt_tokens_for_owner(acc("dao-a.near"), None, None)), vec!["k:t1", "r:c1"]);
+    assert_eq!(ids(w.mt_tokens_for_owner(acc("dao-b.near"), None, None)), vec!["p:d59"]);
+    set("dao-a.near", 1);
+    w.mt_batch_transfer(acc("dao-b.near"), vec!["r:c1".into(), "k:t1".into()], vec![U128(1), U128(1)], None, None);
+    assert!(w.mt_tokens_for_owner(acc("dao-a.near"), None, None).is_empty());
+    assert_eq!(ids(w.mt_tokens(None, None)), vec!["k:t1", "p:d59", "r:c1"]);
+    assert_eq!(w.mt_count().0, 3);
+}
+
+#[test]
+#[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
+fn a_transfer_needs_exactly_one_yocto() {
+    let mut w = new_world();
+    mint(&mut w, "r:c1", "dao-a.near", 1);
+    set("dao-a.near", 0);
+    w.mt_transfer(acc("dao-b.near"), "r:c1".into(), U128(1), None, None);
+}
+
+#[test]
+#[should_panic(expected = "Not enough of that token")]
+fn nobody_moves_what_they_dont_hold() {
+    let mut w = new_world();
+    mint(&mut w, "r:c1", "dao-a.near", 1);
+    set("thief.near", 1);
+    w.mt_transfer(acc("fence.near"), "r:c1".into(), U128(1), None, None);
+}
+
+#[test]
+fn transfer_call_refunds_what_the_receiver_didnt_use() {
+    let mut w = new_world();
+    mint(&mut w, "r:c1", "dao-a.near", 3);
+    set("dao-a.near", 1);
+    let _ = w.mt_transfer_call(acc("market.near"), "r:c1".into(), U128(3), None, None, "list".into());
+    assert_eq!(w.mt_balance_of(acc("market.near"), "r:c1".into()).0, 3);
+    // The receiver says it used only 1 of the 3.
+    set_with_result("world.adfontes.near", PromiseResult::Successful(b"[\"2\"]".to_vec()));
+    let kept = w.mt_resolve_transfer(acc("dao-a.near"), acc("market.near"), vec!["r:c1".into()], vec![U128(3)]);
+    assert_eq!(kept[0].0, 1);
+    assert_eq!(w.mt_balance_of(acc("dao-a.near"), "r:c1".into()).0, 2);
+    assert_eq!(w.mt_balance_of(acc("market.near"), "r:c1".into()).0, 1);
+    // A receiver that fails gets nothing.
+    set("dao-a.near", 1);
+    let _ = w.mt_transfer_call(acc("market.near"), "r:c1".into(), U128(2), None, None, "list".into());
+    set_with_result("world.adfontes.near", PromiseResult::Failed);
+    let kept = w.mt_resolve_transfer(acc("dao-a.near"), acc("market.near"), vec!["r:c1".into()], vec![U128(2)]);
+    assert_eq!(kept[0].0, 0);
+    assert_eq!(w.mt_balance_of(acc("dao-a.near"), "r:c1".into()).0, 2);
+}
+
+#[test]
+#[should_panic(expected = "for the storage these tokens take")]
+fn the_operator_pays_for_token_storage() {
+    let mut w = new_world();
+    set("operator.adfontes.near", 0);
+    w.mt_mint_batch(vec![MtMint { token_id: "r:c1".into(), owner_id: acc("dao-a.near"), amount: U128(1), title: Some("x".into()) }], None);
+}
