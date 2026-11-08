@@ -18,6 +18,9 @@ const STATION = { Patron: [0, 0.4], Scholar: [0.9, 0.37], Smith: [2.1, 0.5], Dra
 export function createFolk({ scene, islands, renderer, camera }) {
   let kit = null, kitLoading = null;
   const dots = new Map(); // nation id -> { pts, agents, seeds }
+  // War (his call 8 Nov): nobody is outside except the crews at the war machines.
+  // island id -> [{ x, z, face }] crew stations (island-local), set by the war layer.
+  const warStations = new Map();
   const crowds = new Map(); // nation id -> { group, people: [...] }
   let day = 0;
   // Nations where a Smith built a tool on the latest day (the forge is lit there).
@@ -239,6 +242,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
         pos.setXYZ(i, x, groundY(r, x, z) + 0.4, z);
       }
       pos.needsUpdate = true;
+      d.pts.geometry.setDrawRange(0, warStations.has(id) ? Math.min(d.living.length, warStations.get(id).length) : d.living.length);
       const close = crowds.has(id) && id === focusId ? nearK : 0;
       d.pts.material.opacity = 1 - close;
       d.pts.visible = d.pts.material.opacity > 0.02 && isl.userData.rose !== "rising";
@@ -247,6 +251,10 @@ export function createFolk({ scene, islands, renderer, camera }) {
     for (const [id, cr] of crowds) {
       cr.group.visible = id === focusId && nearK > 0.05;
       if (!cr.group.visible) continue;
+      const war = warStations.get(id);
+      for (const a of cr.life.actors) if (a.c?.root) a.c.root.visible = !war;
+      if (war) { warStep(cr, war, dt, now); continue; }
+      if (cr.wasAtWar) peace(cr);
       stepTown(cr.life, dt, now, { r: islands.get(id).userData.r, s: 0, open: cr.open, groundY });
       for (const p of cr.people) {
         if (p.mode === "gun") { gunStep(p, dt, now); p.c.mixer.update(dt); continue; }
@@ -473,7 +481,32 @@ export function createFolk({ scene, islands, renderer, camera }) {
 
   // A nation's town changed (a tech was built): rebuild it if it's on screen.
   const retown = (id) => { if (crowds.has(id) && agentsOf.has(id)) rebuildCrowd(id, agentsOf.get(id)); };
-  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown, errand };
+  // Crew order: who mans the machines first (the Smith built them; Scholars aim the clever ones).
+  const CREW_FIRST = ["Smith", "Scholar", "Broker", "Drafter", "Patron", "Trickster"];
+  function warStep(cr, stations, dt, now) {
+    cr.wasAtWar = true;
+    const crew = [...cr.people].filter((p) => p.mode !== "struck").sort((a, b) => CREW_FIRST.indexOf(a.a.role) - CREW_FIRST.indexOf(b.a.role));
+    crew.forEach((p, i) => {
+      const st = stations[i];
+      if (!st) { p.c.root.visible = false; return; } // indoors, away from the fire
+      p.c.root.visible = true;
+      if (p.mode !== "crew") { p.mode = "crew"; p.crewClip = null; }
+      p.pos = [st.x, st.z];
+      p.c.root.position.set(st.x, groundY(p.r, st.x, st.z), st.z);
+      p.c.root.rotation.y = st.face;
+      // Load, then aim, then load again.
+      const clip = Math.floor(now / 3 + i) % 2 ? "Interact" : "Pistol_Aim_Up";
+      if (p.crewClip !== clip) { p.crewClip = clip; p.c.play(clip); }
+      p.c.mixer.update(dt);
+    });
+  }
+  function peace(cr) {
+    cr.wasAtWar = false;
+    for (const p of cr.people) { p.c.root.visible = true; if (p.mode === "crew") { p.mode = "idle"; p.target = null; p.c.play("Idle_Loop"); } }
+  }
+  /** The war layer sets (or clears, with null) the crew stations of an island at war. */
+  function setWar(id, stations) { if (stations?.length) warStations.set(id, stations); else warStations.delete(id); }
+  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown, errand, setWar };
 }
 
 // A star-gun, almost a citizen's height (citizen-local metres; the barrel runs along +Y):

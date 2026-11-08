@@ -58,3 +58,13 @@ ok(wl.median <= 25, "walls slow a war down but don't make it endless");
 const lop = days(() => fight(nation("batteries", 33, 5), nation("batteries", 4, 0), false));
 console.log(`  Helios vs Striklar-sized: median ${lop.median.toFixed(1)} days`);
 ok(lop.median <= 2.5, "a lopsided war is over in a day or two");
+
+// The arsenal: weapons come only from what a nation has, and the root fixes which one fires.
+import { arsenal, weaponFor } from "./war.mjs";
+const bare = { techs: [] }, rich = { techs: ["clock", "astrolabe", "spectacles", "press", "bookkeeping"] };
+ok(arsenal(bare).join() === "cannon,arrows,trebuchet", "a nation with no techs fields cannon, fire arrows and trebuchet");
+ok(arsenal(rich).length === 8, "a nation with all five techs fields all eight weapons");
+const picks = new Set(Array.from({ length: 200 }, (_, i) => weaponFor(`root${i}`, "w1", 1, "a", rich)));
+ok(picks.size === 8, "over many rounds every weapon in the arsenal gets used");
+ok(weaponFor("r", "w1", 3, "a", rich) === weaponFor("r", "w1", 3, "a", rich), "the weapon is fixed by the sealed root: anyone can redo it");
+ok([...Array(100)].every((_, i) => arsenal(bare).includes(weaponFor(`x${i}`, "w", 1, "b", bare))), "never a weapon the nation doesn't have");

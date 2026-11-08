@@ -367,8 +367,7 @@ export async function startLive(canvas, hud, opts = {}) {
       if (r.kind === "tool") errandLater(r.clan, "tool"); else if (r.kind === "trade") errandLater(r.buyer, "trade"); else if (r.kind === "gift") errandLater(r.clan, "draft"); for (const f of recordHooks) f(r); }, onEvent: (e) => eventSink(e) });
   const recordHooks = new Set(); // other modules (the god's route) hear every record the world plays
   // War on screen between rounds: cannon fire, fires and smoke, walls (src/live/war.js).
-  const warLayer = createWarLayer({ islands, fx });
-  warLayer.update(W);
+  let warLayer = { update() {}, tick() {}, atWar: () => false }; // made once the people exist (folk comes later)
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
   standings.update(W);
@@ -528,6 +527,9 @@ export async function startLive(canvas, hud, opts = {}) {
   // ---- the mind constellations (SPEC §12f): each nation's mindmap as stars over its island ----
   const minds = new Map(), mindQueue = new Map();
   const folk = createFolk({ scene, islands, renderer, camera }); // the people: dots far out, citizens up close
+  // War on screen (src/live/war.js): weapons, crewed machines, fires, walls; only crews outside.
+  warLayer = createWarLayer({ islands, fx, folk });
+  warLayer.update(W);
   retownLater = folk.retown;
   errandLater = folk.errand;
   // One load at a time per nation, so two quick records can't both build a sky.

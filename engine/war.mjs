@@ -29,6 +29,27 @@ export const WAR = {
   refugees: 2,
 };
 
+// The arsenal (his call 8 Nov: at least seven kinds of attack). What a nation can field depends on
+// what it has; each round's weapon is picked with the round's own dice, so it can be redone too.
+// Weapons change the look and a little of the punch; the mean stays near 1 so pacing holds.
+export const WEAPONS = {
+  cannon:       { mult: 1.0,  needs: () => true },
+  arrows:       { mult: 0.85, needs: () => true },                    // fire arrows
+  trebuchet:    { mult: 1.2,  needs: () => true },
+  mortar:       { mult: 1.05, needs: (c) => has(c, "clock") },        // timed fuses
+  starlance:    { mult: 1.15, needs: (c) => has(c, "astrolabe") },    // a beam of starlight
+  burningglass: { mult: 1.1,  needs: (c) => has(c, "spectacles") },   // lenses focus the sun
+  pamphlets:    { mult: 0.8,  needs: (c) => has(c, "press") },        // a storm of paper: shakes faith more than walls
+  ornithopters: { mult: 1.1,  needs: (c) => (c.techs?.length || 0) >= 3 }, // Da Vinci's flying machines
+};
+const has = (c, t) => (c.techs || []).includes(t);
+export const arsenal = (c) => Object.keys(WEAPONS).filter((w) => WEAPONS[w].needs(c));
+/** The weapon a side uses this round: fixed by the sealed root like the dice. */
+export function weaponFor(seed, warId, round, side, c) {
+  const list = arsenal(c), h = createHash("sha256").update(`${seed}|${warId}|${round}|${side}|weapon`).digest();
+  return list[h.readUInt32BE(0) % list.length];
+}
+
 /** Has this nation had a patent draft passed? (his rule: then it's fair game) */
 export function eligible(s, id) {
   const c = s.clans[id];
@@ -104,8 +125,9 @@ export function round(s, w, seed, florins) {
     const spend = +(Math.max(0, florins[me] || 0) * WAR.spendFrac).toFixed(4);
     const d = dice(seed, w.id, n, side);
     const broke = (florins[me] || 0) < 1; // can't pay the soldiers: half strength
-    const hit = WAR.base * strength(s, me) * d * (broke ? 0.5 : 1) / defence(s.clans[them]);
-    out.sides[me] = { spend, dice: +d.toFixed(4), strike: +hit.toFixed(4) };
+    const weapon = weaponFor(seed, w.id, n, side, s.clans[me]);
+    const hit = WAR.base * strength(s, me) * d * WEAPONS[weapon].mult * (broke ? 0.5 : 1) / defence(s.clans[them]);
+    out.sides[me] = { spend, dice: +d.toFixed(4), weapon, strike: +hit.toFixed(4) };
   }
   for (const [me, them] of [[w.a, w.b], [w.b, w.a]]) {
     const c = s.clans[them];

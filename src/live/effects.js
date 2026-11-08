@@ -192,6 +192,163 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     });
   }
 
+  // ---- the arsenal (his call 8 Nov: at least seven kinds of attack) ----
+  const arc = (A, B, lift) => { const a = top(A), b = top(B), m = a.clone().lerp(b, 0.5); m.y += a.distanceTo(b) * lift; return new THREE.QuadraticBezierCurve3(a, m, b); };
+  const later = (ms, fn) => { const t0 = performance.now() + ms; add(() => { if (performance.now() < t0) return true; fn(); return false; }); };
+  // Something flies along a curve over `ms`, then lands.
+  function fly(obj, curve, ms, { spin = 0, trail = null, onLand } = {}) {
+    const t0 = performance.now();
+    scene.add(obj);
+    add(() => {
+      const k = (performance.now() - t0) / ms;
+      obj.position.copy(curve.getPoint(Math.min(1, k)));
+      if (spin) { obj.rotation.x += spin; obj.rotation.z += spin * 0.7; }
+      if (trail) trail(k);
+      if (k >= 1) { scene.remove(obj); if (onLand) onLand(); return false; }
+      return true;
+    });
+  }
+  // A cloud of smoke at a point (a launch or an impact).
+  function puff(at, color = 0xd8d0c8, n = 6) {
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.7, depthWrite: false }));
+      const v = new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.4 + Math.random() * 0.6, (Math.random() - 0.5) * 0.8);
+      const t0 = performance.now();
+      m.position.copy(at);
+      scene.add(m);
+      add(() => {
+        const k = (performance.now() - t0) / 1600;
+        m.position.addScaledVector(v, 0.02);
+        m.scale.setScalar(1 + k * 2.5);
+        m.material.opacity = 0.7 * (1 - k);
+        if (k >= 1) { scene.remove(m); return false; }
+        return true;
+      });
+    }
+  }
+  const ironMat = new THREE.MeshLambertMaterial({ color: 0x2a2730 });
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0x8d8478, flatShading: true });
+  const UP = new THREE.Vector3(0, 1, 0);
+  const ARSENAL = {
+    // An iron ball, a puff at the muzzle, a flash and stones where it lands.
+    cannon(A, B) {
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), ironMat);
+      puff(top(A)); flash(A);
+      fly(ball, arc(A, B, 0.28), 1700, { onLand: () => { flash(B); crumble(B, 5); puff(top(B), 0x6b625c); } });
+    },
+    // A volley of burning arrows, spread over the target.
+    arrows(A, B) {
+      for (let i = 0; i < 14; i++) later(i * 70, () => {
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.8, 0.2) }));
+        const c = arc(A, B, 0.38 + Math.random() * 0.1);
+        const end = c.v2.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.2, 0, (Math.random() - 0.5) * 2.2));
+        const curve = new THREE.QuadraticBezierCurve3(c.v0, c.v1, end), dir = new THREE.Vector3();
+        fly(shaft, curve, 1500, {
+          trail: (k) => { dir.copy(curve.getPoint(Math.min(1, k + 0.02))).sub(shaft.position); if (dir.lengthSq() > 0) shaft.quaternion.setFromUnitVectors(UP, dir.normalize()); },
+          onLand: () => { if (i % 4 === 0) flash(B); },
+        });
+      });
+      later(1600, () => crumble(B, 4));
+    },
+    // A boulder on a slow, high arc and a crater of debris.
+    trebuchet(A, B) {
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0), rockMat);
+      fly(rock, arc(A, B, 0.75), 3200, { spin: 0.05, onLand: () => { flash(B); crumble(B, 18); puff(top(B), 0xbfb2a2, 10); } });
+    },
+    // Four bombs on steep arcs, one after another (the Clock's timed fuses).
+    mortar(A, B) {
+      for (let i = 0; i < 4; i++) later(i * 380, () => {
+        const bomb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), ironMat);
+        const a = top(A), b = top(B).add(new THREE.Vector3((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2));
+        const m = a.clone().lerp(b, 0.5); m.y += a.distanceTo(b) * 1.0;
+        puff(a, 0xcfc6bd, 3);
+        fly(bomb, new THREE.QuadraticBezierCurve3(a, m, b), 2000, { onLand: () => { flash(B); crumble(B, 3); } });
+      });
+    },
+    // A beam of starlight from the sky onto the target (the Astrolabe).
+    starlance(A, B) {
+      const b = top(B);
+      const beamM = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.4, 30, 12, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 2.4, 3.4), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      beamM.position.copy(b); beamM.position.y += 15;
+      scene.add(beamM); ring(A, CYAN);
+      const t0 = performance.now();
+      add(() => {
+        const k = (performance.now() - t0) / 1400;
+        beamM.material.opacity = Math.sin(Math.min(1, k) * Math.PI);
+        beamM.scale.x = beamM.scale.z = 0.6 + Math.sin(k * 40) * 0.15;
+        if (k >= 1) { scene.remove(beamM); return false; }
+        return true;
+      });
+      later(250, () => { flash(B); crumble(B, 8); ring(B, CYAN); });
+    },
+    // Lenses focus the sun into one white-hot line, and the target starts to smoke (Spectacles).
+    burningglass(A, B) {
+      const a = top(A).add(new THREE.Vector3(0, 0.6, 0)), b = top(B), len = a.distanceTo(b);
+      const ray = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, len, 6, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.6, 1.2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      ray.position.copy(a).lerp(b, 0.5);
+      ray.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
+      scene.add(ray);
+      const t0 = performance.now();
+      add(() => {
+        const k = (performance.now() - t0) / 2200;
+        ray.material.opacity = Math.min(1, k * 4) * (1 - Math.max(0, k - 0.8) * 5);
+        ray.scale.x = ray.scale.z = 1 + Math.sin(k * 60) * 0.3;
+        if (k >= 1) { scene.remove(ray); return false; }
+        return true;
+      });
+      for (let i = 0; i < 3; i++) later(500 + i * 500, () => { puff(b, 0x4a4040, 4); flash(B); });
+    },
+    // A storm of paper from the Press: it shakes faith more than walls.
+    pamphlets(A, B) {
+      const b = top(B);
+      for (let i = 0; i < 26; i++) {
+        const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.3), new THREE.MeshBasicMaterial({ color: 0xf4eee0, side: THREE.DoubleSide, transparent: true }));
+        const start = top(A).add(new THREE.Vector3(0, 4 + Math.random() * 2, 0));
+        const end = b.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0.1, (Math.random() - 0.5) * 3));
+        const mid = start.clone().lerp(end, 0.5); mid.y += 2;
+        const curve = new THREE.QuadraticBezierCurve3(start, mid, end), seed = Math.random() * 6;
+        later(i * 60, () => fly(sheet, curve, 3600 + Math.random() * 800, {
+          trail: (k) => { sheet.rotation.set(Math.sin(k * 12 + seed) * 1.2, k * 8 + seed, Math.cos(k * 9 + seed)); sheet.material.opacity = k > 0.85 ? (1 - k) / 0.15 : 1; },
+        }));
+      }
+      ring(B, WHITE);
+    },
+    // Da Vinci's flying machines: three craft, wings beating, bombs over the target.
+    ornithopters(A, B) {
+      for (let i = 0; i < 3; i++) later(i * 450, () => {
+        const craft = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.6), new THREE.MeshLambertMaterial({ color: 0x8a5a2b }));
+        const wingMat = new THREE.MeshLambertMaterial({ color: 0xe8dcc0, side: THREE.DoubleSide });
+        const wl = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.35), wingMat), wr = wl.clone();
+        wl.position.x = -0.5; wr.position.x = 0.5;
+        wl.rotation.x = wr.rotation.x = -Math.PI / 2;
+        craft.add(body, wl, wr);
+        const c = arc(A, B, 0.5), off = new THREE.Vector3((i - 1) * 0.8, 0.5, 0);
+        const curve = new THREE.QuadraticBezierCurve3(c.v0.clone().add(off), c.v1.clone().add(off), c.v2.clone().add(off).add(new THREE.Vector3(0, 2.4, 0)));
+        let dropped = false;
+        fly(craft, curve, 3000, {
+          trail: (k) => {
+            const f = Math.sin(k * 70) * 0.6;
+            wl.rotation.z = f; wr.rotation.z = -f;
+            craft.lookAt(curve.getPoint(Math.min(1, k + 0.03)));
+            if (k > 0.9 && !dropped) {
+              dropped = true;
+              const bomb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), ironMat), from = craft.position.clone();
+              fly(bomb, new THREE.QuadraticBezierCurve3(from, from.clone().add(new THREE.Vector3(0, 0.3, 0)), top(B)), 700, { onLand: () => { flash(B); crumble(B, 4); } });
+            }
+          },
+        });
+      });
+    },
+  };
+  /** One attack with a given weapon from one nation to another (an unknown weapon fires the cannon). */
+  function attack(weapon, fromId, toId, delay = 0) {
+    const A = islands.get(fromId), B = islands.get(toId);
+    if (!A || !B) return;
+    later(delay, () => (ARSENAL[weapon] || ARSENAL.cannon)(A, B));
+  }
+  const WEAPON_LIST = Object.keys(ARSENAL);
+
   const deadIsland = () => [...islands.values()].find((i) => i.userData.status === "dead");
 
   function play(r) {
@@ -230,7 +387,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "war": ring(islands.get(r.attacker), RED); ring(islands.get(r.defender), RED); cannon(r.attacker, r.defender); bubble(islands.get(r.attacker), text, "warden"); break;
       case "battle": {
         const ids = Object.keys(r.sides).map(Number);
-        cannon(ids[0], ids[1]); cannon(ids[1], ids[0], 900);
+        attack(r.sides[ids[0]].weapon || "cannon", ids[0], ids[1]); attack(r.sides[ids[1]].weapon || "cannon", ids[1], ids[0], 900);
         for (const id of ids) if (r.sides[id].burned?.length) crumble(islands.get(id), 6 + 4 * r.sides[id].burned.length, 2200);
         if (ids.some((id) => r.sides[id].burned?.length)) bubble(islands.get(ids[0]), text, "warden");
         break;
@@ -254,5 +411,5 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  return { play, enqueue, update, cannon, crumble, pending: () => queue.length, setCrowd: () => {} };
+  return { play, enqueue, update, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, setCrowd: () => {} };
 }
