@@ -268,7 +268,7 @@ function makeApi(NET) {
 }
 const APIS = { testnet: makeApi("testnet"), mainnet: makeApi("mainnet") };
 
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".ico": "image/x-icon", ".glb": "model/gltf-binary", ".webp": "image/webp" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".ico": "image/x-icon", ".glb": "model/gltf-binary", ".webp": "image/webp", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".webm": "video/webm", ".jpg": "image/jpeg" };
 
 function serveStatic(req, res, url) {
   let pathname;
@@ -285,6 +285,24 @@ function serveStatic(req, res, url) {
     return send(res, 404, "text/html; charset=utf-8", fs.existsSync(nf) ? fs.readFileSync(nf) : "Not found");
   }
   const immutable = p.includes(`${path.sep}assets${path.sep}`);
+  // Video and audio: streamed from disk with byte ranges (Safari and iPhones won't play an MP4
+  // without them, and every browser seeks with them). Never held in memory or gzipped.
+  if (/\.(mp4|mp3|webm)$/.test(p)) {
+    const size = fs.statSync(p).size;
+    const head = { "content-type": TYPES[path.extname(p)], "accept-ranges": "bytes", "cache-control": "public, max-age=86400" };
+    const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+    if (m && (m[1] || m[2])) {
+      let start = m[1] ? Number(m[1]) : size - Number(m[2]), end = m[1] && m[2] ? Number(m[2]) : size - 1;
+      end = Math.min(end, size - 1);
+      if (!(start >= 0 && start <= end)) { res.writeHead(416, { "content-range": `bytes */${size}` }); return res.end(); }
+      res.writeHead(206, { ...head, "content-range": `bytes ${start}-${end}/${size}`, "content-length": end - start + 1 });
+      if (req.method === "HEAD") return res.end();
+      return fs.createReadStream(p, { start, end }).on("error", () => res.destroy()).pipe(res);
+    }
+    res.writeHead(200, { ...head, "content-length": size });
+    if (req.method === "HEAD") return res.end();
+    return fs.createReadStream(p).on("error", () => res.destroy()).pipe(res);
+  }
   // Held in memory (and gzipped once) instead of read from disk on every request: load test 8 Nov.
   const f = fileOf(p);
   const gz = f.gz && /gzip/.test(req.headers["accept-encoding"] || "");
