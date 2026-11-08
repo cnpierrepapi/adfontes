@@ -10,11 +10,18 @@ const TECH_LINE = {
   astrolabe: "It buys at half price and spots ruins from far off.",
 };
 
+/** For a trade: how its price was made (engine/prices.mjs) and the merchant's reason, in plain words.
+ *  Shown when you hover (or tap) a trade in the event list, and on the judge page. */
+export function tipOf(r) {
+  if (r.kind !== "trade") return "";
+  return [r.priceWhy && `Price: ${r.priceWhy}.`, r.why && `The Broker's reason: ${r.why}`].filter(Boolean).join("\n");
+}
+
 export function says(r, clanName) {
   const c = clanName;
   switch (r.kind) {
     case "corpus": return `${r.scholar} of ${c(r.clan)} wrote up "${r.point}" from ${r.cites} citations${r.fake ? `, ${r.fake} of them made up` : ""}.${r.stir === "doubt" ? " It unsettles the citizens." : r.stir === "faith" ? " It lifts their faith." : ""}`;
-    case "trade": return r.tool ? `${c(r.buyer)} bought a figure kit from ${c(r.seller)} for ${fl(r.price)}.` : `${c(r.buyer)} bought what ${c(r.seller)} knows about "${r.about ?? r.point}" for ${fl(r.price)}.${r.why ? ` The Broker's reason: ${r.why}` : ""}`;
+    case "trade": return r.tool ? `${c(r.buyer)} bought a figure kit from ${c(r.seller)} for ${fl(r.price)}.` : `${c(r.buyer)} bought what ${c(r.seller)} knows about "${r.about ?? r.point}" for ${fl(r.price)}.`;
     case "broker": return r.wanted ? `${c(r.clan)}'s Broker wanted ${c(r.seller)}'s work on "${r.wanted}" but the nation couldn't afford ${fl(r.price)}.` : `${c(r.clan)}'s Broker looked at what the rivals know and bought nothing. ${r.why ?? ""}`.trim();
     case "gift": {
       const earned = r.florins ? Object.values(r.florins).reduce((a, b) => a + b, 0) : 0;

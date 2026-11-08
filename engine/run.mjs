@@ -17,6 +17,7 @@ import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
+import { researchPrice, kitPrice } from "./prices.mjs";
 import * as store from "./store.mjs";
 import { renderFigure } from "./figures.mjs";
 
@@ -276,15 +277,19 @@ for (let n = 0; n < days; n++) {
         if (deal) {
           const holders = Object.values(s.clans).filter((o) => Object.values(o.owned).some((v) => s.corpora[v.corpus]?.children.includes(deal.point))).length;
           const depth = c.frontier[deal.point].depth;
-          const price = +(FL.corpusBase * (1 + depth) * (live.length / (1 + holders)) * (W.hasTech(c, "astrolabe") ? 0.5 : 1)).toFixed(4);
+          // The price and its sum (engine/prices.mjs). Scarcity counts every nation alive, also on an
+          // instant turn (which only runs one nation).
+          const { price, why: priceWhy } = researchPrice({ base: FL.corpusBase, depth, nations: alive.length, holders, astrolabe: W.hasTech(c, "astrolabe") });
           if (wallet <= price && deal.why) log({ kind: "broker", clan: oc.id, bought: false, wanted: deal.point, seller: deal.seller, price, why: `couldn't afford it: ${deal.why}` });
           if (wallet > price) {
+            // The merchant's reason: the Broker's own words when it chose, or the rule that made the match.
+            deal.why ||= `it's the exact point our Scholars were stuck on ("${deal.point}")`;
             const r = await agentBuy(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
             wallet -= price;
             c.owned[deal.point] = { depth, parent: c.frontier[deal.point].parent, corpus: deal.sc.id, how: `bought from clan ${deal.seller}` };
             delete c.frontier[deal.point];
             W.grow(c, deal.point, deal.sc.children);
-            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, tx: r.hash, signer: r.signer ?? "operator", ...(deal.why ? { why: deal.why } : {}) });
+            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, priceWhy, tx: r.hash, signer: r.signer ?? "operator", why: deal.why });
             // The seller's Printing Press: copies are cheap, so each sale earns it a little more.
             if (W.hasTech(s.clans[deal.seller], "press")) {
               try { await chain.mint(deal.seller, FL.pressSale, `printing press: sale to ${oc.id}`); }
@@ -358,11 +363,12 @@ for (let n = 0; n < days; n++) {
         c.firstDraftDone = true;
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
-          if (kit && wallet > FL.kit) {
-            const r = await agentBuy(oc.id, kit.clan, FL.kit, `tool:${kit.id}`);
-            wallet -= FL.kit;
+          const { price: kp, why: priceWhy } = kitPrice({ base: FL.kit });
+          if (kit && wallet > kp) {
+            const r = await agentBuy(oc.id, kit.clan, kp, `tool:${kit.id}`);
+            wallet -= kp;
             c.hasKit = true;
-            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: FL.kit, tx: r.hash, signer: r.signer ?? "operator" });
+            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: kp, priceWhy, tx: r.hash, signer: r.signer ?? "operator", why: "our Drafter wants figures before the next patent draft: a kit halves its mistakes" });
           }
         }
         const nodes = W.deepestChain(c).filter((k) => c.owned[k].corpus);

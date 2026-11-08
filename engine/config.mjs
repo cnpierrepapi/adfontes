@@ -1,3 +1,4 @@
+import { PRICES } from "./prices.mjs";
 // Every number the world runs on. SPEC.md §6, §6b, §7, §12b. Amounts in NEAR.
 export const CFG = {
   // Engine turn every 2 real hours. Day and night come from engine/clock.mjs (SPEC §14).
@@ -49,8 +50,6 @@ export const CFG = {
   florinK: 1.5,
   startNear: { testnet: 0.89, mainnet: 6.2 },
   upkeepEveryHours: Number(process.env.ADF_UPKEEP_HOURS) || 12,
-  corpusBasePrice: 1, // florins; x (1 + depth) x scarcity
-  toolPrice: 1, // florins for a figure kit
 
   // Work per day.
   scholarTurnsPerDay: 1, // per Scholar, scaled by pace/laziness/fortune/skill
@@ -95,5 +94,6 @@ export const NETWORKS = {
 export function florinRates(net) {
   const f = net === "testnet" ? CFG.florinK * (CFG.startNear.testnet / CFG.startNear.mainnet) : 1;
   const out = Object.fromEntries(Object.entries(CFG.florin).map(([k, v]) => [k, k === "draftOwn" ? v : v * f]));
-  return { ...out, corpusBase: CFG.corpusBasePrice * f, kit: CFG.toolPrice * f, scale: f };
+  // Prices live in engine/prices.mjs (one readable file); here they're only scaled for the network.
+  return { ...out, corpusBase: PRICES.researchBase * f, kit: PRICES.kit * f, scale: f };
 }

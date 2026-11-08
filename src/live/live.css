@@ -355,3 +355,8 @@ body.tl-on .standings, body.tl-on #panel, body.tl-on .hud-top, body.tl-on .repla
 .tl-turn { color: #1d1430; text-shadow: none; background: rgba(255, 210, 90, 0.95); padding: 4px 12px; border-radius: 999px; }
 .tl-cap.in { animation-duration: 0.3s; }
 @media (min-width: 701px) { .standings { top: 112px; } }
+/* A trade's price sum and the merchant's reason (engine/prices.mjs): hover, or tap on phones. */
+.standings .events li.ev.has-tip { cursor: help; }
+.standings .events li.ev .tip { display: none; white-space: pre-line; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(0, 0, 0, 0.18); font-size: 0.7rem; opacity: 0.85; }
+.standings .events li.ev.has-tip:hover .tip, .standings .events li.ev.open .tip { display: block; }
+body.night .standings .events li.ev .tip { border-top-color: rgba(255, 255, 255, 0.2); }

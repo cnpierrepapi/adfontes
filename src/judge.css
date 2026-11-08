@@ -10,3 +10,4 @@
 .jcode { background: #1d1430; color: #f1ecff; border-radius: 14px; padding: 14px 16px; overflow-x: auto; font-family: "JetBrains Mono", monospace; font-size: 0.82rem; }
 .proof-out div { font-family: "JetBrains Mono", monospace; font-size: 0.8rem; word-break: break-all; margin: 4px 0; }
 .proof-out .verdict { font-family: "Instrument Sans", sans-serif; font-size: 1rem; word-break: normal; }
+.jtx .tip { display: block; white-space: pre-line; font-size: 0.8rem; opacity: 0.72; margin: 3px 0 2px; }

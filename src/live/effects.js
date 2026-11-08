@@ -1,7 +1,7 @@
 // World events played out in place: each record from the engine becomes a short effect at the
 // island where it happened, and a line of plain words in the event list (onEvent).
 import * as THREE from "three";
-import { says } from "../says.js";
+import { says, tipOf } from "../says.js";
 
 // Colours above 1.0 so only these effects bloom (bloom threshold sits just above white).
 const HDR = (r, g, b) => new THREE.Color(r, g, b);
@@ -14,8 +14,8 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
 
   // The words go to the event list under the season standings (SPEC §14), not over the islands:
   // the effect still plays where it happened.
-  function bubble(isl, text, kind) {
-    onEvent?.({ text, kind, clan: isl?.userData?.clan?.id ?? null });
+  function bubble(isl, text, kind, tip) {
+    onEvent?.({ text, kind, tip, clan: isl?.userData?.clan?.id ?? null });
   }
 
   // A comet of knowledge along the bridge, seller -> buyer.
@@ -355,7 +355,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     const text = r.text ?? says(r, clanName); // a god's own action brings its own words
     onRecord?.(r);
     switch (r.kind) {
-      case "trade": comet(r.seller, r.buyer, r.tool ? VIOLET : CYAN); bubble(islands.get(r.buyer), text, "trade"); break;
+      case "trade": comet(r.seller, r.buyer, r.tool ? VIOLET : CYAN); bubble(islands.get(r.buyer), text, "trade", tipOf(r)); break;
       case "corpus": page(islands.get(r.clan), r.fake ? RED : WHITE); bubble(islands.get(r.clan), text, r.stir === "doubt" ? "warden" : "corpus"); break;
       case "gift": beam(islands.get(r.clan), r.passed ? GOLD : RED); bubble(islands.get(r.clan), text, r.passed ? "gift" : "warden"); break;
       case "warden": ring(islands.get(r.clan), RED); bubble(islands.get(r.clan), text, "warden"); break;

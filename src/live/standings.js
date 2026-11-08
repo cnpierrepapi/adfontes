@@ -17,10 +17,12 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
   drawEvHead();
   evHead.addEventListener("click", () => { evOpen = !evOpen; drawEvHead(); });
   const MAX_EVENTS = 30;
-  function event({ text, kind, clan }) {
+  function event({ text, kind, clan, tip }) {
     if (!text) return;
-    const li = el("li", { className: `ev ${kind || ""}${clan != null ? " go" : ""}`, textContent: text, title: clan != null ? "Fly there" : "" });
-    if (clan != null) li.addEventListener("click", () => flyTo(clan));
+    const li = el("li", { className: `ev ${kind || ""}${clan != null ? " go" : ""}${tip ? " has-tip" : ""}`, textContent: text, title: clan != null && !tip ? "Fly there" : "" });
+    // A trade's price sum and the merchant's reason: shown on hover, or on a tap (phones).
+    if (tip) li.append(el("span", { className: "tip", textContent: tip }));
+    li.addEventListener("click", () => { if (tip) li.classList.toggle("open"); if (clan != null) flyTo(clan); });
     events.prepend(li);
     while (events.children.length > MAX_EVENTS) events.lastChild.remove();
   }

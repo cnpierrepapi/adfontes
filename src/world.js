@@ -1,4 +1,4 @@
-import { says as saysWith } from "./says.js";
+import { says as saysWith, tipOf } from "./says.js";
 // The live world page. Reads the read-only API, and does the record check itself:
 // it hashes the record in the browser, walks the proof path, and asks NEAR for the root.
 const $ = (id) => document.getElementById(id);
@@ -44,7 +44,7 @@ async function loadWorld() {
   );
 
   const feed = W.recent.slice().reverse();
-  $("feed").replaceChildren(...(feed.length ? feed.map((r) => el("li", { className: r.kind }, el("span", { className: "k", textContent: r.kind }), says(r))) : [el("li", { className: "empty", textContent: "Quiet so far today." })]));
+  $("feed").replaceChildren(...(feed.length ? feed.map((r) => el("li", { className: r.kind, title: tipOf(r) }, el("span", { className: "k", textContent: r.kind }), says(r))) : [el("li", { className: "empty", textContent: "Quiet so far today." })]));
 
   $("pd").max = W.day;
   if (!$("pd").value) { $("pd").value = Math.max(1, W.day - 1); loadDay(); }
