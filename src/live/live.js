@@ -304,6 +304,21 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   updatePaths();
 
+  // War (the finale): a red, pulsing line between two nations at war, and each side's war in its clan.
+  const warMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 0.35, 0.3), transparent: true, opacity: 0.6, depthWrite: false });
+  const warLinks = new Map();
+  function updateWars() {
+    const want = new Set((W.wars || []).map((w) => pairKey(w.a, w.b)));
+    for (const [k, m] of warLinks) if (!want.has(k)) { m.removeFromParent(); m.geometry.dispose(); warLinks.delete(k); }
+    for (const w of W.wars || []) {
+      const k = pairKey(w.a, w.b), A = islands.get(w.a), B = islands.get(w.b);
+      if (warLinks.has(k) || !A || !B) continue;
+      const m = new THREE.Mesh(new THREE.TubeGeometry(bridgeCurve(A, B), 48, 0.09, 6), warMat);
+      world.add(m); warLinks.set(k, m);
+    }
+  }
+  updateWars();
+
 
   // ---- night (default) and day (SPEC §12g). The sky no longer shows the weather; sound does. ----
   const THEMES = {
@@ -452,6 +467,8 @@ export async function startLive(canvas, hud, opts = {}) {
       }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
+      W.wars = now.wars || []; updateWars();
+      for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; } }
       for (let d = lastDay + 1; d <= now.day; d++) { const recs = ((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)); folk.dayRecords(recs, d); fx.enqueue(recs); }
       W.jackpot = now.jackpot;
       standings.update(now);
@@ -774,6 +791,7 @@ export async function startLive(canvas, hud, opts = {}) {
     for (const s of sprays) s(t);
     updateRising();
     for (const isl of islands.values()) isl.position.y = isl.userData.baseY + (isl.userData.riseY || 0) + Math.sin(t * 0.45 + isl.userData.bob) * 0.3;
+    warMat.opacity = 0.4 + 0.35 * Math.sin(t * 3);
     const sp = sea.geometry.attributes.position;
     for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
     sp.needsUpdate = true;

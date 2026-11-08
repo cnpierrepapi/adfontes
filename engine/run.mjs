@@ -12,6 +12,8 @@ import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
 import { scholarTurn, draftTurn, brokerPick, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
+import * as WR from "./war.mjs";
+import { warCouncil } from "./llm.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
 import * as store from "./store.mjs";
@@ -126,6 +128,10 @@ for (let n = 0; n < days; n++) {
     if (!INSTANT && s.inProgress.done.includes(oc.id)) continue;
     const isNew = !s.clans[oc.id];
     const c = s.clans[oc.id] || W.initClan(s, oc);
+    // A fallen island (lost a war) takes no more turns: no work, no upkeep. Its gods can still claim.
+    if (c.fallen) continue;
+    // At war the citizens fight: no research, no Broker, no drafts (see engine/war.mjs).
+    const atWar = !!WR.warOf(s, oc.id);
     // A nation state seen for the first time: the 3D world plays its founding.
     if (isNew) log({ kind: "founded", clan: oc.id, name: oc.name, field: c.field, gods: oc.gods.length });
     try {
@@ -207,7 +213,7 @@ for (let n = 0; n < days; n++) {
 
       // Broker: once a day, buy a corpus from another clan whose papers are tagged with one of
       // this clan's open points (OpenAlex keyword tags = the papers are really about it).
-      if (able("Broker").length && chance(Math.min(1, effort))) {
+      if (!atWar && able("Broker").length && chance(Math.min(1, effort))) {
         let deal = null;
         for (const point of Object.keys(c.frontier)) {
           for (const o of Object.values(s.clans)) {
@@ -268,7 +274,7 @@ for (let n = 0; n < days; n++) {
 
       // Research: each able Scholar takes its turns on the Patron's chosen point.
       // An instant turn: one research turn by one Scholar (in turn), not the day's full share.
-      const scholars = eff.waiting ? [] : able("Scholar");
+      const scholars = eff.waiting || atWar ? [] : able("Scholar");
       const instantScholar = INSTANT ? scholars[(c.instantTurns = (c.instantTurns || 0) + 1) % Math.max(1, scholars.length)] : null;
       for (const sch of scholars) {
         if (INSTANT && sch !== instantScholar) continue;
@@ -326,7 +332,7 @@ for (let n = 0; n < days; n++) {
       const depth = W.chainDepth(c);
       // A new nation's first draft comes as soon as its line is deep enough (its first gift to rule on).
       const draftDue = INSTANT ? FRESH && !c.firstDraftDone : Date.now() - (c.lastDraftAt || 0) >= CFG.draftEveryMs / share && chance(Math.min(1, effort));
-      if (!eff.waiting && able("Drafter").length && depth >= CFG.draftMinDepth && draftDue && !capped("draft")) {
+      if (!eff.waiting && !atWar && able("Drafter").length && depth >= CFG.draftMinDepth && draftDue && !capped("draft")) {
         c.firstDraftDone = true;
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
@@ -443,6 +449,91 @@ for (let n = 0; n < days; n++) {
     await store.saveState(net, s);
     console.log(`  instant turn for ${INSTANT.join(",")} done: ${rec.length} pending records | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);
     break;
+  }
+
+  // War (the finale, his call 8 Nov): councils, then one round of every war. Scheduled turns only.
+  if (!INSTANT) {
+    try { await warPhase(); } catch (e) { log({ kind: "error", error: `war: ${String(e.message || e).slice(0, 200)}` }); }
+  }
+  async function warPhase() {
+    s.wars ||= {}; s.peace ||= {};
+    const now = Date.now();
+    const chainNow = await chain.clans();
+    const fl = Object.fromEntries(chainNow.map((x) => [x.id, toFlorins(x.florins)]));
+    const nameOf = (id) => chainNow.find((x) => x.id === id)?.name ?? `nation ${id}`;
+    const standing = chainNow.filter((x) => x.alive && s.clans[x.id] && !s.clans[x.id].fallen);
+    const seed = s.roots[day - 1] ?? s.roots[Math.max(0, ...Object.keys(s.roots).map(Number))] ?? "genesis";
+    const bought = (buyer, seller) => Object.values(s.clans[buyer]?.owned || {}).filter((v) => v.how === `bought from clan ${seller}`).length;
+    const view = (x) => ({ id: x.id, name: x.name, field: s.clans[x.id].field, hp: WR.hp(s.clans[x.id]), techs: s.clans[x.id].techs?.length || 0, florins: +(fl[x.id] || 0).toFixed(1), walls: +(s.clans[x.id].walls || 0).toFixed(1) });
+
+    // 1. War councils: once a real day for every nation that's fair game.
+    for (const x of standing) {
+      const c = s.clans[x.id];
+      if (!WR.eligible(s, x.id) || now - (c.lastCouncilAt || 0) < WR.WAR.councilEveryMs || capped("agent")) continue;
+      c.lastCouncilAt = now;
+      const w = WR.warOf(s, x.id), enemy = w ? (w.a === x.id ? w.b : w.a) : null;
+      const rivals = standing.filter((y) => y.id !== x.id).map((y) => ({ ...view(y), atWar: !!WR.warOf(s, y.id), fairGame: WR.eligible(s, y.id), weBought: bought(x.id, y.id), theyBought: bought(y.id, x.id) }));
+      let move;
+      try {
+        move = await warCouncil({ me: view(x), rivals, temperament: c.mbti, war: w && { enemy, rounds: w.rounds || 0, enemyHp: WR.hp(s.clans[enemy]), offerFromThem: w.offer && w.offer.by !== x.id, offerFromUs: w.offer?.by === x.id } });
+      } catch (e) { log({ kind: "error", clan: x.id, error: `war council: ${String(e.message || e).slice(0, 160)}` }); continue; }
+      const reason = String(move.reason || "").slice(0, 200);
+      const rule = WR.allowed(s, x.id, move, fl, now);
+      if (!rule.ok) { log({ kind: "council", clan: x.id, action: move.action, target: move.target || null, reason, refused: rule.why }); continue; }
+      if (move.action === "declare") {
+        const id = `w${s.nextId++}`, t = Number(move.target);
+        s.wars[id] = { id, a: x.id, b: t, status: "on", startedDay: day, startedAt: now, rounds: 0, reason };
+        log({ kind: "war", war: id, attacker: x.id, defender: t, reason });
+      } else if (move.action === "fortify") {
+        const amt = +((fl[x.id] || 0) * WR.WAR.fortifyFrac).toFixed(4);
+        if (amt > 0.01) {
+          const r = await chain.burn(x.id, amt, "walls");
+          const spent = toFlorins(r.value);
+          fl[x.id] -= spent; c.walls = (c.walls || 0) + spent;
+          log({ kind: "fortify", clan: x.id, spent, walls: +c.walls.toFixed(2), reason, tx: r.hash });
+        }
+      } else if (move.action === "offer_peace") {
+        w.offer = { by: x.id, day, reason };
+        log({ kind: "peace-offer", war: w.id, clan: x.id, to: enemy, reason });
+      } else if (move.action === "accept_peace") {
+        w.status = "peace"; w.endedDay = day; s.peace[WR.pairKey(w.a, w.b)] = now;
+        log({ kind: "peace", war: w.id, a: w.a, b: w.b, by: x.id, rounds: w.rounds || 0, reason });
+      } else log({ kind: "council", clan: x.id, action: "hold", reason });
+    }
+
+    // 2. One round of every war on.
+    for (const w of Object.values(s.wars).filter((v) => v.status === "on")) {
+      const o = WR.round(s, w, seed, fl);
+      for (const id of [w.a, w.b]) {
+        const sp = o.sides[id].spend;
+        if (sp > 0.0001) { try { const r = await chain.burn(id, sp, `war chest ${w.id}`); fl[id] -= toFlorins(r.value); } catch (e) { log({ kind: "error", clan: id, error: `war chest: ${String(e.message || e).slice(0, 120)}` }); } }
+      }
+      log({ kind: "battle", ...o });
+      const downA = WR.hp(s.clans[w.a]) <= 0, downB = WR.hp(s.clans[w.b]) <= 0;
+      if (!downA && !downB) continue;
+      // Both down in the same round: the one with more money left holds on.
+      const loser = downA && downB ? (fl[w.a] < fl[w.b] ? w.a : w.b) : downA ? w.a : w.b, winner = loser === w.a ? w.b : w.a;
+      await fall(w, winner, loser);
+    }
+
+    async function fall(w, winner, loser) {
+      const L = s.clans[loser], Wc = s.clans[winner];
+      w.status = "won"; w.winner = winner; w.endedDay = day;
+      L.fallen = { day, by: winner, war: w.id };
+      // Half its florins go to the winner; the other half stays, claimable by its gods (his pick b).
+      const loot = +((fl[loser] || 0) * WR.WAR.plunder).toFixed(4);
+      let tx = null;
+      if (loot > 0.0001) { try { tx = (await chain.trade(loser, winner, loot, `plunder: ${w.id}`)).hash; } catch (e) { log({ kind: "error", clan: winner, error: `plunder: ${String(e.message || e).slice(0, 120)}` }); } }
+      const taken = WR.takeKnowledge(Wc, L, loser);
+      const names = new Set(Object.values(s.clans).flatMap((x) => Object.keys(x.skills || {})));
+      const refugees = [];
+      for (let i = 0; i < WR.WAR.refugees; i++) {
+        const name = newName(names); names.add(name);
+        const role = i === 0 ? "Scholar" : "Smith";
+        try { await chain.spawn(winner, name, role); Wc.skills[name] = {}; refugees.push(`${name} (${role})`); } catch (e) { log({ kind: "error", clan: winner, error: `refugee: ${String(e.message || e).slice(0, 120)}` }); }
+      }
+      log({ kind: "fallen", war: w.id, clan: loser, name: nameOf(loser), by: winner, byName: nameOf(winner), rounds: w.rounds, loot, knowledge: taken.length, refugees, tx });
+    }
   }
 
   // Gods' rulings -> fortune

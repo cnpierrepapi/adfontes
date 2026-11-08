@@ -284,3 +284,7 @@ body.night .powertile:hover { box-shadow: 0 10px 26px color-mix(in srgb, var(--c
 .walletmenu .viewbtn.gold { background: var(--gold); color: var(--ink); box-shadow: 0 4px 12px rgba(232, 164, 0, 0.35); }
 body.night .walletmenu .viewbtn { background: rgba(255, 255, 255, 0.12); color: #f1ecff; }
 body.night .walletmenu .viewbtn.gold { background: var(--gold); color: var(--ink); }
+
+/* War (the finale): the nation panel's war line. */
+#panel .warline { margin: 8px 0 0; padding: 7px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; background: rgba(232, 50, 94, 0.12); color: #b3123c; border: 1px solid rgba(232, 50, 94, 0.3); }
+body.night #panel .warline { color: #ff8aa5; background: rgba(232, 50, 94, 0.16); }

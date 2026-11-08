@@ -150,6 +150,46 @@ export function brokerPick({ field, open, offers, temperament }) {
   );
 }
 
+// The war council (his call 8 Nov): once a real day the Patron decides war and peace for the
+// nation. The gods have no say: whispers are not shown to it. The engine checks every move
+// against the rules (engine/war.mjs) before anything happens.
+const COUNCIL = {
+  type: "object",
+  additionalProperties: false,
+  required: ["action", "target", "reason"],
+  properties: {
+    action: { type: "string", enum: ["declare", "fortify", "offer_peace", "accept_peace", "hold"] },
+    target: { type: "integer" },
+    reason: { type: "string" },
+  },
+};
+export function warCouncil({ me, rivals, war, temperament }) {
+  if (FAKE) {
+    // Stand-in: declare on the weakest rival with a patent if strong enough, accept any peace offer.
+    if (war?.offerFromThem) return Promise.resolve({ action: "accept_peace", target: war.enemy, reason: "We have lost enough." });
+    if (war) return Promise.resolve({ action: me.walls < 5 ? "fortify" : "hold", target: 0, reason: "Hold the walls." });
+    const prey = rivals.filter((r) => r.fairGame && !r.atWar).sort((a, b) => a.hp - b.hp)[0];
+    if (prey && me.hp > prey.hp) return Promise.resolve({ action: "declare", target: prey.id, reason: `${prey.name} is weaker than us.` });
+    return Promise.resolve({ action: "hold", target: 0, reason: "Not yet." });
+  }
+  const line = (r) => `[${r.id}] ${r.name} (${r.field}): island ${r.hp} points, ${r.techs} techs, ${r.florins} florins, walls ${r.walls}${r.atWar ? ", at war" : ""}${r.fairGame ? "" : ", protected (no patent yet)"}; trades with us: we bought ${r.weBought}, they bought ${r.theyBought}`;
+  const now = war
+    ? `You are at war with nation ${war.enemy} (round ${war.rounds}). Your island: ${me.hp} points; theirs: ${war.enemyHp}. ${war.offerFromThem ? "They have offered peace." : war.offerFromUs ? "You offered peace; they haven't accepted." : ""}`
+    : "You are at peace.";
+  return json(
+    CFG.agentModel,
+    "You are the Patron of a nation in AD FONTES and you lead its war council. Nations are floating islands made of their knowledge. " +
+      "At war, research stops, both sides burn money every round, and strikes burn points off the other island; an island down to its root falls, " +
+      "its rival takes half its money, its knowledge and two of its people. Decide one move for today: declare (war on the target nation id), " +
+      "fortify (spend a tenth of your money on walls), offer_peace, accept_peace (only if they offered), or hold. War is a real gamble: " +
+      "only start one you expect to win, and know peace can be better than a long war. target: a nation id, or 0. reason: one plain sentence your people would say. " +
+      `Your temperament: ${temperament}.`,
+    `Your nation: ${me.name} (${me.field}): island ${me.hp} points, ${me.techs} techs, ${me.florins} florins, walls ${me.walls}.\n${now}\n\nThe other nations:\n${rivals.map(line).join("\n")}`,
+    COUNCIL,
+    500,
+  );
+}
+
 const DRAFT = {
   type: "object",
   additionalProperties: false,

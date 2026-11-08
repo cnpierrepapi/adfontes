@@ -344,6 +344,21 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     async function draw() {
       const my = ++token;
       box.replaceChildren(el("h4", { textContent: "Gods" }));
+      // Fallen in war (his pick 8 Nov): the winner took half its florins; its gods can still claim the rest.
+      if (c.fallen) {
+        const by = live.world.clans.find((k) => k.id === c.fallen.by)?.name ?? "a rival";
+        box.append(el("p", { className: "fine", textContent: `Fallen. ${by} brought this island down in war and took half its florins, its knowledge and two of its people. Its gods can still take out what's left.` }));
+        if (!account) return;
+        const clan = await wallet.view(WORLD, "get_clan", { clan_id: c.id }).catch(() => null);
+        const me = clan?.gods.find((g) => g.account === account);
+        if (my === token && me) {
+          const b = el("button", { type: "button", className: "powertile claim" });
+          b.innerHTML = `<span class="pi">${ICONS.claim}</span><span class="pt"><b>Claim what's left</b><small>Take your share of its florins out as NEAR.</small></span>`;
+          b.addEventListener("click", () => withdrawCard(clan, me));
+          box.append(el("div", { className: "powertiles" }, b));
+        }
+        return;
+      }
       if (status === "dead" || c.alive === false) { box.append(el("p", { className: "fine", textContent: "Ruins. Its last god left, so there is nothing left to command." })); return; }
       if (!account) {
         box.append(rev);

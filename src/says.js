@@ -47,6 +47,18 @@ export function says(r, clanName) {
     case "reverence-change": return `Reverence changed after a draft: ${(r.changes || []).map((x) => `${x.god.split(".")[0]} ${x.d > 0 ? "+" : ""}${x.d} (${x.why})`).join(", ")}.`;
     case "report": return `In ${c(r.clan)}: ${r.claim}.`;
     case "report-settled": return `In ${c(r.clan)}: the report about ${r.accused} was ${r.truth ? "true" : "a grudge"}; ${r.outcome === "stunted" ? "they were stunted" : "nobody acted"}.`;
+    // War (the finale): the citizens decide, the gods watch.
+    case "war": return `${c(r.attacker)} declared war on ${c(r.defender)}. "${r.reason}"`;
+    case "council": return r.refused ? `${c(r.clan)}'s war council wanted to ${r.action.replace("_", " ")}, but ${r.refused}.` : `${c(r.clan)}'s war council holds. "${r.reason}"`;
+    case "fortify": return `${c(r.clan)} spent ${fl(r.spent)} on its walls. "${r.reason}"`;
+    case "peace-offer": return `${c(r.clan)} offered ${c(r.to)} peace. "${r.reason}"`;
+    case "peace": return `Peace between ${c(r.a)} and ${c(r.b)} after ${r.rounds} round${r.rounds === 1 ? "" : "s"}. "${r.reason}"`;
+    case "battle": {
+      const ids = Object.keys(r.sides).map(Number), hit = ids.filter((id) => r.sides[id].burned?.length);
+      if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}: both walls held.`;
+      return `War, round ${r.round}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} points left)`).join("; ")}.`;
+    }
+    case "fallen": return `${r.name} has fallen. ${r.byName} took ${fl(r.loot)}, ${r.knowledge} points of its knowledge and two of its people.`;
     default: return r.kind;
   }
 }

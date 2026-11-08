@@ -51,6 +51,16 @@ process.on("unhandledRejection", (e) => console.error("unhandled rejection:", St
 
 // Reverence (SPEC §12m) as the site sees it: who the nation follows and how much each god is revered.
 // A nation's standing is the reverence of the god it follows.
+// A nation's war, as the site shows it (engine/war.mjs).
+function warInfo(s, id) {
+  const st = s.clans[id] || {};
+  const w = Object.values(s.wars || {}).find((v) => v.status === "on" && (v.a === id || v.b === id));
+  const base = { walls: +(st.walls || 0).toFixed(1), fairGame: Object.values(s.drafts || {}).some((d) => d.clan === id && d.passed) };
+  if (!w) return base;
+  const enemy = w.a === id ? w.b : w.a;
+  return { ...base, id: w.id, enemy, since: w.startedDay, rounds: w.rounds || 0, attacker: w.a === id, offer: w.offer?.by ?? null,
+    hp: Math.max(0, Object.keys(st.owned || {}).length - 1), enemyHp: Math.max(0, Object.keys(s.clans[enemy]?.owned || {}).length - 1) };
+}
 function revOf(s, id) {
   const rv = s.rev?.[id];
   if (!rv) return null;
@@ -124,7 +134,10 @@ function makeApi(NET) {
               st.field = FIELDS[(Object.keys(s.clans).length + unseen.indexOf(c.id)) % FIELDS.length];
             }
             return {
-              id: c.id, name: c.name, dao: c.dao, alive: c.alive, gods: c.gods.length,
+              // A nation that lost a war has fallen (the chain still holds it so its gods can claim).
+              id: c.id, name: c.name, dao: c.dao, alive: c.alive && !st.fallen, gods: c.gods.length,
+              fallen: st.fallen ?? null,
+              war: warInfo(s, c.id),
               // What the nation holds: florins, and what they're worth in NEAR at today's florin value.
               florins: florins(c.florins), worth: +(florins(c.florins) * near(totals.florin_value)).toFixed(4),
               total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
@@ -138,6 +151,7 @@ function makeApi(NET) {
             };
           }),
           ruins: Object.keys(s.ruins || {}).length,
+          wars: Object.values(s.wars || {}).filter((w) => w.status === "on").map((w) => ({ id: w.id, a: w.a, b: w.b, since: w.startedDay, rounds: w.rounds || 0, offer: w.offer?.by ?? null })),
           recent: last.records.filter((r) => r.kind !== "weather").slice(-30),
         };
       });

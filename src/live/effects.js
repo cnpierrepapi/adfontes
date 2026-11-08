@@ -128,6 +128,70 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     });
   }
 
+  // War (the finale): a fireball arcing from one island to the other, a flash where it lands.
+  function cannon(fromId, toId, delay = 0) {
+    const A = islands.get(fromId), B = islands.get(toId);
+    if (!A || !B) return;
+    const a = top(A), b = top(B), m = a.clone().lerp(b, 0.5);
+    m.y += a.distanceTo(b) * 0.45;
+    const curve = new THREE.QuadraticBezierCurve3(a, m, b);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 1.3, 0.35) }));
+    const trail = Array.from({ length: 12 }, (_, i) => new THREE.Mesh(new THREE.SphereGeometry(0.34 - i * 0.024, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.7 - i * 0.04, 0.15), transparent: true, opacity: 0.85 - i * 0.07, depthWrite: false })));
+    const t0 = performance.now() + delay;
+    let added = false, landed = false;
+    add(() => {
+      const k = (performance.now() - t0) / 2200;
+      if (k < 0) return true;
+      if (!added) { scene.add(ball, ...trail); added = true; }
+      ball.position.copy(curve.getPoint(Math.min(1, k)));
+      trail.forEach((t, i) => t.position.copy(curve.getPoint(Math.max(0, Math.min(1, k - (i + 1) * 0.02)))));
+      if (k >= 1 && !landed) { landed = true; flash(B); }
+      if (k >= 1.08) { scene.remove(ball, ...trail); return false; }
+      return true;
+    });
+  }
+  function flash(isl) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.6, 0.5), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    scene.add(m);
+    const t0 = performance.now(), base = top(isl);
+    add(() => {
+      const k = (performance.now() - t0) / 700;
+      m.position.copy(base).y += 0.6;
+      m.scale.setScalar(0.5 + k * 2.6);
+      m.material.opacity = Math.max(0, 1 - k);
+      if (k >= 1) { scene.remove(m); return false; }
+      return true;
+    });
+  }
+  // Stones break off the island's edge and fall into the clouds (points burned in war).
+  function crumble(isl, n = 8, delay = 0) {
+    if (!isl) return;
+    const r = isl.userData.r || 3, base = top(isl);
+    const rocks = Array.from({ length: n }, () => new THREE.Mesh(new THREE.DodecahedronGeometry(0.18 + Math.random() * 0.22, 0), new THREE.MeshLambertMaterial({ color: 0x9c8f80, flatShading: true })));
+    const at = rocks.map(() => { const a = Math.random() * Math.PI * 2; return new THREE.Vector3(Math.cos(a) * r * 0.95, -0.2 - Math.random() * 0.6, Math.sin(a) * r * 0.95); });
+    const t0 = performance.now() + delay;
+    let added = false;
+    add(() => {
+      const k = (performance.now() - t0) / 3200;
+      if (k < 0) return true;
+      if (!added) { scene.add(...rocks); added = true; }
+      rocks.forEach((m, i) => { m.position.copy(base).add(at[i]); m.position.y -= 9 * k * k + i * 0.05; m.position.x += at[i].x * 0.15 * k; m.position.z += at[i].z * 0.15 * k; m.rotation.x += 0.06; m.rotation.z += 0.04; });
+      if (k >= 1) { scene.remove(...rocks); return false; }
+      return true;
+    });
+  }
+  // The fall: the island sinks into the clouds while its rubble flies to the winner.
+  function sink(isl) {
+    if (!isl) return;
+    const y0 = isl.userData.baseY, t0 = performance.now();
+    crumble(isl, 16); crumble(isl, 16, 900); crumble(isl, 16, 1800);
+    add(() => {
+      const k = Math.min(1, (performance.now() - t0) / 8000);
+      isl.userData.baseY = y0 - 7 * k * k;
+      return k < 1;
+    });
+  }
+
   const deadIsland = () => [...islands.values()].find((i) => i.userData.status === "dead");
 
   function play(r) {
@@ -162,6 +226,20 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       // The world clock and a nation's needs: words only.
       case "dawn": case "dusk": bubble(null, text, r.kind === "dawn" ? "gift" : "corpus"); break;
       case "needs": bubble(islands.get(r.clan), text, r.mood === "content" ? "trade" : "warden"); break;
+      // War: decided by the citizens, never the gods.
+      case "war": ring(islands.get(r.attacker), RED); ring(islands.get(r.defender), RED); cannon(r.attacker, r.defender); bubble(islands.get(r.attacker), text, "warden"); break;
+      case "battle": {
+        const ids = Object.keys(r.sides).map(Number);
+        cannon(ids[0], ids[1]); cannon(ids[1], ids[0], 900);
+        for (const id of ids) if (r.sides[id].burned?.length) crumble(islands.get(id), 6 + 4 * r.sides[id].burned.length, 2200);
+        if (ids.some((id) => r.sides[id].burned?.length)) bubble(islands.get(ids[0]), text, "warden");
+        break;
+      }
+      case "fortify": ring(islands.get(r.clan), WHITE); bubble(islands.get(r.clan), text, "tool"); break;
+      case "peace-offer": ring(islands.get(r.clan), WHITE); bubble(islands.get(r.clan), text, "corpus"); break;
+      case "peace": beam(islands.get(r.a), WHITE); beam(islands.get(r.b), WHITE); bubble(islands.get(r.a), text, "gift"); break;
+      case "fallen": sink(islands.get(r.clan)); debris(islands.get(r.clan), islands.get(r.by)); bubble(islands.get(r.by), text, "warden"); break;
+      case "council": if (r.refused) bubble(islands.get(r.clan), text, "corpus"); else bubble(islands.get(r.clan), text, "corpus"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }
   }

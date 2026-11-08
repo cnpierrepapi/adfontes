@@ -8,7 +8,7 @@
     "start": "node server.mjs",
     "engine": "node engine/run.mjs",
     "test:warden": "node engine/test-warden.mjs",
-    "test": "node engine/test-clock.mjs && node engine/test-spend.mjs && node engine/test-techs.mjs && node engine/test-stir.mjs && node engine/test-reverence.mjs && node engine/test-warden.mjs && node tests/steer.test.mjs",
+    "test": "node engine/test-clock.mjs && node engine/test-war.mjs && node engine/test-spend.mjs && node engine/test-techs.mjs && node engine/test-stir.mjs && node engine/test-reverence.mjs && node engine/test-warden.mjs && node tests/steer.test.mjs",
     "test:live": "node tests/live-audit.mjs",
     "test:load": "node tests/load.mjs"
   },
