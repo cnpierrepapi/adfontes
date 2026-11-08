@@ -1,5 +1,7 @@
 // Talks to the world contract as the operator. Keys are read, never printed.
-import { Account, JsonRpcProvider } from "near-api-js";
+import { Account, JsonRpcProvider, KeyPair, actions, baseEncode } from "near-api-js";
+import { createHash } from "node:crypto";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,18 +17,33 @@ export const toFlorins = (u) => Number(BigInt(u) / 10n ** 16n) / 1e6;
 const MINT_MAX = 100; // florins per mint call (the contract's cap)
 const T = (t) => (BigInt(t) * 10n ** 12n).toString();
 
-function operatorAccount(net, provider) {
+function operatorKey(net) {
   const n = NETWORKS[net];
   // On Railway the operator key comes from service variables, never from a file.
-  if (process.env.OPERATOR_ACCOUNT_ID && process.env.OPERATOR_PRIVATE_KEY)
-    return new Account(process.env.OPERATOR_ACCOUNT_ID, provider, process.env.OPERATOR_PRIVATE_KEY);
+  if (process.env.OPERATOR_ACCOUNT_ID && process.env.OPERATOR_PRIVATE_KEY) return [process.env.OPERATOR_ACCOUNT_ID, process.env.OPERATOR_PRIVATE_KEY];
   if (n.operatorKeyFile) {
     const k = JSON.parse(fs.readFileSync(n.operatorKeyFile, "utf8"));
-    return new Account(k.account_id, provider, k.private_key);
+    return [k.account_id, k.private_key];
   }
   const lines = fs.readFileSync(path.join(os.homedir(), "Documents", "env.txt"), "utf8").split(/\r?\n/);
   const get = (k) => lines.find((x) => x.startsWith(k + "="))?.slice(k.length + 1).trim();
-  return new Account(get(`${n.operatorEnv}_ACCOUNT_ID`), provider, get(`${n.operatorEnv}_PRIVATE_KEY`));
+  return [get(`${n.operatorEnv}_ACCOUNT_ID`), get(`${n.operatorEnv}_PRIVATE_KEY`)];
+}
+function operatorAccount(net, provider) {
+  const [id, key] = operatorKey(net);
+  return new Account(id, provider, key);
+}
+
+// Agent wallets (8 Nov): each nation's Broker and Patron sign their own moves from their own NEAR
+// accounts, broker<id>.<operator> and patron<id>.<operator>. Their keys are derived from the
+// operator key (no new secret anywhere), and each account's only key is a function-call key that
+// can call just its one method on the world contract: agent_buy (Broker) or agent_spend (Patron).
+const ROLE_METHOD = { Broker: "agent_buy", Patron: "agent_spend" };
+const AGENT_FUND = 10n ** 23n; // 0.1 NEAR: storage plus a few hundred calls of gas
+function agentKeyPair(opKey, world, clanId, role) {
+  const seed = createHash("sha256").update(`adf-agent|${opKey}|${world}|${clanId}|${role}`).digest();
+  const pub = ed25519.getPublicKey(seed);
+  return KeyPair.fromString(`ed25519:${baseEncode(Buffer.concat([seed, Buffer.from(pub)]))}`);
 }
 
 export function connect(net) {
@@ -35,6 +52,7 @@ export function connect(net) {
   const n = NETWORKS[net];
   const provider = new JsonRpcProvider({ url: n.rpc });
   const op = operatorAccount(net, provider);
+  const opKey = operatorKey(net)[1];
   const world = n.world;
   const view = (method, args = {}) => provider.callFunction({ contractId: world, method, args });
   const call = async (methodName, args, gasT = 30) => {
@@ -68,5 +86,40 @@ export function connect(net) {
     giftDraft: (clanId, hash, passed) => call("gift", { clan_id: clanId, draft_hash: hash, warden_passed: passed }),
     setRoot: (day, root) => call("set_root", { day, root }),
     getRoot: (day) => view("get_root", { day }),
+    // ---- agent wallets ----
+    agentId: (clanId, role) => `${role === "Broker" ? "broker" : "patron"}${clanId}.${op.accountId}`,
+    /** Make sure this nation's Broker and Patron have their wallets: create, fund, register. */
+    async ensureAgents(clanId) {
+      const made = [];
+      for (const role of ["Broker", "Patron"]) {
+        const id = `${role === "Broker" ? "broker" : "patron"}${clanId}.${op.accountId}`;
+        const have = await view("get_agent_wallet", { clan_id: clanId, role }).catch(() => null);
+        if (have === id) continue;
+        const kp = agentKeyPair(opKey, world, clanId, role);
+        const exists = await provider.query({ request_type: "view_account", finality: "final", account_id: id }).then(() => true, () => false);
+        if (!exists) {
+          await op.signAndSendTransaction({ receiverId: id, actions: [
+            actions.createAccount(), actions.transfer(AGENT_FUND),
+            actions.addFunctionCallAccessKey(kp.getPublicKey(), world, [ROLE_METHOD[role]]), // its only key: one method on the world
+          ] });
+        }
+        await call("set_agent_wallet", { clan_id: clanId, role, account: id });
+        made.push(id);
+      }
+      return made;
+    },
+    /** The nation's Broker buys from another nation, signing from its own wallet. */
+    agentBuy: (clanId, seller, florins, memo) => agentCall(clanId, "Broker", "agent_buy", { seller, amount: toUnits(florins), memo }),
+    /** The nation's Patron spends florins (war chest, walls), signing from its own wallet. */
+    agentSpend: (clanId, florins, memo) => agentCall(clanId, "Patron", "agent_spend", { amount: toUnits(florins), memo }),
   };
+  async function agentCall(clanId, role, methodName, args) {
+    const id = `${role === "Broker" ? "broker" : "patron"}${clanId}.${op.accountId}`;
+    const agent = new Account(id, provider, agentKeyPair(opKey, world, clanId, role).toString());
+    const r = await agent.callFunctionRaw({ contractId: world, methodName, args, gas: T(30) });
+    const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+    if (fail) throw new Error(`${methodName} failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
+    const v = r.status.SuccessValue;
+    return { hash: r.transaction.hash, value: v ? JSON.parse(Buffer.from(v, "base64").toString() || "null") : null, signer: id };
+  }
 }

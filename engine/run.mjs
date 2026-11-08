@@ -65,6 +65,19 @@ setSpentToday(spendBase);
 onSpend((usd) => store.addSpend(today, usd));
 let capNoted = false;
 const chance = (p) => Math.random() < p;
+// Agent wallets (8 Nov): the Broker's buys and the Patron's war chest and walls are signed by the
+// agents' own NEAR accounts (engine/chain.mjs). If an agent call fails, the operator signs instead
+// and the error is logged, so a turn never stalls on it. Upkeep, fines and plunder stay the
+// operator's: those are the world's rules, not the agents' choices.
+let logAgentError = () => {};
+async function agentBuy(buyer, seller, florins, memo) {
+  try { return await chain.agentBuy(buyer, seller, florins, memo); }
+  catch (e) { logAgentError(buyer, `Broker wallet: ${String(e.message || e).slice(0, 140)}; the operator signed instead`); return chain.trade(buyer, seller, florins, memo); }
+}
+async function agentSpend(clanId, florins, memo) {
+  try { return await chain.agentSpend(clanId, florins, memo); }
+  catch (e) { logAgentError(clanId, `Patron wallet: ${String(e.message || e).slice(0, 140)}; the operator signed instead`); return chain.burn(clanId, florins, memo); }
+}
 const turns = (x) => Math.floor(x) + (chance(x - Math.floor(x)) ? 1 : 0); // 1.4 -> 1 or 2
 
 // A redeploy or restart sends SIGTERM: finish the nation in hand, checkpoint, exit. The next run
@@ -86,6 +99,7 @@ for (let n = 0; n < days; n++) {
   if (!INSTANT) s.pending = [];
   if (!INSTANT && !resuming) { s.inProgress = { day, done: [] }; s.lastRunAt = Date.now(); }
   let seq = 0;
+  logAgentError = (clan, error) => log({ kind: "error", clan, error });
   const log = (r) => { rec.push({ day, ...r, ...(INSTANT ? { live: `${Date.now().toString(36)}-${seq++}`, at: Date.now() } : {}) }); console.log(`  [${r.kind}]`, JSON.stringify(r).slice(0, 220)); };
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
@@ -157,6 +171,11 @@ for (let n = 0; n < days; n++) {
         log({ kind: "team", clan: oc.id, agents: agents.map((a) => `${a.name} (${a.role})`) });
       }
       const able = (role) => agents.filter((a) => a.role === role && a.alive && a.stunted_until <= day);
+      // Their Broker and Patron get their own NEAR wallets on first sight (once per nation).
+      if (!c.agentWallets) {
+        try { const made = await chain.ensureAgents(oc.id); c.agentWallets = true; if (made.length) log({ kind: "wallets", clan: oc.id, accounts: made }); }
+        catch (e) { log({ kind: "error", clan: oc.id, error: `agent wallets: ${String(e.message || e).slice(0, 160)}` }); }
+      }
 
       // Reverence (SPEC §12m): read what the gods did since last time, then let it shape today.
       // A reverence bug must never cost the nation its day: on any error it falls back to the old
@@ -258,12 +277,12 @@ for (let n = 0; n < days; n++) {
           const price = +(FL.corpusBase * (1 + depth) * (live.length / (1 + holders)) * (W.hasTech(c, "astrolabe") ? 0.5 : 1)).toFixed(4);
           if (wallet <= price && deal.why) log({ kind: "broker", clan: oc.id, bought: false, wanted: deal.point, seller: deal.seller, price, why: `couldn't afford it: ${deal.why}` });
           if (wallet > price) {
-            const r = await chain.trade(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
+            const r = await agentBuy(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
             wallet -= price;
             c.owned[deal.point] = { depth, parent: c.frontier[deal.point].parent, corpus: deal.sc.id, how: `bought from clan ${deal.seller}` };
             delete c.frontier[deal.point];
             W.grow(c, deal.point, deal.sc.children);
-            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, tx: r.hash, ...(deal.why ? { why: deal.why } : {}) });
+            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, tx: r.hash, signer: r.signer ?? "operator", ...(deal.why ? { why: deal.why } : {}) });
             // The seller's Printing Press: copies are cheap, so each sale earns it a little more.
             if (W.hasTech(s.clans[deal.seller], "press")) {
               try { await chain.mint(deal.seller, FL.pressSale, `printing press: sale to ${oc.id}`); }
@@ -338,10 +357,10 @@ for (let n = 0; n < days; n++) {
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
           if (kit && wallet > FL.kit) {
-            const r = await chain.trade(oc.id, kit.clan, FL.kit, `tool:${kit.id}`);
+            const r = await agentBuy(oc.id, kit.clan, FL.kit, `tool:${kit.id}`);
             wallet -= FL.kit;
             c.hasKit = true;
-            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: FL.kit, tx: r.hash });
+            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: FL.kit, tx: r.hash, signer: r.signer ?? "operator" });
           }
         }
         const nodes = W.deepestChain(c).filter((k) => c.owned[k].corpus);
@@ -488,10 +507,10 @@ for (let n = 0; n < days; n++) {
       } else if (move.action === "fortify") {
         const amt = +((fl[x.id] || 0) * WR.WAR.fortifyFrac).toFixed(4);
         if (amt > 0.01) {
-          const r = await chain.burn(x.id, amt, "walls");
+          const r = await agentSpend(x.id, amt, "walls");
           const spent = toFlorins(r.value);
           fl[x.id] -= spent; c.walls = (c.walls || 0) + spent;
-          log({ kind: "fortify", clan: x.id, spent, walls: +c.walls.toFixed(2), reason, tx: r.hash });
+          log({ kind: "fortify", clan: x.id, spent, walls: +c.walls.toFixed(2), reason, tx: r.hash, signer: r.signer ?? "operator" });
         }
       } else if (move.action === "offer_peace") {
         w.offer = { by: x.id, day, reason };
@@ -507,7 +526,7 @@ for (let n = 0; n < days; n++) {
       const o = WR.round(s, w, seed, fl);
       for (const id of [w.a, w.b]) {
         const sp = o.sides[id].spend;
-        if (sp > 0.0001) { try { const r = await chain.burn(id, sp, `war chest ${w.id}`); fl[id] -= toFlorins(r.value); } catch (e) { log({ kind: "error", clan: id, error: `war chest: ${String(e.message || e).slice(0, 120)}` }); } }
+        if (sp > 0.0001) { try { const r = await agentSpend(id, sp, `war chest ${w.id}`); fl[id] -= toFlorins(r.value); } catch (e) { log({ kind: "error", clan: id, error: `war chest: ${String(e.message || e).slice(0, 120)}` }); } }
       }
       log({ kind: "battle", ...o });
       const downA = WR.hp(s.clans[w.a]) <= 0, downB = WR.hp(s.clans[w.b]) <= 0;

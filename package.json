@@ -28,7 +28,8 @@
     "near-api-js": "^7.4.0",
     "pg": "^8.23.1",
     "serve": "^14.2.7",
-    "three": "^0.187.0"
+    "three": "^0.187.0",
+    "@noble/curves": "2.2.0"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

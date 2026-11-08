@@ -54,6 +54,11 @@ export function connectSim(file) {
       save(); return tx(u.toString());
     },
     giftDraft: async (id, hash, passed) => { const gid = S.nextGift++; S.gifts[gid] = { id: gid, clan: Number(id), draft_hash: hash, warden_passed: passed, status: "Pending", day: S.config.day }; if (passed) clan(id).clean_gifts = (clan(id).clean_gifts || 0) + 1; save(); return tx(gid); },
+    // Agent wallets, as on the real chain: the Broker buys and the Patron spends, each "signing" as itself.
+    agentId: (id, role) => `${role === "Broker" ? "broker" : "patron"}${id}.sim-operator`,
+    ensureAgents: async (id) => { S.wallets ||= {}; const made = []; for (const role of ["Broker", "Patron"]) { const k = `${id}:${role}`; if (!S.wallets[k]) { S.wallets[k] = `${role === "Broker" ? "broker" : "patron"}${id}.sim-operator`; made.push(S.wallets[k]); } } save(); return made; },
+    agentBuy: async function (buyer, seller, florins, memo) { const r = await this.trade(buyer, seller, florins, memo); return { ...r, signer: `broker${buyer}.sim-operator` }; },
+    agentSpend: async function (id, florins, memo) { const r = await this.burn(id, florins, memo); return { ...r, signer: `patron${id}.sim-operator` }; },
     setRoot: async (day, root) => { S.roots[day] = root; save(); return tx(); },
     getRoot: async (day) => S.roots[day] ?? null,
   };
