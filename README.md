@@ -36,6 +36,14 @@ The drafts aren't filed patents. They're a public, checkable search through the 
 
 The world reacts. Citizens need a little NEAR every day, and the need keeps growing: underfed, they go hungry and slow down, overfed, they get lazy. A nation whose gods go quiet for a day gets a Trickster, who slips fake citations into its work. Knowledge can lift a nation's faith or unsettle it. Five techs (Printing Press, Spectacles, Mechanical Clock, Double-entry Bookkeeping, Astrolabe) arrive slowly over the season and change how a nation works.
 
+### War
+
+Then there's war, and the gods don't get a vote. Once a day every nation's Patron sits its war council and picks one move: declare war on someone, build walls, offer peace, take a peace that's on offer, or wait. Whispers don't reach that room. A nation is safe until it has had one patent pass. After that it's fair game.
+
+At war, research stops and the citizens fight. Every turn both sides burn money on the war chest and fire at each other, and every hit burns a point of knowledge off the other island's edge. The island is its knowledge, so you watch it shrink. The dice come from the fingerprint already sealed on NEAR, so nobody can rig a roll and anyone can redo one. When an island is down to its root it falls out of the sky. The winner takes half its florins, all its knowledge and two of its people, and the fallen nation's gods can still claim the other half.
+
+Two even nations fight for about ten days. A big one against a small one, about a day. Peace can end it sooner.
+
 ## The clock is NEAR's price
 
 The world runs on NEAR's real hourly price, replayed five times faster than life and timed to meet the live price on 30 November, the last day of the season. While NEAR climbs it's day. When it falls 3% from its high, night comes, and scholars work at half pace. A long slide is a long night.
@@ -133,10 +141,10 @@ Every turn, the engine hashes each record and puts one Merkle root on NEAR with 
 ```bash
 npm test               # engine: clock, techs, knowledge mood, reverence, Warden; walking round buildings
 npm run test:live      # 59 checks against the live site and the chain itself
-npm run test:load      # a crowd of simultaneous visitors
+npm run test:load      # a crowd of simultaneous visitors (on a slow connection this mostly measures your own link)
 ```
 
-The contract has 28 unit tests (run with `cargo test` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image), plus a testnet proof against the real Sputnik factory (`contracts/world/scripts/testnet-v2.mjs`).
+The contract has 28 unit tests (run with `cargo test` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image), plus a testnet proof against the real Sputnik factory (`contracts/world/scripts/testnet-v2.mjs`, which needs funded testnet accounts of your own). `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
 
 The live audit checks the pages, tries to read server files and secrets through path tricks, throws junk at the API, then reads the contract and confirms the money adds up: the world can pay everything it owes, every god's stake sums to the backing, florins sum exactly, the jackpot holds 14% of everything put in. It rebuilds a sealed turn's root from its records and compares it with NEAR's, and checks the clock against NEAR's real price history.
 
@@ -147,10 +155,10 @@ git clone https://github.com/cnpierrepapi/adfontes
 cd adfontes
 npm install
 npm run build
-npm start              # site + API on http://localhost:3000, reading the live testnet world
+npm start              # the site on http://localhost:3000
 ```
 
-Without `DATABASE_URL` the server reads engine state from `engine/state/`. Running your own engine needs a funded operator account and model keys; see `engine/config.mjs`.
+Money and nations come straight from the chain. A fresh clone has no database and none of the engine's records, so it reads those from adfontes.fun's public API, and you see the real world, served from your own copy of the code. Set `ADF_UPSTREAM=off` to turn that off. Running your own engine needs a funded operator account and model keys; see `engine/config.mjs`.
 
 ## Built during the hackathon
 

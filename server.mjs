@@ -16,6 +16,7 @@ import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FI
 // each network has its own chain connection, world contract and cache. SITE_NET is the default.
 const DEFAULT_NET = process.env.SITE_NET || "testnet";
 const PORT = Number(process.env.PORT || 3000);
+const UPSTREAM = process.env.ADF_UPSTREAM === "off" ? null : process.env.ADF_UPSTREAM || "https://adfontes.fun"; // see the API handler
 const DIST = path.resolve("dist");
 const near = (y) => Number(BigInt(y || 0) / 10n ** 18n) / 1e6;
 // Florins (SPEC §14): 1 florin = 10^22 units on chain.
@@ -383,6 +384,16 @@ http
     if (req.method === "POST" && url.pathname === "/api/sponsor") return sponsorPost(req, res);
     if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "text/plain", "read only");
     const m = url.pathname.match(/^\/api\/([a-z]+)$/);
+    // A fresh clone (no database, no engine state on disk) has the chain but none of the engine's
+    // records, so its world would be hollow. It reads them from the live site's public API instead:
+    // `npm start` shows the real world, served from your own copy of the code. ADF_UPSTREAM=off disables.
+    if (m && UPSTREAM && !process.env.DATABASE_URL && !fs.existsSync("engine/state/testnet.json")) {
+      try {
+        const r = await fetch(`${UPSTREAM}${url.pathname}${url.search}`, { signal: AbortSignal.timeout(20000) });
+        res.writeHead(r.status, { "content-type": r.headers.get("content-type") || "application/json", "cache-control": "no-cache", "access-control-allow-origin": "*" });
+        return res.end(Buffer.from(await r.arrayBuffer()));
+      } catch { return send(res, 502, "application/json", JSON.stringify({ error: "couldn't reach the live world" })); }
+    }
     if (m) {
       const net = url.searchParams.get("net") === "mainnet" ? "mainnet" : url.searchParams.get("net") === "testnet" ? "testnet" : DEFAULT_NET;
       const fn = Object.hasOwn(APIS[net], m[1]) ? APIS[net][m[1]] : null;
