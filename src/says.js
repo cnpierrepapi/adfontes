@@ -20,6 +20,8 @@ export function tipOf(r) {
 export function says(r, clanName) {
   const c = clanName;
   switch (r.kind) {
+    case "alias": return `${c(r.clan)} got its own name on NEAR: ${r.account}.`;
+    case "forwarded": return `${n2(r.near)} NEAR came in at ${r.account} and went on to ${c(r.clan)}'s treasury.`;
     case "corpus": return `${r.scholar} of ${c(r.clan)} wrote up "${r.point}" from ${r.cites} citations${r.fake ? `, ${r.fake} of them made up` : ""}.${r.stir === "doubt" ? " It unsettles the citizens." : r.stir === "faith" ? " It lifts their faith." : ""}`;
     case "trade": return r.tool ? `${c(r.buyer)} bought a figure kit from ${c(r.seller)} for ${fl(r.price)}.` : `${c(r.buyer)} bought what ${c(r.seller)} knows about "${r.about ?? r.point}" for ${fl(r.price)}.`;
     case "broker": return r.wanted ? `${c(r.clan)}'s Broker wanted ${c(r.seller)}'s work on "${r.wanted}" but the nation couldn't afford ${fl(r.price)}.` : `${c(r.clan)}'s Broker looked at what the rivals know and bought nothing. ${r.why ?? ""}`.trim();

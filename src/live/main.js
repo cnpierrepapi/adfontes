@@ -38,7 +38,13 @@ function showClan(c, status) {
   if (c.fallen) war.textContent = `Fallen in war to ${nm(c.fallen.by)} on turn ${c.fallen.day}.`;
   else if (c.war?.enemy) war.textContent = `At war with ${nm(c.war.enemy)} · round ${c.war.rounds} · island ${c.war.hp} vs ${c.war.enemyHp} · walls ${c.war.walls}${c.war.offer ? (c.war.offer === c.id ? " · offered peace" : " · peace on offer") : ""}`;
   else if (c.war && !c.war.fairGame) war.textContent = "Safe from war until its first patent passes.";
-  p.append(h, m, nums, line, ...(war.textContent ? [war] : []), views);
+  // Its named account (9 Nov): anything sent there goes on to the nation's treasury, its DAO.
+  const named = document.createElement("p"); named.className = "named";
+  if (c.alias) {
+    const a = document.createElement("a"); a.href = `${W.explorer}/address/${c.alias}`; a.target = "_blank"; a.rel = "noopener"; a.textContent = c.alias;
+    named.append("Named account: ", a, ". NEAR sent here ends up in its treasury.");
+  }
+  p.append(h, m, nums, line, ...(named.childNodes.length ? [named] : []), ...(war.textContent ? [war] : []), views);
   if (gods) p.append(gods.section(c, status)); // the god panel: bless, and your powers if you're a god here
   p.hidden = false;
   phoneSheet();

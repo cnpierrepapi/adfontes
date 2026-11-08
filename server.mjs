@@ -149,6 +149,8 @@ function makeApi(NET) {
               reverence: revOf(s, c.id),
               // v2 (SPEC §14): techs unlocked, and the needs mood (hungry / content / sated)
               techs: st.techs ?? [], mood: st.mood ?? null, need: st.need ?? null,
+              // Its named account (9 Nov): <name>.<world>, forwards to the DAO. Set by the engine once made.
+              alias: st.alias ?? null,
             };
           }),
           ruins: Object.keys(s.ruins || {}).length,

@@ -39,6 +39,9 @@ async function load() {
     stat(`${n(W.totals?.backing ?? 0)} NEAR`, "behind the florins"),
     stat(`${n(W.jackpot?.near ?? 0)} NEAR`, "in the season jackpot"),
   );
+  // Every nation's accounts: its named account (forwards to the DAO) and the DAO itself.
+  const link = (a) => el("a", { href: `${W.explorer}/address/${a}`, target: "_blank", rel: "noopener", textContent: a });
+  $("accounts").replaceChildren(...live.map((x) => el("li", {}, el("b", { textContent: x.name }), " · ", x.alias ? link(x.alias) : "named account coming on its next turn", " → treasury ", link(x.dao))));
   sealed = await lastSealed();
   const txs = (sealed?.records || []).filter((r) => r.tx).slice(-12).reverse();
   $("chain-intro").replaceChildren("The world contract is ", el("a", { href: `${W.explorer}/address/${W.world}`, target: "_blank", rel: "noopener", textContent: W.world }), sealed ? `. Below: transactions from turn ${sealed.day}, the last one sealed on NEAR.` : ". No turn is sealed yet.");
