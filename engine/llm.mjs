@@ -15,8 +15,10 @@ export const meter = { calls: 0, usd: 0 };
 // The daily cap (CFG.dailyCapUsd). run.mjs tells us what today cost before this process started;
 // a call only starts if its worst case still fits. Callers ask canSpend() first and skip the turn;
 // json() refuses as a last guard so nothing can slip past.
-let spentBefore = 0;
+let spentBefore = 0, spendHook = null;
 export function setSpentToday(usd) { spentBefore = usd; }
+/** Called with each call's cost as it lands, so the shared ledger is right even if a run dies. */
+export function onSpend(fn) { spendHook = fn; }
 export const spentToday = () => spentBefore + meter.usd;
 export const canSpend = (kind) => spentToday() + CFG.worstCallUsd[kind] <= CFG.dailyCapUsd;
 export class BudgetError extends Error {}
@@ -62,7 +64,9 @@ async function json(model, system, user, schema, maxTokens) {
   });
   const [pin, pout] = PRICE[model];
   meter.calls++;
-  meter.usd += (msg.usage.input_tokens * pin + msg.usage.output_tokens * pout) / 1e6;
+  const usd = (msg.usage.input_tokens * pin + msg.usage.output_tokens * pout) / 1e6;
+  meter.usd += usd;
+  if (spendHook) await spendHook(usd).catch((e) => console.log("  spend ledger write failed:", String(e.message || e).slice(0, 120)));
   const text = msg.content.find((b) => b.type === "text")?.text ?? "{}";
   return JSON.parse(text);
 }
@@ -105,6 +109,44 @@ export function scholarTurn({ field, topic, parent, papers, temperament, whisper
     `Field: ${field}. Topic: ${topic}${parent ? ` (building on: ${parent})` : ""}.\n\nPapers:\n\n${listing}`,
     CORPUS,
     3000,
+  );
+}
+
+// The Broker's pick (8 Nov): nations in different fields almost never share a topic word for word,
+// so exact matching meant no trades at all. Once a real day the Broker reads the rivals' clean
+// research and its own open questions, and buys the one piece that would really help, or nothing.
+const BROKER = {
+  type: "object",
+  additionalProperties: false,
+  required: ["buy", "corpus", "point", "why"],
+  properties: {
+    buy: { type: "boolean" },
+    corpus: { type: "string" },
+    point: { type: "string" },
+    why: { type: "string" },
+  },
+};
+/** offers: [{ id, title, about, seller }]; open: the nation's open questions (frontier points). */
+export function brokerPick({ field, open, offers, temperament }) {
+  if (FAKE) {
+    // Stand-in: the first offer whose words overlap an open question, else none.
+    const words = (x) => new Set(x.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 4));
+    for (const o of offers) for (const p of open) { const a = words(`${o.title} ${o.about}`); if ([...words(p)].some((w) => a.has(w))) return Promise.resolve({ buy: true, corpus: o.id, point: p, why: `${o.about} bears on ${p}.` }); }
+    return Promise.resolve({ buy: false, corpus: "", point: "", why: "" });
+  }
+  const list = offers.map((o) => `[${o.id}] "${o.title}" (on ${o.about}, from nation ${o.seller})`).join("\n");
+  return json(
+    CFG.agentModel,
+    "You are the Broker of a nation in AD FONTES. Your nation researches one field; rival nations research others and sell what they find. " +
+      "Read your nation's open questions and the rivals' research on offer. Buy at most one piece: the one most likely to help one " +
+      "specific open question. Trading across fields is how nations grow, so a plausible link is enough: a material, method, " +
+      "measurement, cost or supply insight, or policy finding that could carry over. A shared word alone is not a link " +
+      "(hybrid cars and hybrid perovskites have nothing in common). Set buy to false only if no offer has any honest connection. " +
+      "corpus: the id inside the square brackets. point: the open question it helps, copied exactly. why: one plain sentence a citizen would understand. " +
+      `Your temperament: ${temperament}.`,
+    `Your field: ${field}.\n\nYour open questions:\n${open.map((p) => `- ${p}`).join("\n")}\n\nOn offer:\n${list}`,
+    BROKER,
+    600,
   );
 }
 

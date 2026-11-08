@@ -10,7 +10,7 @@ import { CFG, florinRates } from "./config.mjs";
 import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
-import { scholarTurn, draftTurn, meter, setSpentToday, spentToday, canSpend } from "./llm.mjs";
+import { scholarTurn, draftTurn, brokerPick, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
 import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
@@ -54,8 +54,12 @@ if (!INSTANT && net === "testnet" && process.env.SPONSOR_ACCOUNT_ID && Date.now(
 // Today's Claude spend so far (UTC day), carried between runs so the cap covers the whole day.
 const today = new Date().toISOString().slice(0, 10);
 if (s.spend?.date !== today) s.spend = { date: today, usd: 0 };
-const spendBase = s.spend.usd;
+// The cap counts every network and survives wipes: one ledger in Postgres (store.spendOn/addSpend).
+// First run with the ledger: carry over what this world already spent today.
+if ((await store.spendOn(today)) === 0 && s.spend.usd > 0) await store.addSpend(today, s.spend.usd);
+const spendBase = await store.spendOn(today);
 setSpentToday(spendBase);
+onSpend((usd) => store.addSpend(today, usd));
 let capNoted = false;
 const chance = (p) => Math.random() < p;
 const turns = (x) => Math.floor(x) + (chance(x - Math.floor(x)) ? 1 : 0); // 1.4 -> 1 or 2
@@ -102,6 +106,11 @@ for (let n = 0; n < days; n++) {
   const onchain = await chain.clans();
   const alive = onchain.filter((c) => c.alive);
   const live = INSTANT ? alive.filter((c) => INSTANT.includes(c.id)) : alive;
+  // Fair share of the daily Claude cap: a nation at full pace costs about CFG.nationDayUsd a day.
+  // With more nations than the cap feeds, every nation slows by the same factor (research turns
+  // and draft spacing) instead of the first nations in the loop using the whole day's budget.
+  const share = Math.min(1, CFG.dailyCapUsd / (Math.max(1, alive.length) * CFG.nationDayUsd));
+  if (share < 1) console.log(`  ${alive.length} nations share the $${CFG.dailyCapUsd} cap: each runs at ${Math.round(share * 100)}% pace`);
 
   // Dead clans: their mindmap becomes ruins, unowned.
   for (const c of INSTANT ? [] : onchain.filter((c) => !c.alive)) {
@@ -213,17 +222,41 @@ for (let n = 0; n < days; n++) {
           }
           if (deal) break;
         }
+        // No exact match (the usual case across fields): once a real day, the Broker reads the
+        // rivals' research and picks the one piece that truly helps an open question, or nothing.
+        if (!deal && !INSTANT && Date.now() - (c.lastBrokerAskAt || 0) >= CFG.draftEveryMs && !capped("agent")) {
+          const offers = [];
+          for (const o of Object.values(s.clans)) {
+            if (!o.alive || o.id === oc.id) continue;
+            for (const [k, v] of Object.entries(o.owned)) {
+              const sc = s.corpora[v.corpus];
+              if (sc?.clean && sc.clan === o.id && !Object.values(c.owned).some((x) => x.corpus === sc.id)) offers.push({ id: sc.id, title: sc.title, about: k, seller: o.id, sc });
+            }
+          }
+          const open = Object.entries(c.frontier).sort((a, b) => a[1].depth - b[1].depth).slice(0, 30).map(([p]) => p);
+          if (offers.length && open.length) {
+            c.lastBrokerAskAt = Date.now(); // only a real look at a real market uses up the day's ask
+            const pickFrom = offers.slice(-25);
+            try {
+              const pick = await brokerPick({ field: c.field, open, offers: pickFrom.map(({ sc, ...o }) => o), temperament: c.mbti });
+              const o = pick.buy && pickFrom.find((x) => x.id === pick.corpus);
+              if (o && c.frontier[pick.point]) deal = { point: pick.point, seller: o.seller, sellerPoint: o.about, sc: o.sc, why: String(pick.why || "").slice(0, 200) };
+              else log({ kind: "broker", clan: oc.id, bought: false, why: String(pick.why || "nothing on offer helps yet").slice(0, 200) });
+            } catch (e) { log({ kind: "error", clan: oc.id, error: `broker: ${String(e.message || e).slice(0, 160)}` }); }
+          }
+        }
         if (deal) {
           const holders = Object.values(s.clans).filter((o) => Object.values(o.owned).some((v) => s.corpora[v.corpus]?.children.includes(deal.point))).length;
           const depth = c.frontier[deal.point].depth;
           const price = +(FL.corpusBase * (1 + depth) * (live.length / (1 + holders)) * (W.hasTech(c, "astrolabe") ? 0.5 : 1)).toFixed(4);
+          if (wallet <= price && deal.why) log({ kind: "broker", clan: oc.id, bought: false, wanted: deal.point, seller: deal.seller, price, why: `couldn't afford it: ${deal.why}` });
           if (wallet > price) {
             const r = await chain.trade(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
             wallet -= price;
             c.owned[deal.point] = { depth, parent: c.frontier[deal.point].parent, corpus: deal.sc.id, how: `bought from clan ${deal.seller}` };
             delete c.frontier[deal.point];
             W.grow(c, deal.point, deal.sc.children);
-            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, tx: r.hash });
+            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, tx: r.hash, ...(deal.why ? { why: deal.why } : {}) });
             // The seller's Printing Press: copies are cheap, so each sale earns it a little more.
             if (W.hasTech(s.clans[deal.seller], "press")) {
               try { await chain.mint(deal.seller, FL.pressSale, `printing press: sale to ${oc.id}`); }
@@ -241,7 +274,7 @@ for (let n = 0; n < days; n++) {
         if (INSTANT && sch !== instantScholar) continue;
         const target = pickTarget(c);
         const skill = c.skills[sch.name]?.[target] || 0;
-        for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * effort * (1 + skill) * (w.phase === "night" && !W.hasTech(c, "spectacles") ? CFG.nightPace : 1))); t++) {
+        for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * share * effort * (1 + skill) * (w.phase === "night" && !W.hasTech(c, "spectacles") ? CFG.nightPace : 1))); t++) {
           if (capped("agent")) break;
           const node = target && c.frontier[target] ? target : null;
           if (!node && c.owned[c.field].corpus) break;
@@ -292,7 +325,7 @@ for (let n = 0; n < days; n++) {
       // Drafter
       const depth = W.chainDepth(c);
       // A new nation's first draft comes as soon as its line is deep enough (its first gift to rule on).
-      const draftDue = INSTANT ? FRESH && !c.firstDraftDone : Date.now() - (c.lastDraftAt || 0) >= CFG.draftEveryMs && chance(Math.min(1, effort));
+      const draftDue = INSTANT ? FRESH && !c.firstDraftDone : Date.now() - (c.lastDraftAt || 0) >= CFG.draftEveryMs / share && chance(Math.min(1, effort));
       if (!eff.waiting && able("Drafter").length && depth >= CFG.draftMinDepth && draftDue && !capped("draft")) {
         c.firstDraftDone = true;
         if (!c.hasKit) {

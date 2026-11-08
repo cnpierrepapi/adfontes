@@ -59,7 +59,10 @@ export const CFG = {
   draftEveryMs: 24 * 3600e3, // at most one draft per nation per real day (SPEC §14)
 
   // Spend guard (his call, 7 Nov): never more than this on Claude in one UTC day, whatever happens.
-  dailyCapUsd: 0.5,
+  dailyCapUsd: 0.5, // his cap: $0.50 a UTC day on ALL Claude calls, every network together
+  // What one nation costs a day at full pace, measured on w6 (8 Nov): ~24 Haiku research calls at
+  // ~$0.001 + one Sonnet draft at ~$0.035 + one Broker call. More nations than the cap feeds = all slow evenly.
+  nationDayUsd: 0.065,
   // The most one call has cost so far, plus margin: a call only starts if it fits under the cap.
   worstCallUsd: { agent: 0.002, draft: 0.05 },
   // Only the 2-hour schedule moves the world. A deploy starts the engine too; a run this soon

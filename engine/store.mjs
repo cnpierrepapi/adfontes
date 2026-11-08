@@ -19,6 +19,7 @@ async function db() {
     create table if not exists papers_cache (key text primary key, papers jsonb not null);
     alter table records add column if not exists raw text;
     create table if not exists sponsored (net text, account text, at timestamptz default now(), tx text, primary key (net, account));
+    create table if not exists llm_spend (date text primary key, usd double precision not null default 0);
   `);
   await ready;
   return pool;
@@ -38,6 +39,25 @@ export async function markSponsored(net, account, tx) {
   const m = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {};
   m[`${net}:${account}`] = { tx, at: Date.now() };
   fs.writeFileSync(f, JSON.stringify(m));
+}
+
+// Claude spend per UTC day, for the whole engine (his cap, 8 Nov: $0.50 a day on ALL Claude calls).
+// One ledger for every network, and a world wipe never touches it (a per-world counter reset on
+// the 7 Nov wipe and let that day go past the cap).
+const SPEND_FILE = "engine/state/llm_spend.json";
+export async function spendOn(date) {
+  const p = await db();
+  if (p) return Number((await p.query("select usd from llm_spend where date = $1", [date])).rows[0]?.usd ?? 0);
+  return fs.existsSync(SPEND_FILE) ? Number(JSON.parse(fs.readFileSync(SPEND_FILE, "utf8"))[date] ?? 0) : 0;
+}
+export async function addSpend(date, usd) {
+  if (!(usd > 0)) return;
+  const p = await db();
+  if (p) { await p.query("insert into llm_spend (date, usd) values ($1, $2) on conflict (date) do update set usd = llm_spend.usd + excluded.usd", [date, usd]); return; }
+  const m = fs.existsSync(SPEND_FILE) ? JSON.parse(fs.readFileSync(SPEND_FILE, "utf8")) : {};
+  m[date] = (m[date] ?? 0) + usd;
+  fs.mkdirSync("engine/state", { recursive: true });
+  fs.writeFileSync(SPEND_FILE, JSON.stringify(m));
 }
 
 const EMPTY = () => ({ day: 0, clans: {}, corpora: {}, drafts: {}, gifts: {}, tools: {}, ruins: {}, roots: {}, nextId: 1 });
