@@ -193,12 +193,15 @@ export async function startLive(canvas, hud, opts = {}) {
   // Founding: a seed of light falls, the island rises out of the clouds turning, its town builds
   // up, then the plate fades in. Plays once per nation (on its "founded" record or when it appears).
   const rising = new Map();
+  const atLoad = new Set(W.clans.map((c) => c.id)); // nations standing when the page loaded
   function riseNation(id) {
     const isl = islands.get(id);
     if (!isl || isl.userData.rose) return;
     // Only a nation founded while you watch rises; one already standing at page load stays put
     // (the "while you were away" replay plays its founding record again).
-    if (isl.userData.status !== "new" && W.clans.find((c) => c.id === id)?.seen) { isl.userData.rose = true; return; }
+    // His note 8 Nov: no replayed births. A nation already on the map when the page loaded never
+    // rises again; only one founded while you're here comes up out of the clouds.
+    if (atLoad.has(id) || (isl.userData.status !== "new" && W.clans.find((c) => c.id === id)?.seen)) { isl.userData.rose = true; return; }
     isl.userData.rose = "rising";
     showRoutesOf(id, false); // bridges wait until the island has landed
     rising.set(id, performance.now());

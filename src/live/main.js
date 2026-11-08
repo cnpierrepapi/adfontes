@@ -100,6 +100,10 @@ if (!q.has("stills")) cinema.then((played) => { if (played) live.home(); setTime
 import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast, route, replayIntro: () => playCinematic({ force: true }).then(() => { live.home(); runTutorial({ force: true }); }) })).then((g) => {
   gods = g;
   window.__gods = g;
+  // A god coming back starts on their own nation with its panel open (his call 8 Nov), once the
+  // intro is over and unless the tutorial is still running or a link asked for somewhere else.
+  if (!q.has("stills") && !location.hash && localStorage.getItem("adf-tutorial-done"))
+    cinema.then(() => g.myNations()).then((ids) => { if (ids.length) setTimeout(() => live.flyTo(ids[0]), 1200); }).catch(() => {});
   // A panel already open gets its powers now.
   const open = !$("panel").hidden && W.clans.find((c) => c.name === $("panel").querySelector("h2")?.textContent);
   if (open) $("panel").append(g.section(open, open.alive === false ? "dead" : ""));

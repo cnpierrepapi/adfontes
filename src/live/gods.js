@@ -667,5 +667,11 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     });
   }
 
-  return { section, wallet, openMenu };
+  /** The live nations the signed-in account is a god of (oldest first). */
+  async function myNations() {
+    if (!account) return [];
+    const clans = await wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []);
+    return clans.filter((c) => c.alive && c.gods.some((g) => g.account === account)).map((c) => c.id);
+  }
+  return { section, wallet, openMenu, myNations };
 }

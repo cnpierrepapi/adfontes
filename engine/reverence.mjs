@@ -37,10 +37,11 @@ export const REV = {
 const clamp = (x) => Math.max(0, Math.min(100, x));
 const round = (x) => Math.round(x * 10) / 10;
 
-/** The nation's reverence state, created on first sight. `fresh` = founded after reverence arrived. */
+/** The nation's reverence state, created on first sight. `fresh` = founded after reverence arrived.
+ * A new nation's citizens start work at once (his call 8 Nov); they no longer wait for a first whisper. */
 export function ensure(s, oc, day, { fresh }) {
   s.rev ||= {};
-  const rv = (s.rev[oc.id] ||= { gods: {}, followed: null, claimedBy: null, waiting: !!fresh, since: day, lastProposal: null, putIn: {} });
+  const rv = (s.rev[oc.id] ||= { gods: {}, followed: null, claimedBy: null, waiting: false, since: day, lastProposal: null, putIn: {} });
   for (const g of oc.gods) {
     if (!rv.gods[g.account]) {
       rv.gods[g.account] = { r: fresh || rv.since < day ? REV.newcomer : REV.start, whispers: [], flourish: 0, enemies: [], justiceUntil: 0, faithLossUntil: 0, text: "" };

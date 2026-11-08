@@ -9,14 +9,14 @@ const A = { id: 1, gods: [{ account: "ann", put_in: "0" }] };
 const B = { id: 2, gods: [{ account: "bo", put_in: "0" }, { account: "cy", put_in: "0" }] };
 let ch = [];
 
-// Existing gods start at 50; a nation founded later waits for its god's first whisper.
+// Existing gods start at 50; a nation founded later starts work at once (his call 8 Nov: no first-whisper wait).
 let ra = ensure(s, A, 1, { fresh: false });
 check("existing god starts at 50, citizens not waiting", ra.gods.ann.r === 50 && !ra.waiting);
 const C = { id: 3, gods: [{ account: "dee", put_in: "0" }] };
 let rc = ensure(s, C, 5, { fresh: true });
-check("new founder starts at 30 and the citizens wait", rc.gods.dee.r === 30 && effects(rc).waiting);
+check("new founder starts at 30 and the citizens start work at once", rc.gods.dee.r === 30 && !effects(rc).waiting);
 act(rc, "dee", "whisper", 5, ch, { text: "Be careful" });
-check("first whisper ends the wait and lifts reverence", !effects(rc).waiting && rc.gods.dee.r === 45);
+check("first whisper lifts reverence", !effects(rc).waiting && rc.gods.dee.r === 45);
 
 // Whispers: diminishing within a real day, and capped at 60.
 ch = [];
