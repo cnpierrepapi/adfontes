@@ -101,9 +101,11 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     found.addEventListener("click", () => { menu.hidden = true; foundCard(); });
     row.append(found);
     // NEAR Intents: top up from any chain (mainnet; on testnet the sponsor pool tops founders up).
-    const topup = el("button", { type: "button", className: "viewbtn", textContent: "Top up with any crypto" });
-    topup.addEventListener("click", () => { menu.hidden = true; intentsCard(); });
-    row.append(topup);
+    if (W.net === "mainnet") { // on testnet it could only say "not here"
+      const topup = el("button", { type: "button", className: "viewbtn", textContent: "Top up with any crypto" });
+      topup.addEventListener("click", () => { menu.hidden = true; intentsCard(); });
+      row.append(topup);
+    }
     if (BigInt(owed || 0) > 0n) {
       const claim = el("button", { type: "button", className: "viewbtn", textContent: `Claim ${near(owed)} NEAR owed` });
       claim.addEventListener("click", () => { menu.hidden = true; claimOwedCard(owed); });
