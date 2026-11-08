@@ -42,8 +42,12 @@ async function cached(key, ms, fn) {
     run = Promise.resolve().then(fn).then((v) => { cache.set(key, { t: Date.now(), v }); return v; }).finally(() => inflight.delete(key));
     inflight.set(key, run);
   }
-  return hit ? hit.v : run; // stale while it refreshes
+  if (hit) { run.catch((e) => console.error("refresh failed, serving stale:", key, String(e?.message ?? e).slice(0, 120))); return hit.v; } // stale while it refreshes
+  return run;
 }
+// One failed RPC read must never take the site down (8 Nov: a 429 from the public RPC, rejected in a
+// background refresh nobody awaited, crashed the web service). Log it and keep serving.
+process.on("unhandledRejection", (e) => console.error("unhandled rejection:", String(e?.message ?? e).slice(0, 200)));
 
 // Reverence (SPEC §12m) as the site sees it: who the nation follows and how much each god is revered.
 // A nation's standing is the reverence of the god it follows.
@@ -60,9 +64,23 @@ function reportsOf(s, id) {
 }
 
 function makeApi(NET) {
-  const rpc = new JsonRpcProvider({ url: NETWORKS[NET].rpc });
+  // FastNEAR first; NEAR's own RPC if FastNEAR fails or rate-limits us, and for a minute after.
+  // (near-api-js's FailoverRpcProvider shares one index across parallel calls, so it can try the
+  // dead one twice: this is the per-call version.)
+  const BACKUP = { testnet: "https://rpc.testnet.near.org", mainnet: "https://rpc.mainnet.near.org" }[NET];
+  const rpcs = [process.env.ADF_TEST_DEAD_RPC || NETWORKS[NET].rpc, BACKUP].map((url, i) => new JsonRpcProvider({ url }, i === 0 ? { retries: 1, wait: 300, backoff: 1.5 } : {})); // fail fast to the backup
   const WORLD = NETWORKS[NET].world;
-  const view = (method, args = {}) => rpc.callFunction({ contractId: WORLD, method, args });
+  let primaryDownUntil = 0;
+  const view = async (method, args = {}) => {
+    const call = (p) => p.callFunction({ contractId: WORLD, method, args });
+    if (Date.now() < primaryDownUntil) return call(rpcs[1]);
+    try { return await call(rpcs[0]); }
+    catch (e) {
+      if (/panicked|does not exist|MethodNotFound|CodeDoesNotExist/i.test(String(e?.message ?? e))) throw e; // the contract said no: same answer anywhere
+      primaryDownUntil = Date.now() + 60_000;
+      return call(rpcs[1]);
+    }
+  };
   const EXPLORER = NET === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io";
   const cachedN = (key, ms, fn) => cached(`${NET}:${key}`, ms, fn);
   const stateNow = () => cachedN("state", 3_000, () => store.loadState(NET)); // one shared copy
