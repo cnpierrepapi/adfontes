@@ -66,7 +66,7 @@ function showDial(W) {
     const mood = soundKind(W);
     const pct = `${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}%`;
     $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
-    $("dial").textContent = `${W.season} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"} · NEAR $${c.price.toFixed(2)} (${pct} since ${c.phase === "day" ? "dawn" : "dusk"})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
+    $("dial").textContent = `${W.season} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"} · NEAR $${c.price.toFixed(2)} (${pct})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
     return;
   }
   const w = W.weather, mood = w ? weatherKind(w.change) : "";

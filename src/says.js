@@ -31,8 +31,8 @@ export function says(r, clanName) {
     case "ruling": return `${c(r.clan)}'s gods ${r.status === "Rewarded" ? "rewarded" : r.status === "Punished" ? "punished" : "ignored"} a draft.`;
     case "tech": return `${c(r.clan)} has the ${r.name} now. ${TECH_LINE[r.tech] ?? ""}`.trim();
     case "rooted": return `${c(r.clan)}'s gods rooted out "${r.point}"${r.cut.length > 1 ? ` and ${r.cut.length - 1} point${r.cut.length === 2 ? "" : "s"} that grew from it` : ""}.${r.doubt ? " The citizens breathe easier." : " Nobody was worried about it."}`;
-    case "dawn": return `Dawn. NEAR turned up, so day ${r.days} begins.`;
-    case "dusk": return `Dusk. NEAR slipped 3%, so night ${r.nights} begins.`;
+    case "dawn": return "Dawn. NEAR turned up 3%, so the sun is up and the scholars work at full pace.";
+    case "dusk": return "Dusk. NEAR slipped 3%, so night falls and the scholars slow down.";
     case "needs":
       return r.mood === "hungry" ? `${c(r.clan)} is hungry. Its citizens want ${n2(r.need)} NEAR a day and got far less.`
         : r.mood === "sated" ? `${c(r.clan)} got more than it needs. Its citizens are getting lazy.`
