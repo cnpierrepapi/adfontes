@@ -1,0 +1,19 @@
+[package]
+name = "forwarder"
+version = "0.1.0"
+edition = "2021"
+description = "AD FONTES nation alias: a named account that forwards whatever it holds to the nation's DAO"
+repository = "https://github.com/cnpierrepapi/adfontes"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

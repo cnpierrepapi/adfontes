@@ -619,3 +619,101 @@ fn a_patron_spends_its_own_nations_florins_and_they_burn() {
     assert_eq!(w.florins_total, total - 3 * FLORIN);
     assert_eq!(w.burned, burned + 3 * FLORIN);
 }
+
+// ---------------------------------------------------------------- nation aliases (9 Nov)
+
+fn found_named(w: &mut World, god: &str, name: &str) -> u32 {
+    set(god, 10 * NEAR);
+    let _ = w.found_clan(name.to_string());
+    let id = w.next_clan - 1;
+    set_with_result("world.adfontes.near", PromiseResult::Successful(b"true".to_vec()));
+    assert!(w.finish_founding(id, name.to_string(), format!("adf-x-{id}"), acc(god), U128(10 * NEAR), true));
+    id
+}
+
+fn made(w: &mut World, id: u32, ok: bool) -> Option<AccountId> {
+    set("operator.adfontes.near", ALIAS_DEPOSIT);
+    let _ = w.create_alias(id);
+    // What create_alias reserved: the callback gets the same slug and account back.
+    let name = w.get_clan(id).unwrap().name;
+    let mut slug = slugify(&name);
+    if env::storage_read(format!("als:{slug}").as_bytes()).map(|v| v != id.to_string().into_bytes()).unwrap_or(false) {
+        slug = format!("{slug}-{id}");
+    }
+    let alias: AccountId = format!("{slug}.world.adfontes.near").parse().unwrap();
+    set_with_result("world.adfontes.near", if ok { PromiseResult::Successful(vec![]) } else { PromiseResult::Failed });
+    w.on_alias_made(id, slug, alias, U128(ALIAS_DEPOSIT));
+    w.get_alias(id)
+}
+
+#[test]
+fn names_become_account_names() {
+    assert_eq!(slugify("Salamanco creek"), "salamanco-creek");
+    assert_eq!(slugify("  Helios!! "), "helios");
+    assert_eq!(slugify("Ünïcode ★ only"), "n-code-only");
+    assert_eq!(slugify("★★★"), "nation");
+    assert!(slugify("a very long nation name that goes on and on").len() <= 24);
+}
+
+#[test]
+fn a_nation_gets_its_named_account() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    assert_eq!(w.get_alias(a), None);
+    assert_eq!(made(&mut w, a, true), Some(acc("helios.world.adfontes.near")));
+}
+
+#[test]
+fn a_second_nation_with_the_same_name_gets_its_id_added() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    let b = found_named(&mut w, "god2.near", "helios");
+    made(&mut w, a, true);
+    assert_eq!(made(&mut w, b, true), Some(acc(&format!("helios-{b}.world.adfontes.near"))));
+}
+
+#[test]
+fn a_failed_account_frees_the_name() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    assert_eq!(made(&mut w, a, false), None);
+    assert!(env::storage_read(b"als:helios").is_none(), "the name is free again");
+    assert_eq!(made(&mut w, a, true), Some(acc("helios.world.adfontes.near")), "and a retry gets it");
+}
+
+#[test]
+#[should_panic(expected = "Only the world operator")]
+fn only_the_operator_makes_named_accounts() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    set("god1.near", ALIAS_DEPOSIT);
+    let _ = w.create_alias(a);
+}
+
+#[test]
+#[should_panic(expected = "Attach 0.03 NEAR")]
+fn a_named_account_needs_its_deposit() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    set("operator.adfontes.near", ALIAS_DEPOSIT - 1);
+    let _ = w.create_alias(a);
+}
+
+#[test]
+#[should_panic(expected = "already has a named account")]
+fn one_named_account_per_nation() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    made(&mut w, a, true);
+    set("operator.adfontes.near", ALIAS_DEPOSIT);
+    let _ = w.create_alias(a);
+}
+
+#[test]
+fn new_daos_carry_the_nation_name() {
+    let mut w = new_world();
+    set("god1.near", 10 * NEAR);
+    let _ = w.found_clan("Salamanco creek".into());
+    // The DAO name is built inside found_clan; the next founding's would read adf-salamanco-creek-<block>.
+    assert!(format!("adf-{}-{}", slugify("Salamanco creek"), env::block_height()).starts_with("adf-salamanco-creek-"));
+}

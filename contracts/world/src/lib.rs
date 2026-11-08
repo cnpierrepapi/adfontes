@@ -36,6 +36,10 @@ const GAS_DAO_PROPOSE: Gas = Gas::from_tgas(20);
 const GAS_DAO_VOTE: Gas = Gas::from_tgas(40);
 const GAS_ON_PROPOSED: Gas = Gas::from_tgas(60);
 /// Sputnik proposal bond we set in every clan's policy: 0.01 NEAR.
+// Nation aliases (9 Nov): the forwarder contract each named account runs (contracts/forwarder).
+const FORWARDER_WASM: &[u8] = include_bytes!("../res/forwarder.wasm");
+const ALIAS_DEPOSIT: u128 = 30_000_000_000_000_000_000_000; // 0.03 NEAR: the account, its 2 KB of code, gas headroom
+const GAS_ALIAS_INIT: Gas = Gas::from_tgas(5);
 const DAO_BOND: u128 = 10_000_000_000_000_000_000_000;
 
 #[near(serializers = [borsh])]
@@ -282,8 +286,9 @@ impl World {
         let id = self.next_clan;
         self.next_clan += 1;
 
-        // Block height in the name: nobody can register it ahead of us to block a founding.
-        let dao_name = format!("adf-{id}-{}", env::block_height());
+        // The nation's name, readable (9 Nov), and the block height: nobody can register it ahead of
+        // us to block a founding.
+        let dao_name = format!("adf-{}-{}", slugify(&name), env::block_height());
         let policy = json!({
             "roles": [
                 { "name": "gods", "kind": { "Group": [founder] }, "permissions": ["*:*"], "vote_policy": {} },
@@ -350,6 +355,23 @@ impl World {
             };
         self.finish_founding(id, name, dao_name, founder, deposit, created)
     }
+}
+
+/// A nation's name as an account name part: lower case letters and digits, words joined by "-",
+/// at most 24 characters ("Salamanco creek" -> "salamanco-creek"). Nothing usable -> "nation".
+pub fn slugify(name: &str) -> String {
+    let mut out = String::new();
+    for ch in name.chars() {
+        let c = ch.to_ascii_lowercase();
+        if c.is_ascii_lowercase() || c.is_ascii_digit() {
+            out.push(c);
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+        if out.len() >= 24 { break; }
+    }
+    let out = out.trim_end_matches('-').to_string();
+    if out.is_empty() { "nation".to_string() } else { out }
 }
 
 /// True if a Sputnik policy (JSON) has exactly our two roles with the right members.
@@ -715,6 +737,70 @@ impl World {
 
     pub fn get_agent_wallet(&self, clan_id: u32, role: String) -> Option<AccountId> {
         Self::wallet_of(clan_id, &role)
+    }
+
+    // ---------------------------------------------------------------- nation aliases (9 Nov)
+    // A nation's named account: <name>.<this world>, e.g. helios.w6.adf-pool1-hf0w8.testnet. Only
+    // this contract can make accounts under its own name, so nobody can take one first. It runs the
+    // forwarder (contracts/forwarder): whatever is sent there goes on to the nation's DAO when anyone
+    // calls forward(). Registry in raw storage keys ("al:" id -> account, "als:" name -> id), so
+    // adding it changed no stored layout.
+
+    /// The operator makes a nation's named account; the attached 0.03 NEAR pays for it.
+    #[payable]
+    pub fn create_alias(&mut self, clan_id: u32) -> Promise {
+        self.only_operator();
+        let deposit = env::attached_deposit().as_yoctonear();
+        require!(deposit >= ALIAS_DEPOSIT, "Attach 0.03 NEAR for the account and its storage");
+        let clan = self.live_clan(clan_id);
+        require!(Self::alias_of(clan_id).is_none(), "This nation already has a named account");
+        let mut slug = slugify(&clan.name);
+        if env::storage_read(format!("als:{slug}").as_bytes()).is_some() {
+            slug = format!("{slug}-{clan_id}");
+        }
+        require!(env::storage_read(format!("als:{slug}").as_bytes()).is_none(), "That name is taken");
+        let alias: AccountId = format!("{slug}.{}", env::current_account_id())
+            .parse()
+            .unwrap_or_else(|_| env::panic_str("That name doesn't make a valid account"));
+        // Reserved now (two calls can't race for it); freed again if the account can't be made.
+        env::storage_write(format!("als:{slug}").as_bytes(), clan_id.to_string().as_bytes());
+        Promise::new(alias.clone())
+            .create_account()
+            .transfer(NearToken::from_yoctonear(deposit))
+            .deploy_contract(FORWARDER_WASM.to_vec())
+            .function_call("init".to_string(), clan.dao.as_str().as_bytes().to_vec(), NearToken::from_yoctonear(0), GAS_ALIAS_INIT)
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CALLBACK)
+                    .on_alias_made(clan_id, slug, alias, U128(deposit)),
+            )
+    }
+
+    /// Records the named account if it was made; otherwise frees the name and returns the deposit.
+    #[private]
+    pub fn on_alias_made(&mut self, clan_id: u32, slug: String, alias: AccountId, deposit: U128) -> bool {
+        let made = env::promise_results_count() == 1 && matches!(env::promise_result(0), near_sdk::PromiseResult::Successful(_));
+        if made {
+            env::storage_write(format!("al:{clan_id}").as_bytes(), alias.as_str().as_bytes());
+            env::log_str(&format!("alias {clan_id} {alias}"));
+        } else {
+            env::storage_remove(format!("als:{slug}").as_bytes());
+            // A failed create_account sends the deposit back here; it goes back to the operator.
+            Promise::new(self.operator.clone()).transfer(NearToken::from_yoctonear(deposit.0)).detach();
+            env::log_str(&format!("alias for {clan_id} not made; deposit returned"));
+        }
+        made
+    }
+
+    /// A nation's named account, if it has one.
+    pub fn get_alias(&self, clan_id: u32) -> Option<AccountId> {
+        Self::alias_of(clan_id)
+    }
+
+    fn alias_of(clan_id: u32) -> Option<AccountId> {
+        env::storage_read(format!("al:{clan_id}").as_bytes())
+            .and_then(|v| String::from_utf8(v).ok())
+            .and_then(|s| s.parse().ok())
     }
 
     /// A nation's Broker buys from another nation, signing from its own wallet.
