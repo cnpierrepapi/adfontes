@@ -12,6 +12,13 @@ const n = (x, d = 3) => (Math.round(x * 10 ** d) / 10 ** d).toString();
 let W = null, sealed = null;
 const clanName = (id) => W?.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
 
+// One read-only call to NEAR from your browser, no server in between.
+async function viewOnNear(rpc, contract, method, args) {
+  const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "query", params: { request_type: "call_function", finality: "final", account_id: contract, method_name: method, args_base64: btoa(JSON.stringify(args)) } }) }).then((x) => x.json());
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(r.result.result)));
+}
+const RPC = { testnet: "https://rpc.testnet.fastnear.com", mainnet: "https://rpc.mainnet.fastnear.com" };
+
 async function rootOnNear(rpc, world, day) {
   const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "query", params: { request_type: "call_function", finality: "final", account_id: world, method_name: "get_root", args_base64: btoa(JSON.stringify({ day })) } }) }).then((x) => x.json());
   return JSON.parse(String.fromCharCode(...r.result.result));
@@ -42,6 +49,10 @@ async function load() {
   // Every nation's accounts: its named account (forwards to the DAO) and the DAO itself.
   const link = (a) => el("a", { href: `${W.explorer}/address/${a}`, target: "_blank", rel: "noopener", textContent: a });
   $("accounts").replaceChildren(...live.map((x) => el("li", {}, el("b", { textContent: x.name }), " · ", x.alias ? link(x.alias) : "named account coming on its next turn", " → treasury ", link(x.dao))));
+  // Research as NEP-245 tokens: what each nation's DAO holds, and a live check against NEAR.
+  const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  $("tokens").replaceChildren(...live.filter((x) => x.tokens).map((x) => el("li", {}, el("b", { textContent: x.name }), ` · ${pl(x.tokens.research, "research token")}, ${pl(x.tokens.patents, "patent")}, ${pl(x.tokens.kits, "kit")}`)));
+  if (!live.some((x) => x.tokens?.sample)) $("tokens").replaceChildren(el("li", { textContent: "The first tokens are minted on the next turn." }));
   sealed = await lastSealed();
   const txs = (sealed?.records || []).filter((r) => r.tx).slice(-12).reverse();
   $("chain-intro").replaceChildren("The world contract is ", el("a", { href: `${W.explorer}/address/${W.world}`, target: "_blank", rel: "noopener", textContent: W.world }), sealed ? `. Below: transactions from turn ${sealed.day}, the last one sealed on NEAR.` : ". No turn is sealed yet.");
@@ -73,3 +84,20 @@ $("check").addEventListener("click", async () => {
 });
 
 load().catch(() => ($("where").textContent = "The world didn't answer. Try again in a minute."));
+
+// Pick a nation and one of its tokens, then ask NEAR directly what it is and who holds it.
+$("tokcheck")?.addEventListener("click", async () => {
+  const out = $("tokcheck-out");
+  const pool = (W?.clans || []).filter((x) => x.alive && x.tokens?.sample);
+  if (!pool.length) { out.replaceChildren(el("div", { textContent: "No tokens yet. They're minted on the next turn." })); return; }
+  const x = pool[Math.floor(Math.random() * pool.length)], t = x.tokens.sample, rpc = RPC[W.net] || RPC.testnet;
+  out.replaceChildren(el("div", { textContent: `Asking NEAR about ${t}…` }));
+  try {
+    const [info, bal] = await Promise.all([viewOnNear(rpc, W.world, "mt_token_info", { token_id: t }), viewOnNear(rpc, W.world, "mt_balance_of", { account_id: x.dao, token_id: t })]);
+    out.replaceChildren(
+      el("div", { textContent: `mt_token_info("${t}") → ${info.kind}: "${info.title}", supply ${info.supply}${info.owner_id ? `, owned by ${info.owner_id}` : ""}` }),
+      el("div", { textContent: `mt_balance_of(${x.dao}, "${t}") → ${bal}` }),
+      el("div", { className: "verdict", textContent: `${x.name}'s treasury holds ${bal} of it, straight from NEAR.` }),
+    );
+  } catch (e) { out.replaceChildren(el("div", { textContent: `NEAR didn't answer: ${String(e.message || e).slice(0, 120)}` })); }
+});
