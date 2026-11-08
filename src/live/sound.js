@@ -1,16 +1,12 @@
-// The weather you hear (SPEC §12g). The sky no longer shows the weather; this does.
-// The week's real NEAR move picks the mix: hot = insects + warm wind, mild = pine wind + birds,
-// cold = wind + rain, storm = rain + distant thunder. Browsers only allow sound after a tap,
-// so the first tap/click/key on the page starts it; the chip mutes it (remembered per device).
-// Files: CC0 recordings from freesound.org (see public/sound/CREDITS.txt), loaded on first tap.
+// What you hear (his call 8 Nov): one faint, calm piece of music, a soft piano and music-box loop
+// made for the game (public/sound/calm.mp3, 91 s, seamless). It replaced the weather recordings
+// (insects, wind, rain, thunder), which were too busy under the narration and the world.
+// Browsers only allow sound after a tap, so the first tap/click/key starts it; the chip mutes it
+// (remembered per device). It stays quiet while the intro plays.
 
-const FILES = { insects: "/sound/insects.mp3", birds: "/sound/birds.mp3", wind: "/sound/wind.mp3", rain: "/sound/rain.mp3", storm: "/sound/storm.mp3" };
-const MIX = {
-  hot: { insects: 0.75, wind: 0.22 },
-  mild: { birds: 0.7 },
-  cold: { wind: 0.65, rain: 0.4 },
-  storm: { storm: 0.85, rain: 0.3 },
-};
+const FILES = { calm: "/sound/calm.mp3" };
+const QUIET = { calm: 0.32 }; // faint, under everything
+const MIX = { hot: QUIET, mild: QUIET, cold: QUIET, storm: QUIET };
 
 /** The weather word for a week's NEAR price change (shared with the dial). */
 export function weatherKind(change) {
