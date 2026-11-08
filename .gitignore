@@ -14,3 +14,4 @@ contracts/*/target
 engine/state/
 sound-src/
 public/_lab/
+debug/

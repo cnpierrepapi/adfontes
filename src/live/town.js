@@ -14,7 +14,7 @@
 import * as THREE from "three";
 import { mesh } from "../scene.js";
 import { makeCitizen, citizenGlow } from "./citizens.js";
-import { planWalk, walkStep, turnToward } from "./steer.js";
+import { planWalk, walkStep, turnToward, roundsStep, gait, gaitReset } from "./steer.js";
 
 const WOOD = 0xb07a4a, DARK_WOOD = 0x7a5232, STONE = 0xbdb6c8, IRON = 0x5a5f6e, CLOTH = 0xf2ead8, PAPER = 0xfffaf0;
 const GOLD_MAT = new THREE.MeshStandardMaterial({ color: 0xffc83a, emissive: 0x8a5a00, emissiveIntensity: 0.6, metalness: 0.5, roughness: 0.35, flatShading: true });
@@ -142,7 +142,6 @@ function lampPost() {
   return g;
 }
 function torch() { const g = new THREE.Group(); g.add(cyl(0.025, 0.03, 0.5, DARK_WOOD, 0, 0.2, 0, 6)); const f = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 6), FLAME); f.position.y = 0.52; g.add(f); return g; }
-function cart() { const g = new THREE.Group(); g.add(box(0.8, 0.3, 1.0, WOOD, 0, 0.45, 0)); for (const x of [-0.45, 0.45]) { const w = cyl(0.28, 0.28, 0.06, DARK_WOOD, x, 0.28, 0.1, 10); w.rotation.z = Math.PI / 2; g.add(w); } g.add(box(0.05, 0.05, 0.6, DARK_WOOD, -0.3, 0.6, -0.7), box(0.05, 0.05, 0.6, DARK_WOOD, 0.3, 0.6, -0.7)); for (let i = 0; i < 4; i++) g.add(box(0.22, 0.18, 0.22, [0xffb347, 0x9fd36a, 0xfff1a8, 0xff6f91][i], -0.18 + (i % 2) * 0.36, 0.69, -0.2 + Math.floor(i / 2) * 0.4)); return g; }
 
 let glow = null;
 // ---------- the five techs (SPEC §14): one building each, built in code ----------
@@ -367,7 +366,7 @@ export async function buildTown(ctx) {
     sc.flame = sc.obj.userData.flame;
   }
   {
-    const a0 = R() * 6.28, rad = r * 0.78;
+    const a0 = R() * 6.28, rad = r * 0.48; // round the plaza: the island's rim is too crowded to walk
     const stops = roundStops(open, blocks, a0, rad, 10, 1, s * 0.3);
     const w = await person("adult", stops[0][0], stops[0][1], 0, "Walk_Loop", { mode: "rounds", stops, si: 1, speed: r * 0.035, night: true });
     const t = torch(); const hand = boneNamed(w.c.root, "hand_r");
@@ -393,11 +392,7 @@ export async function buildTown(ctx) {
     await person(R() < 0.25 ? "teen" : "adult", x, z, R() * 6.28, "Idle_Loop", { mode: "walk", until: 0, hurry: neglected });
   }
   if (!phone) {
-    // a cart pusher doing the rounds
-    const a0 = R() * 6.28, rad = r * 0.62;
-    const stops = roundStops(open, blocks, a0, rad, 8, R() < 0.5 ? 1 : -1, s * 1.3);
-    const p = await person("adult", stops[0][0], stops[0][1], 0, "Push_Loop", { mode: "rounds", stops, si: 1, speed: r * 0.05, cr: s * 1.3 });
-    const ct = cart(); ct.position.set(0, 0, 0.95); p.c.root.add(ct); shadows(ct);
+    // (No cart pusher: removed for good, his call 8 Nov. On crowded islands it kept getting stuck.)
     // two children chasing each other round a little circle
     if (!neglected) {
       const a = home + 1.6, [cx, cz] = place(Math.cos(a) * r * 0.3, Math.sin(a) * r * 0.3, 1.2 * s);
@@ -438,8 +433,9 @@ export function stepTown(town, dt, now, { r, s, open, groundY }) {
     if (!c.root.visible) continue;
     if (a.mode === "rounds") {
       // The watchman's rim and the cart's round: stop to stop, routed round whatever is between.
-      if (!a.target) planWalk(a, a.stops[a.si], blocks, maxR, now, true);
-      if (walkStep(a, dt, a.speed, blocks, maxR, now)) a.si = (a.si + 1) % a.stops.length;
+      const ev = roundsStep(a, dt, blocks, maxR, now);
+      if (ev === "parked") c.play("Idle_Loop"); // walled in: rest, never walk on the spot
+      else { const g = gait(a, dt, a.speed); if (g === "wait") c.play("Idle_Loop"); else if (g === "walk") c.play("Walk_Loop"); } // held up: wait, then walk on
       turnToward(c.root, a.heading, dt, 4);
       c.root.position.set(a.pos[0], groundY(r, ...a.pos), a.pos[1]);
       if (a.torch) { // the flame stays upright whatever the hand does
@@ -449,6 +445,7 @@ export function stepTown(town, dt, now, { r, s, open, groundY }) {
     } else if (a.mode === "ring") {
       a.ang += dt * (a.speed ?? 0.06) * a.dir;
       const x = (a.cx ?? 0) + Math.cos(a.ang) * a.rad, z = (a.cz ?? 0) + Math.sin(a.ang) * a.rad;
+      a.pos[0] = x; a.pos[1] = z; // so everyone else gives them room
       c.root.position.set(x, groundY(r, x, z), z);
       c.root.rotation.y = Math.atan2(-Math.sin(a.ang) * a.dir, Math.cos(a.ang) * a.dir);
     } else if (a.mode === "walk") {
@@ -459,7 +456,10 @@ export function stepTown(town, dt, now, { r, s, open, groundY }) {
         c.play(a.hurry ? "Jog_Fwd_Loop" : "Walk_Loop");
       }
       if (a.walking) {
-        if (walkStep(a, dt, r * (a.hurry ? 0.16 : 0.07) * a.k, blocks, maxR, now)) {
+        const sp = r * (a.hurry ? 0.16 : 0.07) * a.k, there = walkStep(a, dt, sp, blocks, maxR, now);
+        if (!there) { const g = gait(a, dt, sp); if (g === "wait") c.play("Idle_Loop"); else if (g === "walk") c.play(a.hurry ? "Jog_Fwd_Loop" : "Walk_Loop"); }
+        else gaitReset(a);
+        if (there) {
           a.walking = false; a.until = now + 2 + Math.random() * 6; c.play(Math.random() < 0.4 ? "Idle_Talking_Loop" : "Idle_Loop");
         }
         turnToward(c.root, a.heading, dt);

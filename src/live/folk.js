@@ -4,7 +4,7 @@
 // between the temple and the houses, going to their role's spot to work. Stunted = grey and slow;
 // dead = a gravestone. The kit (6.9 MB) loads the first time you fly to a nation.
 import * as THREE from "three";
-import { planWalk, walkStep, turnToward } from "./steer.js";
+import { planWalk, walkStep, turnToward, separate, makeOpen, checkRounds, gait, gaitReset } from "./steer.js";
 import { loadCitizenKit, makeCitizen, ROLES } from "./citizens.js";
 import { buildTown, stepTown } from "./town.js";
 
@@ -72,23 +72,12 @@ export function createFolk({ scene, islands, renderer, camera }) {
       if (!o.visible) continue; // cleared earlier for the town
       const size = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
       if (!isFinite(size.x) || size.x === 0) continue;
-      const b = [o.position.x, o.position.z, Math.max(size.x, size.z) * 0.55 + r * 0.04];
+      const b = [o.position.x, o.position.z, o.userData.kind === "tree" ? Math.max(size.x, size.z) * 0.14 + r * 0.02 : Math.max(size.x, size.z) * 0.55 + r * 0.04];
       blocks.push(b);
       houseBlocks.push({ b, o });
     }
     // The open spot nearest to (x, z): tries rings of nudges until nothing is in the way.
-    const clear = (x, z, rad = 0) => !blocks.some(([bx, bz, br]) => Math.hypot(x - bx, z - bz) < br + rad);
-    const open = (x, z, rad = 0) => {
-      if (clear(x, z, rad)) return [x, z];
-      for (let ring = 1; ring <= 6; ring++) for (let k = 0; k < 10; k++) {
-        const a = (k / 10) * Math.PI * 2, d = ring * r * 0.06;
-        let nx = x + Math.cos(a) * d, nz = z + Math.sin(a) * d;
-        const len = Math.hypot(nx, nz), max = r * 0.86;
-        if (len > max) { nx *= max / len; nz *= max / len; } // stay on the island
-        if (clear(nx, nz, rad)) return [nx, nz];
-      }
-      return [x, z];
-    };
+    const open = makeOpen(blocks, r);
     // The nation's scenes and townsfolk go down first (SPEC §12i), so everyone walks round them.
     const place = (x, z, rad) => { const p = open(x, z, rad); if (rad > 0) blocks.push([p[0], p[1], rad]); return p; };
     const living = (agents || []).filter((a) => a.alive && isl.userData.status !== "dead");
@@ -110,6 +99,16 @@ export function createFolk({ scene, islands, renderer, camera }) {
       }
     }
     life.blocks = blocks; // every footprint on the island: nobody walks through them (SPEC §14b)
+    // Rounds (the cart, the watchman) are checked leg by leg on the finished town: stops with no
+    // way to them are dropped; too few left and the round moves inward toward the plaza; nothing
+    // works and they start parked. Nobody ever pushes a cart on the spot.
+    for (const a of life.actors) {
+      if (!a.stops) continue;
+      const ok = checkRounds(a.stops, blocks, a.cr, r, open);
+      if (ok) { a.stops = ok; a.si = 1 % ok.length; a.pos[0] = ok[0][0]; a.pos[1] = ok[0][1]; a.target = null; }
+      else { a.mode = "fixed"; a.c.play("Idle_Loop"); }
+      a.c.root.position.set(a.pos[0], groundY(r, ...a.pos), a.pos[1]);
+    }
     group.add(life.group);
     const taken = new Map();
     for (const a of agents || []) {
@@ -124,9 +123,12 @@ export function createFolk({ scene, islands, renderer, camera }) {
       const spots = life.stations.get(a.role), k = taken.get(a.role) ?? 0;
       taken.set(a.role, k + 1);
       const spot = spots?.[k % spots.length];
-      const p = { c, a, R, r, s, stunted, open, isl, life, blocks, maxR: r * 0.88, cr: s * 0.28, station: spot ? [spot.x, spot.z] : open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), stationFace: spot?.face, stationClip: spot?.clip, pos: [0, 0], target: null, until: 0, mode: "idle" };
+      // More citizens than spots: the extra ones work a step to the side, never on the same spot.
+      const extra = spot && k >= spots.length ? Math.floor(k / spots.length) : 0;
+      const at = spot && extra ? [spot.x + Math.cos(k * 2.4) * s * 0.65 * extra, spot.z + Math.sin(k * 2.4) * s * 0.65 * extra] : spot ? [spot.x, spot.z] : null;
+      const p = { c, a, R, r, s, stunted, open, isl, life, blocks, maxR: r * 0.88, cr: s * 0.28, station: at ?? open(Math.cos(home + st[0]) * r * st[1], Math.sin(home + st[0]) * r * st[1]), stationFace: spot?.face, stationClip: spot?.clip, pos: [0, 0], target: null, until: 0, mode: "idle" };
       const a0 = R() * 6.28, rad = r * (0.38 + R() * 0.15);
-      p.pos = open(Math.cos(a0) * rad, Math.sin(a0) * rad);
+      p.pos = open(Math.cos(a0) * rad, Math.sin(a0) * rad, p.cr);
       c.root.position.set(p.pos[0], groundY(r, ...p.pos), p.pos[1]);
       c.mixer.timeScale = stunted ? 0.5 : 0.9 + R() * 0.2;
       c.play("Idle_Loop", 0);
@@ -251,12 +253,21 @@ export function createFolk({ scene, islands, renderer, camera }) {
         think(p, now);
         if (p.mode === "walk") {
           const speed = p.r * 0.09 * (p.stunted ? 0.4 : 1) * (p.a.role === "Trickster" ? 2 : 1);
-          if (walkStep(p, dt, speed, p.blocks, p.maxR, now)) {
+          const there = walkStep(p, dt, speed, p.blocks, p.maxR, now);
+          if (!there) { // held up at a narrow gap: wait in an idle pose, walk on when it clears
+            const g = gait(p, dt, speed);
+            if (g === "wait") p.c.play("Idle_Loop");
+            else if (g === "walk") p.c.play(p.a.role === "Trickster" ? "Jog_Fwd_Loop" : p.a.role === "Patron" || p.a.role === "Broker" ? "Walk_Formal_Loop" : "Walk_Loop");
+          }
+          if (there) {
+            gaitReset(p);
             p.mode = "stay";
             const st = p.errandStep;
             p.until = now + (st?.dur ?? 3 + p.R() * 6);
             p.c.play(p.next);
-            if (st) { p.c.root.rotation.y = st.face; if (st.at === "Patron") payOut(cr, p, now); } // at the desk: the Patron pays
+            const missed = (p.gaveUp || 0) > 0; // no way there this time: rest here, try again later
+            if (missed) { p.atWork = false; p.c.play("Idle_Loop"); p.until = now + 2 + p.R() * 3; }
+            else if (st) { p.c.root.rotation.y = st.face; if (st.at === "Patron") payOut(cr, p, now); } // at the desk: the Patron pays
             else if (p.atWork) p.c.root.rotation.y = p.stationFace ?? Math.atan2(-p.pos[0], -p.pos[1]); // facing their work (or the temple)
             else if (p.faceTemple) p.c.root.rotation.y = Math.atan2(-p.pos[0], -p.pos[1]); // waiting on their god
           } else turnToward(p.c.root, p.heading, dt);
@@ -264,6 +275,14 @@ export function createFolk({ scene, islands, renderer, camera }) {
         }
         p.c.mixer.update(dt);
       }
+      // Personal space (SPEC §14b): nobody walks into anybody, citizens or townsfolk. People at
+      // work, sitting or firing hold their place; whoever is moving steps aside.
+      const life = cr.life, isl = islands.get(id), R = isl.userData.r;
+      const movers = [];
+      for (const p of cr.people) movers.push({ ref: p, pos: p.pos, cr: p.cr, strict: p.strict, target: p.target, hold: p.mode === "struck" || (p.mode === "gun" && p.phase !== "walk") || (p.mode === "stay" && (p.atWork || !!p.errandStep)) });
+      for (const a of life.actors) if (a.c.root.visible) movers.push({ ref: a, actor: true, pos: a.pos, cr: a.cr, strict: true, target: a.target, hold: a.mode === "fixed" || a.mode === "ring" || (a.mode === "walk" && !a.walking) });
+      separate(movers, life.blocks || [], R * 0.88);
+      for (const m of movers) if (!m.hold) m.ref.c.root.position.set(m.pos[0], groundY(R, ...m.pos), m.pos[1]);
     }
   }
 

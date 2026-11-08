@@ -837,6 +837,7 @@ function buildClanIsland(c, r, status, sprays) {
     const rr = r * range(0.55, 0.82);
     const o = i < 4 ? house(r * 0.14, accent) : tree(r * range(0.22, 0.34));
     if (i < 4) o.userData.lamp = 0.1;
+    o.userData.kind = i < 4 ? "house" : "tree"; // people walk under a tree's leaves, never through a house
     o.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
     o.rotation.y = range(0, Math.PI);
     town.add(o);
