@@ -4,6 +4,7 @@
 // new, Patron picks a point, Scholars research (or the Broker buys from a clan that has it),
 // the Smith makes kits, the Drafter drafts when the chain is deep enough, the Warden checks
 // everything, gifts go on chain, upkeep is charged; then the day's root goes on chain.
+import "./simclock.mjs"; // the fast-forward simulation's clock (does nothing unless ADF_NOW is set)
 import { refill as refillPool, nationsLeft, SPONSOR } from "./sponsor.mjs";
 import fs from "node:fs";
 import { CFG, florinRates } from "./config.mjs";
@@ -469,7 +470,7 @@ for (let n = 0; n < days; n++) {
     // 1. War councils: once a real day for every nation that's fair game.
     for (const x of standing) {
       const c = s.clans[x.id];
-      if (!WR.eligible(s, x.id) || now - (c.lastCouncilAt || 0) < WR.WAR.councilEveryMs || capped("agent")) continue;
+      if (!WR.eligible(s, x.id) || now - (c.lastCouncilAt || 0) < WR.WAR.councilEveryMs || capped("council")) continue;
       c.lastCouncilAt = now;
       const w = WR.warOf(s, x.id), enemy = w ? (w.a === x.id ? w.b : w.a) : null;
       const rivals = standing.filter((y) => y.id !== x.id).map((y) => ({ ...view(y), atWar: !!WR.warOf(s, y.id), fairGame: WR.eligible(s, y.id), weBought: bought(x.id, y.id), theyBought: bought(y.id, x.id) }));

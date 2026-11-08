@@ -59,12 +59,12 @@ export const CFG = {
   draftEveryMs: 24 * 3600e3, // at most one draft per nation per real day (SPEC §14)
 
   // Spend guard (his call, 7 Nov): never more than this on Claude in one UTC day, whatever happens.
-  dailyCapUsd: 0.5, // his cap: $0.50 a UTC day on ALL Claude calls, every network together
+  dailyCapUsd: Number(process.env.ADF_DAILY_CAP) || 0.5, // his cap: $0.50 a UTC day on ALL Claude calls, every network together (ADF_DAILY_CAP: the fast-forward simulation only)
   // What one nation costs a day at full pace, measured on w6 (8 Nov): ~24 Haiku research calls at
   // ~$0.001 + one Sonnet draft at ~$0.035 + one Broker call. More nations than the cap feeds = all slow evenly.
   nationDayUsd: 0.065,
   // The most one call has cost so far, plus margin: a call only starts if it fits under the cap.
-  worstCallUsd: { agent: 0.002, draft: 0.05 },
+  worstCallUsd: { agent: 0.002, draft: 0.05, council: 0.06 },
   // Only the 2-hour schedule moves the world. A deploy starts the engine too; a run this soon
   // after the last one exits without doing anything (a cut-off day still resumes).
   minMinutesBetweenRuns: 110,
@@ -75,6 +75,7 @@ export const CFG = {
   // Models (SPEC §12b.4): Haiku for agent turns, Sonnet for drafts. Fallback compute = our key.
   agentModel: "claude-haiku-5-5",
   draftModel: "claude-sonnet-5-5",
+  councilModel: "claude-opus-5-5", // the war council (his call 8 Nov): war and peace get the strongest mind
 };
 
 export const NETWORKS = {

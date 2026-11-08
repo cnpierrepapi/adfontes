@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { NETWORKS } from "./config.mjs";
+import { connectSim } from "./chain-sim.mjs";
 
 const YOCTO = 10n ** 24n;
 export const toYocto = (near) => (BigInt(Math.round(near * 1e6)) * YOCTO) / 1_000_000n;
@@ -29,6 +30,8 @@ function operatorAccount(net, provider) {
 }
 
 export function connect(net) {
+  // The fast-forward simulation (scripts/sim-week.mjs): a stand-in chain in a local file, never testnet.
+  if (process.env.ADF_SIM_CHAIN) return connectSim(process.env.ADF_SIM_CHAIN);
   const n = NETWORKS[net];
   const provider = new JsonRpcProvider({ url: n.rpc });
   const op = operatorAccount(net, provider);

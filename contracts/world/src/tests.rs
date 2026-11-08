@@ -542,3 +542,80 @@ fn dao_whispers_and_smites_without_a_gift() {
     }));
     assert!(r.is_err(), "a god alone can't smite; it takes the DAO vote");
 }
+
+// ---------------------------------------------------------------- agent wallets (8 Nov)
+
+#[test]
+fn a_broker_wallet_buys_for_its_own_nation() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 10 * NEAR);
+    let b = found(&mut w, "god2.near", 10 * NEAR);
+    op();
+    w.mint(a, U128(50 * FLORIN), "work".into());
+    w.set_agent_wallet(a, "Broker".into(), acc("broker1.op.near"));
+    w.set_agent_wallet(a, "Patron".into(), acc("patron1.op.near"));
+    let (fa, fb) = (clan(&w, a).florins.0, clan(&w, b).florins.0);
+    set("broker1.op.near", 0);
+    w.agent_buy(b, U128(5 * FLORIN), "corpus:c1".into());
+    assert_eq!(clan(&w, a).florins.0, fa - 5 * FLORIN);
+    assert_eq!(clan(&w, b).florins.0, fb + 5 * FLORIN);
+    assert_eq!(w.get_agent_wallet(a, "Broker".into()), Some(acc("broker1.op.near")));
+}
+
+#[test]
+#[should_panic(expected = "This wallet can't do that")]
+fn a_patron_wallet_cannot_trade() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 10 * NEAR);
+    let b = found(&mut w, "god2.near", 10 * NEAR);
+    op();
+    w.set_agent_wallet(a, "Patron".into(), acc("patron1.op.near"));
+    set("patron1.op.near", 0);
+    w.agent_buy(b, U128(FLORIN), "x".into());
+}
+
+#[test]
+#[should_panic(expected = "Not an agent wallet")]
+fn a_stranger_cannot_act_as_an_agent() {
+    let mut w = new_world();
+    let _a = found(&mut w, "god1.near", 10 * NEAR);
+    let b = found(&mut w, "god2.near", 10 * NEAR);
+    set("someone.near", 0);
+    w.agent_buy(b, U128(FLORIN), "x".into());
+}
+
+#[test]
+#[should_panic(expected = "Only the world operator")]
+fn only_the_operator_registers_wallets() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 10 * NEAR);
+    set("god1.near", 0);
+    w.set_agent_wallet(a, "Broker".into(), acc("mine.near"));
+}
+
+#[test]
+#[should_panic(expected = "That account already works for another nation")]
+fn one_wallet_serves_one_nation() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 10 * NEAR);
+    let b = found(&mut w, "god2.near", 10 * NEAR);
+    op();
+    w.set_agent_wallet(a, "Broker".into(), acc("broker.op.near"));
+    w.set_agent_wallet(b, "Broker".into(), acc("broker.op.near"));
+}
+
+#[test]
+fn a_patron_spends_its_own_nations_florins_and_they_burn() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 10 * NEAR);
+    op();
+    w.mint(a, U128(20 * FLORIN), "work".into());
+    w.set_agent_wallet(a, "Patron".into(), acc("patron1.op.near"));
+    let (fa, total, burned) = (clan(&w, a).florins.0, w.florins_total, w.burned);
+    set("patron1.op.near", 0);
+    let paid = w.agent_spend(U128(3 * FLORIN), "walls".into());
+    assert_eq!(paid.0, 3 * FLORIN);
+    assert_eq!(clan(&w, a).florins.0, fa - 3 * FLORIN);
+    assert_eq!(w.florins_total, total - 3 * FLORIN);
+    assert_eq!(w.burned, burned + 3 * FLORIN);
+}

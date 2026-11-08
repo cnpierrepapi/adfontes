@@ -9,7 +9,7 @@ const env = Object.fromEntries(
   (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").split(/\r?\n/).filter((l) => /^\w+=/.test(l)).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).trim()]),
 );
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY });
-const PRICE = { "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10] }; // $ per M tokens
+const PRICE = { "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10], "claude-opus-5-5": [4, 20] }; // $ per M tokens
 export const meter = { calls: 0, usd: 0 };
 
 // The daily cap (CFG.dailyCapUsd). run.mjs tells us what today cost before this process started;
@@ -26,6 +26,9 @@ export class BudgetError extends Error {}
 // Test runs only (ADF_FAKE_LLM=1): no Claude call, $0. Scholars and Drafters return honest,
 // well-formed work built from the real papers and chain, so chain, florin and Warden paths run.
 const FAKE = process.env.ADF_FAKE_LLM === "1";
+// ADF_FAKE_LLM=research: stand-ins write the research and drafts, while the Broker and the war
+// council still think with Claude (the fast-forward simulation under the daily cap).
+const FAKE_RESEARCH = FAKE || process.env.ADF_FAKE_LLM === "research";
 function fakeCorpus({ topic, papers }) {
   return {
     title: `${topic}: what the papers show`,
@@ -53,7 +56,7 @@ function fakeDraft({ chain }) {
 }
 
 async function json(model, system, user, schema, maxTokens) {
-  const kind = model === CFG.draftModel ? "draft" : "agent";
+  const kind = model === CFG.draftModel ? "draft" : model === CFG.councilModel ? "council" : "agent";
   if (!canSpend(kind)) throw new BudgetError(`daily cap $${CFG.dailyCapUsd} reached ($${spentToday().toFixed(4)} spent today)`);
   const msg = await client.messages.create({
     model,
@@ -95,7 +98,7 @@ const CORPUS = {
 
 /** A Scholar turn: papers -> a corpus whose every finding cites paper ids from the list. */
 export function scholarTurn({ field, topic, parent, papers, temperament, whisper }) {
-  if (FAKE) return Promise.resolve(fakeCorpus({ topic, papers }));
+  if (FAKE_RESEARCH) return Promise.resolve(fakeCorpus({ topic, papers }));
   const listing = papers.map((p) => `[${p.id}] ${p.title} (${p.year})\n${p.abstract}`).join("\n\n");
   return json(
     CFG.agentModel,
@@ -177,7 +180,7 @@ export function warCouncil({ me, rivals, war, temperament }) {
     ? `You are at war with nation ${war.enemy} (round ${war.rounds}). Your island: ${me.hp} points; theirs: ${war.enemyHp}. ${war.offerFromThem ? "They have offered peace." : war.offerFromUs ? "You offered peace; they haven't accepted." : ""}`
     : "You are at peace.";
   return json(
-    CFG.agentModel,
+    CFG.councilModel,
     "You are the Patron of a nation in AD FONTES and you lead its war council. Nations are floating islands made of their knowledge. " +
       "At war, research stops, both sides burn money every round, and strikes burn points off the other island; an island down to its root falls, " +
       "its rival takes half its money, its knowledge and two of its people. Decide one move for today: declare (war on the target nation id), " +
@@ -186,7 +189,7 @@ export function warCouncil({ me, rivals, war, temperament }) {
       `Your temperament: ${temperament}.`,
     `Your nation: ${me.name} (${me.field}): island ${me.hp} points, ${me.techs} techs, ${me.florins} florins, walls ${me.walls}.\n${now}\n\nThe other nations:\n${rivals.map(line).join("\n")}`,
     COUNCIL,
-    500,
+    4000, // Opus always thinks first: room for that and the answer
   );
 }
 
@@ -213,7 +216,7 @@ const DRAFT = {
 
 /** A Drafter turn: a chain of corpora -> a patent-style draft with 2 figures (SVG line drawings). */
 export function draftTurn({ field, chain, gaps }) {
-  if (FAKE) return Promise.resolve(fakeDraft({ chain }));
+  if (FAKE_RESEARCH) return Promise.resolve(fakeDraft({ chain }));
   const corpora = chain
     .map((c) => `[${c.node}] ${c.title}\n` + c.findings.map((f) => `- ${f.claim}`).join("\n"))
     .join("\n\n");

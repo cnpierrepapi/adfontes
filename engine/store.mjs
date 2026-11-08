@@ -6,6 +6,8 @@ import pg from "pg";
 import { sha256, leafOf } from "./world.mjs";
 
 const URL = process.env.DATABASE_URL;
+// Local files live here (the fast-forward simulation uses its own folder: ADF_STATE_DIR).
+const DIR = process.env.ADF_STATE_DIR || "engine/state";
 const pool = URL ? new pg.Pool({ connectionString: URL, max: 8 }) : null;
 let ready = null;
 
@@ -29,13 +31,13 @@ async function db() {
 export async function wasSponsored(net, account) {
   const p = await db();
   if (p) return (await p.query("select 1 from sponsored where net = $1 and account = $2", [net, account])).rowCount > 0;
-  const f = "engine/state/sponsored.json";
+  const f = `${DIR}/sponsored.json`;
   return fs.existsSync(f) && !!JSON.parse(fs.readFileSync(f, "utf8"))[`${net}:${account}`];
 }
 export async function markSponsored(net, account, tx) {
   const p = await db();
   if (p) { await p.query("insert into sponsored (net, account, tx) values ($1, $2, $3) on conflict do nothing", [net, account, tx]); return; }
-  const f = "engine/state/sponsored.json";
+  const f = `${DIR}/sponsored.json`;
   const m = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {};
   m[`${net}:${account}`] = { tx, at: Date.now() };
   fs.writeFileSync(f, JSON.stringify(m));
@@ -44,7 +46,7 @@ export async function markSponsored(net, account, tx) {
 // Claude spend per UTC day, for the whole engine (his cap, 8 Nov: $0.50 a day on ALL Claude calls).
 // One ledger for every network, and a world wipe never touches it (a per-world counter reset on
 // the 7 Nov wipe and let that day go past the cap).
-const SPEND_FILE = "engine/state/llm_spend.json";
+const SPEND_FILE = `${DIR}/llm_spend.json`;
 export async function spendOn(date) {
   const p = await db();
   if (p) return Number((await p.query("select usd from llm_spend where date = $1", [date])).rows[0]?.usd ?? 0);
@@ -56,7 +58,7 @@ export async function addSpend(date, usd) {
   if (p) { await p.query("insert into llm_spend (date, usd) values ($1, $2) on conflict (date) do update set usd = llm_spend.usd + excluded.usd", [date, usd]); return; }
   const m = fs.existsSync(SPEND_FILE) ? JSON.parse(fs.readFileSync(SPEND_FILE, "utf8")) : {};
   m[date] = (m[date] ?? 0) + usd;
-  fs.mkdirSync("engine/state", { recursive: true });
+  fs.mkdirSync(DIR, { recursive: true });
   fs.writeFileSync(SPEND_FILE, JSON.stringify(m));
 }
 
@@ -68,8 +70,8 @@ export async function loadState(net) {
     const r = await p.query("select state from world_state where net = $1", [net]);
     return r.rows[0]?.state ?? EMPTY();
   }
-  fs.mkdirSync(`engine/state/${net}`, { recursive: true });
-  const f = `engine/state/${net}.json`;
+  fs.mkdirSync(`${DIR}/${net}`, { recursive: true });
+  const f = `${DIR}/${net}.json`;
   return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : EMPTY();
 }
 
@@ -90,8 +92,8 @@ export async function ensureWorld(net, world) {
   const p = await db();
   if (p) for (const t of ["records", "drafts", "roots", "world_state"]) await p.query(`delete from ${t} where net = $1`, [net]);
   else {
-    fs.rmSync(`engine/state/${net}`, { recursive: true, force: true });
-    fs.rmSync(`engine/state/${net}.json`, { force: true });
+    fs.rmSync(`${DIR}/${net}`, { recursive: true, force: true });
+    fs.rmSync(`${DIR}/${net}.json`, { force: true });
   }
   console.log(`  ${net}: new world ${world} (was ${s.world ?? "an older world"}): old state, days, roots and drafts cleared`);
   const fresh = { ...EMPTY(), world };
@@ -108,7 +110,7 @@ export async function saveState(net, s) {
     );
     return;
   }
-  fs.writeFileSync(`engine/state/${net}.json`, JSON.stringify(s, null, 1));
+  fs.writeFileSync(`${DIR}/${net}.json`, JSON.stringify(s, null, 1));
 }
 
 /** The day's records, root and the tx that put the root on chain. */
@@ -134,7 +136,7 @@ export async function saveDay(net, day, records, root, tx) {
     }
     return;
   }
-  fs.writeFileSync(`engine/state/${net}/day-${day}.json`, JSON.stringify(records, null, 1));
+  fs.writeFileSync(`${DIR}/${net}/day-${day}.json`, JSON.stringify(records, null, 1));
 }
 
 export async function saveDraft(net, d) {
@@ -146,7 +148,7 @@ export async function saveDraft(net, d) {
     );
     return;
   }
-  fs.writeFileSync(`engine/state/${net}/${d.id}.json`, JSON.stringify(d, null, 1));
+  fs.writeFileSync(`${DIR}/${net}/${d.id}.json`, JSON.stringify(d, null, 1));
 }
 
 const CACHE = "engine/state/papers-cache.json";
@@ -162,7 +164,7 @@ export async function putPapers(key, papers) {
   if (p) return void (await p.query("insert into papers_cache (key, papers) values ($1,$2) on conflict (key) do nothing", [key, JSON.stringify(papers)]));
   fileCache ||= fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
   fileCache[key] = papers;
-  fs.mkdirSync("engine/state", { recursive: true });
+  fs.mkdirSync(DIR, { recursive: true });
   fs.writeFileSync(CACHE, JSON.stringify(fileCache));
 }
 
@@ -178,10 +180,10 @@ export async function getDay(net, day) {
     const root = (await p.query("select root, tx from roots where net = $1 and day = $2", [net, day])).rows[0] ?? null;
     return { records: r.rows.map((x) => x.data), raws: r.rows.map((x) => x.raw), leaves: r.rows.map((x) => x.leaf), root: root?.root ?? null, tx: root?.tx ?? null };
   }
-  const f = `engine/state/${net}/day-${day}.json`;
+  const f = `${DIR}/${net}/day-${day}.json`;
   if (!fs.existsSync(f)) return { records: [], leaves: [], root: null, tx: null };
   const records = JSON.parse(fs.readFileSync(f, "utf8"));
-  const s = JSON.parse(fs.readFileSync(`engine/state/${net}.json`, "utf8"));
+  const s = JSON.parse(fs.readFileSync(`${DIR}/${net}.json`, "utf8"));
   const raws = records.map((r) => JSON.stringify(r));
   // Days written before canonical hashing used the raw text as the leaf.
   const canonRoot = s.roots?.[day];
@@ -192,7 +194,7 @@ export async function getDay(net, day) {
 export async function getDraft(net, id) {
   const p = await db();
   if (p) return (await p.query("select data from drafts where net = $1 and id = $2", [net, id])).rows[0]?.data ?? null;
-  const f = `engine/state/${net}/${id}.json`;
+  const f = `${DIR}/${net}/${id}.json`;
   return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : null;
 }
 

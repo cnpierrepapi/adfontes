@@ -690,16 +690,44 @@ impl World {
     /// One nation buys from another, in florins (no fee).
     pub fn trade(&mut self, buyer: u32, seller: u32, amount: U128, memo: String) {
         self.only_operator();
-        require!(buyer != seller, "Buying inside your own clan isn't a trade");
-        require!(memo.len() <= 200, "Memo too long");
-        let mut b = self.live_clan(buyer);
-        let mut s = self.live_clan(seller);
-        require!(b.florins.0 >= amount.0, "Buyer can't afford it");
-        b.florins = U128(b.florins.0 - amount.0);
-        s.florins = U128(s.florins.0 + amount.0);
-        self.clans.insert(buyer, b);
-        self.clans.insert(seller, s);
-        env::log_str(&format!("trade {buyer}->{seller} {} {memo}", amount.0));
+        self.move_florins(buyer, seller, amount.0, &memo, "trade");
+    }
+
+    // ---------------------------------------------------------------- agent wallets (8 Nov)
+    // Each nation's Broker and Patron have their own NEAR accounts and sign their own moves. The
+    // registry lives in its own storage slots ("aw:" / "awr:" keys), outside the contract's state
+    // struct, so adding it changed no stored layout.
+
+    /// The operator registers (or replaces) an agent's wallet. role: "Broker" or "Patron".
+    pub fn set_agent_wallet(&mut self, clan_id: u32, role: String, account: AccountId) {
+        self.only_operator();
+        require!(role == "Broker" || role == "Patron", "Only a Broker or a Patron gets a wallet");
+        self.live_clan(clan_id);
+        let taken = env::storage_read(Self::rev_key(&account).as_bytes()).is_some();
+        require!(!taken || Self::wallet_of(clan_id, &role).as_ref() == Some(&account), "That account already works for another nation");
+        if let Some(old) = Self::wallet_of(clan_id, &role) {
+            env::storage_remove(Self::rev_key(&old).as_bytes());
+        }
+        env::storage_write(format!("aw:{clan_id}:{role}").as_bytes(), account.as_str().as_bytes());
+        env::storage_write(Self::rev_key(&account).as_bytes(), format!("{clan_id}:{role}").as_bytes());
+        env::log_str(&format!("agent wallet {clan_id} {role} {account}"));
+    }
+
+    pub fn get_agent_wallet(&self, clan_id: u32, role: String) -> Option<AccountId> {
+        Self::wallet_of(clan_id, &role)
+    }
+
+    /// A nation's Broker buys from another nation, signing from its own wallet.
+    pub fn agent_buy(&mut self, seller: u32, amount: U128, memo: String) {
+        let buyer = self.agent_clan("Broker");
+        self.move_florins(buyer, seller, amount.0, &memo, "agent-trade");
+    }
+
+    /// A nation's Patron spends its florins (the war chest, walls), signing from its own wallet.
+    /// Spent florins are burned, like the operator's burn.
+    pub fn agent_spend(&mut self, amount: U128, memo: String) -> U128 {
+        let clan_id = self.agent_clan("Patron");
+        self.burn_florins(clan_id, amount.0, &memo, "agent-spend")
     }
 
     /// Florins for good work (clean corpus, passed draft, a tech). At most MINT_MAX a call.
@@ -721,15 +749,7 @@ impl World {
     /// A nation that can't pay pays what it has.
     pub fn burn(&mut self, clan_id: u32, amount: U128, memo: String) -> U128 {
         self.only_operator();
-        require!(memo.len() <= 200, "Memo too long");
-        let mut c = self.live_clan(clan_id);
-        let paid = amount.0.min(c.florins.0);
-        c.florins = U128(c.florins.0 - paid);
-        self.florins_total -= paid;
-        self.burned += paid;
-        self.clans.insert(clan_id, c);
-        env::log_str(&format!("burn {clan_id} {paid} {memo}"));
-        U128(paid)
+        self.burn_florins(clan_id, amount.0, &memo, "burn")
     }
 
     /// Record a draft (a gift to the nation's gods, theirs to reward or punish).
@@ -919,6 +939,51 @@ impl World {
 
     fn only_operator(&self) {
         require!(env::predecessor_account_id() == self.operator, "Only the world operator");
+    }
+
+    fn move_florins(&mut self, buyer: u32, seller: u32, amount: u128, memo: &str, what: &str) {
+        require!(buyer != seller, "Buying inside your own clan isn't a trade");
+        require!(memo.len() <= 200, "Memo too long");
+        let mut b = self.live_clan(buyer);
+        let mut s = self.live_clan(seller);
+        require!(b.florins.0 >= amount, "Buyer can't afford it");
+        b.florins = U128(b.florins.0 - amount);
+        s.florins = U128(s.florins.0 + amount);
+        self.clans.insert(buyer, b);
+        self.clans.insert(seller, s);
+        env::log_str(&format!("{what} {buyer}->{seller} {amount} {memo}"));
+    }
+
+    fn burn_florins(&mut self, clan_id: u32, amount: u128, memo: &str, what: &str) -> U128 {
+        require!(memo.len() <= 200, "Memo too long");
+        let mut c = self.live_clan(clan_id);
+        let paid = amount.min(c.florins.0);
+        c.florins = U128(c.florins.0 - paid);
+        self.florins_total -= paid;
+        self.burned += paid;
+        self.clans.insert(clan_id, c);
+        env::log_str(&format!("{what} {clan_id} {paid} {memo}"));
+        U128(paid)
+    }
+
+    fn rev_key(a: &AccountId) -> String {
+        format!("awr:{a}")
+    }
+
+    fn wallet_of(clan_id: u32, role: &str) -> Option<AccountId> {
+        env::storage_read(format!("aw:{clan_id}:{role}").as_bytes())
+            .and_then(|v| String::from_utf8(v).ok())
+            .and_then(|s| s.parse().ok())
+    }
+
+    /// The nation whose agent (in this role) is signing, or a refusal.
+    fn agent_clan(&self, role: &str) -> u32 {
+        let who = env::predecessor_account_id();
+        let v = env::storage_read(Self::rev_key(&who).as_bytes()).unwrap_or_else(|| env::panic_str("Not an agent wallet"));
+        let s = String::from_utf8(v).unwrap_or_default();
+        let (id, r) = s.split_once(':').unwrap_or(("", ""));
+        require!(r == role, "This wallet can't do that");
+        id.parse().unwrap_or_else(|_| env::panic_str("Bad agent record"))
     }
 
     fn live_clan(&self, id: u32) -> Clan {
