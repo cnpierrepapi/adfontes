@@ -1,5 +1,6 @@
 // The fast-forward simulation's report: what a week did to the world (scripts/sim-week.mjs).
 import fs from "node:fs";
+import { standings } from "../engine/reverence.mjs";
 
 const S = JSON.parse(fs.readFileSync("debug/sim/state/testnet.json", "utf8"));
 const C = JSON.parse(fs.readFileSync("debug/sim/chain.json", "utf8"));
@@ -19,8 +20,9 @@ for (const c of C.clans) {
   const status = st.fallen ? `FALLEN on turn ${st.fallen.day} to ${name(st.fallen.by)}` : c.alive ? "standing" : "dead";
   console.log(`  ${c.name.padEnd(16)} knowledge ${String(b.points ?? "?").padStart(3)} → ${String(pts).padStart(3)} | florins ${String(Math.round(b.florins ?? 0)).padStart(5)} → ${String(Math.round(fl(c.florins))).padStart(5)} | techs ${b.techs?.length ?? "?"} → ${(st.techs || []).length} | citizens ${agents} | walls ${(st.walls || 0).toFixed(1)} | mood ${st.mood ?? "?"} | ${status}`);
 }
-const rv = Object.entries(S.rev || {}).map(([id, r]) => [name(id), r.followed ? (r.gods[r.followed]?.r ?? 0) : 0]).sort((a, b) => b[1] - a[1]);
-console.log(`\nSTANDINGS (reverence, for the jackpot): ${rv.map(([n, v], i) => `${i + 1}. ${n} ${v.toFixed(1)}`).join(" · ")}`);
+// Fallen nations are out of the standings and the jackpot (engine/reverence.mjs standings).
+const rv = standings(S, C.clans);
+console.log(`\nSTANDINGS (reverence, for the jackpot; fallen nations excluded): ${rv.map((r, i) => `${i + 1}. ${r.name} ${r.standing.toFixed(1)}`).join(" · ")}`);
 
 console.log("\nWARS");
 for (const w of Object.values(S.wars || {})) {

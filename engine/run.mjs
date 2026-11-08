@@ -216,11 +216,13 @@ for (let n = 0; n < days; n++) {
       const lazy = mood === "sated" ? CFG.richLazy : mood === "hungry" ? CFG.needs.hungrySlow : 0;
       // Tricksters come only to a nation whose gods have done nothing for 24 real hours.
       const silent = now - c.lastActAt > CFG.needs.silenceMs;
-      if (!INSTANT && silent && chance(CFG.neglectTrickster * eff.tricksterMul)) {
+      // At most two living Tricksters per nation, the second a real day after the first.
+      if (!INSTANT && silent && W.tricksterMayCome(c, agents, now) && chance(CFG.neglectTrickster * eff.tricksterMul)) {
         const name = newName(new Set(Object.values(s.clans).flatMap((x) => Object.keys(x.skills))));
         await chain.spawn(oc.id, name, "Trickster");
         c.skills[name] = {};
         c.tricksters++;
+        c.lastTricksterAt = now;
         log({ kind: "trickster", clan: oc.id, name });
       }
       const effort = w.pace * (1 - lazy) * c.fortune * eff.effortMul;
@@ -530,13 +532,16 @@ for (let n = 0; n < days; n++) {
       }
       log({ kind: "battle", ...o });
       const downA = WR.hp(s.clans[w.a]) <= 0, downB = WR.hp(s.clans[w.b]) <= 0;
+      // Broke too long: it surrenders and falls like a beaten nation.
+      const gaveUp = !downA && !downB ? WR.surrenders(w) : null;
+      if (gaveUp != null) { await fall(w, gaveUp === w.a ? w.b : w.a, gaveUp, true); continue; }
       if (!downA && !downB) continue;
       // Both down in the same round: the one with more money left holds on.
       const loser = downA && downB ? (fl[w.a] < fl[w.b] ? w.a : w.b) : downA ? w.a : w.b, winner = loser === w.a ? w.b : w.a;
       await fall(w, winner, loser);
     }
 
-    async function fall(w, winner, loser) {
+    async function fall(w, winner, loser, surrendered = false) {
       const L = s.clans[loser], Wc = s.clans[winner];
       w.status = "won"; w.winner = winner; w.endedDay = day;
       L.fallen = { day, by: winner, war: w.id };
@@ -552,7 +557,7 @@ for (let n = 0; n < days; n++) {
         const role = i === 0 ? "Scholar" : "Smith";
         try { await chain.spawn(winner, name, role); Wc.skills[name] = {}; refugees.push(`${name} (${role})`); } catch (e) { log({ kind: "error", clan: winner, error: `refugee: ${String(e.message || e).slice(0, 120)}` }); }
       }
-      log({ kind: "fallen", war: w.id, clan: loser, name: nameOf(loser), by: winner, byName: nameOf(winner), rounds: w.rounds, loot, knowledge: taken.length, refugees, tx });
+      log({ kind: "fallen", war: w.id, clan: loser, name: nameOf(loser), by: winner, byName: nameOf(winner), rounds: w.rounds, ...(surrendered ? { surrendered: true } : {}), loot, knowledge: taken.length, refugees, tx });
     }
   }
 

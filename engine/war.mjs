@@ -27,6 +27,12 @@ export const WAR = {
   wallDecay: 0.98,             // walls wear 2% a round while at war
   plunder: 0.5,                // the winner takes half the fallen nation's florins
   refugees: 2,
+  // Broke at war (his call 8 Nov): under 1 florin a side can't pay its soldiers. It strikes at half
+  // strength, its walls go unmanned and it takes 1.5x damage; three broke rounds in a row and it
+  // surrenders (falls to the other side). A broke nation shouldn't sit mid-war for weeks.
+  brokeBelow: 1,
+  brokeHurt: 1.5,
+  surrenderAfter: 3,
 };
 
 // The arsenal (his call 8 Nov: at least seven kinds of attack). What a nation can field depends on
@@ -124,10 +130,13 @@ export function round(s, w, seed, florins) {
   for (const [me, them, side] of [[w.a, w.b, "a"], [w.b, w.a, "b"]]) {
     const spend = +(Math.max(0, florins[me] || 0) * WAR.spendFrac).toFixed(4);
     const d = dice(seed, w.id, n, side);
-    const broke = (florins[me] || 0) < 1; // can't pay the soldiers: half strength
     const weapon = weaponFor(seed, w.id, n, side, s.clans[me]);
-    const hit = WAR.base * strength(s, me) * d * WEAPONS[weapon].mult * (broke ? 0.5 : 1) / defence(s.clans[them]);
+    const hit = WAR.base * strength(s, me) * d * WEAPONS[weapon].mult * (isBroke(florins, me) ? 0.5 : 1) * (isBroke(florins, them) ? WAR.brokeHurt : 1) / (isBroke(florins, them) ? 1 : defence(s.clans[them]));
     out.sides[me] = { spend, dice: +d.toFixed(4), weapon, strike: +hit.toFixed(4) };
+    // Broke rounds in a row (reset by a round with money).
+    w.broke ||= {};
+    w.broke[me] = isBroke(florins, me) ? (w.broke[me] || 0) + 1 : 0;
+    if (w.broke[me]) out.sides[me].broke = w.broke[me];
   }
   for (const [me, them] of [[w.a, w.b], [w.b, w.a]]) {
     const c = s.clans[them];
@@ -140,6 +149,13 @@ export function round(s, w, seed, florins) {
   }
   w.rounds = n;
   return out;
+}
+
+const isBroke = (florins, id) => (florins[id] || 0) < WAR.brokeBelow;
+/** The side that gives up after this round (broke too long), or null. */
+export function surrenders(w) {
+  const out = [w.a, w.b].filter((id) => (w.broke?.[id] || 0) >= WAR.surrenderAfter);
+  return out.length === 1 ? out[0] : null; // both broke: the dice decide it, as before
 }
 
 /** The winner takes the fallen nation's knowledge: each point it doesn't know, under its own root. */

@@ -60,7 +60,7 @@ export function says(r, clanName) {
       if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}${used ? ` (${used})` : ""}: both walls held.`;
       return `War, round ${r.round}${used ? ` (${used})` : ""}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} points left)`).join("; ")}.`;
     }
-    case "fallen": return `${r.name} has fallen. ${r.byName} took ${fl(r.loot)}, ${r.knowledge} points of its knowledge and two of its people.`;
+    case "fallen": return `${r.name} has ${r.surrendered ? "run out of money and surrendered" : "fallen"}. ${r.byName} took ${fl(r.loot)}, ${r.knowledge} points of its knowledge and two of its people.`;
     default: return r.kind;
   }
 }

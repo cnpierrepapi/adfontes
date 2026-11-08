@@ -33,6 +33,15 @@ export function techAllowed(c, now) {
   return now - (c.lastTechAt ?? 0) >= TECH_PACE.everyMs;
 }
 
+/** Tricksters (his call 8 Nov): at most two living in a nation, and the second only a real day
+ *  after the first arrived. agents = the nation's agents from the chain. */
+export const TRICKSTERS = { cap: 2, gapMs: 24 * 3600e3 };
+export function tricksterMayCome(c, agents, now) {
+  const living = agents.filter((a) => a.alive && a.role === "Trickster").length;
+  if (living >= TRICKSTERS.cap) return false;
+  return !(living >= 1 && now - (c.lastTricksterAt ?? 0) < TRICKSTERS.gapMs);
+}
+
 export const FIELDS = ["batteries", "solar cells", "carbon capture"];
 const LETTERS = [["E", "I"], ["S", "N"], ["T", "F"], ["J", "P"]];
 

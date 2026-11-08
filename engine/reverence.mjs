@@ -293,3 +293,13 @@ export async function godActions({ chain, s, oc, rv, day, changes }) {
   rv.lastProposal = last;
   return out;
 }
+
+/** The season standings (SPEC §14): nations still standing, ranked by the reverence of the god they
+ *  follow, ties to the older nation (same order as the site's table). A nation that fell in war is
+ *  out of the standings and out of the jackpot (his call 8 Nov). clans = [{ id, alive }] from chain. */
+export function standings(s, clans) {
+  return clans.filter((c) => c.alive !== false && s.clans[c.id] && !s.clans[c.id].fallen)
+    .map((c) => { const rv = s.rev?.[c.id]; return { id: c.id, name: c.name, standing: rv?.followed ? rv.gods[rv.followed]?.r ?? 0 : 0 }; })
+    .sort((a, b) => b.standing - a.standing || a.id - b.id);
+}
+export const jackpotWinner = (s, clans) => standings(s, clans)[0] ?? null;
