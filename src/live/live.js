@@ -305,7 +305,8 @@ export async function startLive(canvas, hud, opts = {}) {
   updatePaths();
 
   // War (the finale): a red, pulsing line between two nations at war, and each side's war in its clan.
-  const warMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 0.35, 0.3), transparent: true, opacity: 0.6, depthWrite: false });
+  // Plain red, not HDR: an over-bright red washed out to white and looked like an ordinary path.
+  const warMat = new THREE.MeshBasicMaterial({ color: 0xff2238, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false });
   const warLinks = new Map();
   function updateWars() {
     const want = new Set((W.wars || []).map((w) => pairKey(w.a, w.b)));
@@ -313,7 +314,7 @@ export async function startLive(canvas, hud, opts = {}) {
     for (const w of W.wars || []) {
       const k = pairKey(w.a, w.b), A = islands.get(w.a), B = islands.get(w.b);
       if (warLinks.has(k) || !A || !B) continue;
-      const m = new THREE.Mesh(new THREE.TubeGeometry(bridgeCurve(A, B), 48, 0.09, 6), warMat);
+      const m = new THREE.Mesh(new THREE.TubeGeometry(bridgeCurve(A, B), 48, 0.12, 8), warMat);
       world.add(m); warLinks.set(k, m);
     }
   }
@@ -793,7 +794,7 @@ export async function startLive(canvas, hud, opts = {}) {
     for (const s of sprays) s(t);
     updateRising();
     for (const isl of islands.values()) isl.position.y = isl.userData.baseY + (isl.userData.riseY || 0) + Math.sin(t * 0.45 + isl.userData.bob) * 0.3;
-    warMat.opacity = 0.4 + 0.35 * Math.sin(t * 3);
+    warMat.opacity = 0.55 + 0.35 * Math.sin(t * 3);
     const sp = sea.geometry.attributes.position;
     for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
     sp.needsUpdate = true;

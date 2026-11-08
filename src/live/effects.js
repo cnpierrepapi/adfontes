@@ -151,14 +151,14 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     });
   }
   function flash(isl) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.6, 0.5), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 0.9, 0.3), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
     scene.add(m);
     const t0 = performance.now(), base = top(isl);
     add(() => {
       const k = (performance.now() - t0) / 700;
       m.position.copy(base).y += 0.6;
-      m.scale.setScalar(0.5 + k * 2.6);
-      m.material.opacity = Math.max(0, 1 - k);
+      m.scale.setScalar(0.35 + k * 1.1); // a hit, not a sun
+      m.material.opacity = Math.max(0, 0.8 * (1 - k));
       if (k >= 1) { scene.remove(m); return false; }
       return true;
     });
@@ -186,8 +186,8 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     const y0 = isl.userData.baseY, t0 = performance.now();
     crumble(isl, 16); crumble(isl, 16, 900); crumble(isl, 16, 1800);
     add(() => {
-      const k = Math.min(1, (performance.now() - t0) / 8000);
-      isl.userData.baseY = y0 - 7 * k * k;
+      const k = Math.min(1, (performance.now() - t0) / 5000);
+      isl.userData.baseY = y0 - 12 * k * k;
       return k < 1;
     });
   }
