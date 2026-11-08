@@ -54,9 +54,11 @@ export function says(r, clanName) {
     case "peace-offer": return `${c(r.clan)} offered ${c(r.to)} peace. "${r.reason}"`;
     case "peace": return `Peace between ${c(r.a)} and ${c(r.b)} after ${r.rounds} round${r.rounds === 1 ? "" : "s"}. "${r.reason}"`;
     case "battle": {
+      const WEAPON = { cannon: "cannon", arrows: "fire arrows", trebuchet: "a trebuchet", mortar: "mortars", starlance: "a star lance", burningglass: "a burning glass", pamphlets: "a storm of pamphlets", ornithopters: "flying machines" };
+      const used = Object.keys(r.sides).map((id) => r.sides[id].weapon ? `${c(Number(id))} used ${WEAPON[r.sides[id].weapon] ?? r.sides[id].weapon}` : null).filter(Boolean).join(", ");
       const ids = Object.keys(r.sides).map(Number), hit = ids.filter((id) => r.sides[id].burned?.length);
-      if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}: both walls held.`;
-      return `War, round ${r.round}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} points left)`).join("; ")}.`;
+      if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}${used ? ` (${used})` : ""}: both walls held.`;
+      return `War, round ${r.round}${used ? ` (${used})` : ""}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} points left)`).join("; ")}.`;
     }
     case "fallen": return `${r.name} has fallen. ${r.byName} took ${fl(r.loot)}, ${r.knowledge} points of its knowledge and two of its people.`;
     default: return r.kind;

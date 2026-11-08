@@ -4,6 +4,7 @@ import { switchNet } from "../net.js";
 import { createRoute } from "./route.js";
 import { playCinematic } from "./intro.js";
 import { runTutorial } from "./tutorial.js";
+import { playTimelapse, offerTimelapse } from "./timelapse.js";
 
 // The cinematic intro starts at once on a first visit and covers the world loading underneath.
 const cinema = new URLSearchParams(location.search).has("stills") ? Promise.resolve(false) : playCinematic();
@@ -115,7 +116,20 @@ function toast(text) {
 // The god's route and the first-visit intro (SPEC §12n).
 const route = createRoute({ live, W, account: () => window.__gods?.wallet.account() ?? null });
 // After the intro (or straight away for a returning visitor): the world, then the tutorial once.
-if (!q.has("stills")) cinema.then((played) => { if (played) live.home(); setTimeout(() => runTutorial(), played ? 900 : 1500); });
+// The season in a minute (his call 8 Nov): offered straight after the intro, before the tutorial;
+// ?timelapse plays it at once (the judge page links there); a HUD button plays it any time.
+if (!q.has("stills")) cinema.then(async (played) => {
+  if (played) live.home();
+  if (q.has("timelapse")) await playTimelapse(live);
+  else if (played) await offerTimelapse(live);
+  setTimeout(() => runTutorial(), played ? 900 : 1500);
+});
+{
+  const b = Object.assign(document.createElement("button"), { type: "button", className: "chip season", title: "Watch the season so far, in about a minute" });
+  b.innerHTML = '▶ <span class="word">Season</span>';
+  b.addEventListener("click", () => playTimelapse(live));
+  document.querySelector(".hud-top nav")?.prepend(b, " ");
+}
 import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast, route, replayIntro: () => playCinematic({ force: true }).then(() => { live.home(); runTutorial({ force: true }); }) })).then((g) => {
   gods = g;
   window.__gods = g;
