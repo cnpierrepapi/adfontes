@@ -19,6 +19,13 @@ const DIST = path.resolve("dist");
 const near = (y) => Number(BigInt(y || 0) / 10n ** 18n) / 1e6;
 // Florins (SPEC §14): 1 florin = 10^22 units on chain.
 const florins = (u) => Number(BigInt(u || 0) / 10n ** 16n) / 1e6;
+// Input checks (audit 8 Nov: junk ids reached a chain query and came back as 500s).
+class BadInput extends Error {}
+const whole = (q, name, min = 0, max = 1e7) => {
+  const v = Number(q.get(name));
+  if (!Number.isInteger(v) || v < min || v > max) throw new BadInput(`${name} must be a whole number from ${min}`);
+  return v;
+};
 
 // Small cache so a busy page doesn't hammer the RPC or the database.
 const cache = new Map();
@@ -103,7 +110,7 @@ function makeApi(NET) {
   
     // One clan's mindmap and its agents.
     async clan(q) {
-      const id = Number(q.get("id"));
+      const id = whole(q, "id", 1);
       // ?d=<day> only splits the cache, so the live world can ask for the map right after a new day.
       const d = Number(q.get("d")) || 0;
       return cachedN(`clan:${id}:${d}`, 20_000, async () => {
@@ -151,7 +158,7 @@ function makeApi(NET) {
     // A nation's recent gifts with their live status on NEAR: its own (its gods rule on them within
     // 24h) and others' where it was the top contributor (its gods may claim them after 24h).
     async gifts(q) {
-      const id = Number(q.get("id"));
+      const id = whole(q, "id", 1);
       const all = await cachedN("gifts:all", 20_000, async () => {
         const s = await store.loadState(NET);
         const ids = Object.keys(s.gifts || {}).map(Number).sort((a, b) => b - a).slice(0, 40);
@@ -188,13 +195,14 @@ function makeApi(NET) {
     },
   
     async draft(q) {
+      if (!/^d\d{1,9}$/.test(q.get("id") || "")) throw new BadInput("id looks like d123");
       const d = await store.getDraft(NET, q.get("id"));
       return d ?? { error: "no such draft" };
     },
   
     // A day's records, each with its index so it can be proved.
     async day(q) {
-      const day = Number(q.get("d"));
+      const day = whole(q, "d", 0);
       const d = await store.getDay(NET, day);
       return { day, root: d.root, tx: d.tx, records: d.records.map((r, i) => ({ i, ...r })) };
     },
@@ -204,7 +212,7 @@ function makeApi(NET) {
     // compare with the root the world contract holds on NEAR. Canonical hashing first; days
     // written before it (testnet days 1-43) used each record's exact original text.
     async proof(q) {
-      const day = Number(q.get("d")), i = Number(q.get("i"));
+      const day = whole(q, "d", 1), i = whole(q, "i", 0);
       const d = await store.getDay(NET, day);
       if (!d.records[i]) return { error: "no such record" };
       const onchain = await view("get_root", { day });
@@ -302,6 +310,7 @@ http
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-cache", "access-control-allow-origin": "*" });
         return res.end(JSON.stringify(out));
       } catch (e) {
+        if (e instanceof BadInput) return send(res, 400, "application/json", JSON.stringify({ error: e.message }));
         console.error(m[1], e);
         return send(res, 500, "application/json", JSON.stringify({ error: "server error" }));
       }
