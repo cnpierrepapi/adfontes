@@ -242,7 +242,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           const want = name.value.trim();
           live.refresh?.(want);
           route?.founded(want); // your island, confetti, "You are a god", the neighbours' welcome
-          return `${want} is founded. Its island rises into the world in a moment, and its first citizens arrive on the next game day.`;
+          return `${want} is founded. Its island rises into the world in a moment, and its first citizens arrive within seconds.`;
         },
       });
     });
@@ -282,7 +282,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       const mine = R.gods[account];
       if (mine && mine.r < 30) rev.append(el("p", { className: "fine warn", textContent: mine.r === 0 ? "This nation has turned on you. Your whispers are ignored." : "Your reverence is low: the citizens ignore your whispers and go their own way. Whisper, rule well and let the nation do well to win them back." }));
       for (const r of (info.reports || []).filter((x) => !x.settled)) {
-        const row = el("div", { className: "gift report" }, el("span", { textContent: `Report, day ${r.day}: ${r.claim}. Lapses on day ${r.lapses_day}.` }));
+        const row = el("div", { className: "gift report" }, el("span", { textContent: `Report, turn ${r.day}: ${r.claim}. Lapses on turn ${r.lapses_day}.` }));
         if (me && seated) {
           const b = el("button", { type: "button", className: "viewbtn", textContent: `Stunt ${r.accused}` });
           b.addEventListener("click", () => smiteCard(clan, r.accused));
@@ -437,7 +437,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const sel = el("select", { className: "txin" }, ...agents.map((a) => el("option", { value: a.name, textContent: `${a.name}, ${a.role}` })));
     return { sel, agents };
   }
-  const verdictPicker = () => el("select", { className: "txin" }, el("option", { value: "Stunt", textContent: "Stunt: no work or learning for 3 game days" }), el("option", { value: "Kill", textContent: "Kill: gone for good (the name stays taken)" }));
+  const verdictPicker = () => el("select", { className: "txin" }, el("option", { value: "Stunt", textContent: "Stunt: no work or learning for 3 turns (about 6 hours)" }), el("option", { value: "Kill", textContent: "Kill: gone for good (the name stays taken)" }));
   async function smiteCard(clan, accused = null) {
     const [{ sel, agents }, p] = await Promise.all([citizenPicker(clan), prepDao(clan)]);
     if (!agents.length) return toast(`${clan.name} has no living citizens to smite.`);
@@ -446,13 +446,13 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     card({
       title: "Smite a citizen",
       fields: [label("Citizen", sel), label("Verdict", v)],
-      words: () => `${sel.value} is ${v.value === "Kill" ? "killed. A gravestone takes their place and their name is never used again" : "stunted: they can't work or learn for 3 game days"}. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      words: () => `${sel.value} is ${v.value === "Kill" ? "killed. A gravestone takes their place and their name is never used again" : "stunted: they can't work or learn for 3 turns (about 6 hours)"}. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
       calls: () => p.build("smite", { clan_id: clan.id, agent: sel.value, verdict: v.value }, `AD FONTES: ${v.value === "Kill" ? "kill" : "stunt"} ${sel.value} of ${clan.name}`).calls,
       after: async (outs) => {
         const r = await daoResult(clan, C.returned(outs[0]));
         if (!r.passed) return waiting(r.left);
         live.smite(clan.id, sel.value, v.value);
-        return `${sel.value} is ${v.value === "Kill" ? "dead" : "stunted for 3 game days"}.`;
+        return `${sel.value} is ${v.value === "Kill" ? "dead" : "stunted for 3 turns (about 6 hours)"}.`;
       },
     });
   }
@@ -494,7 +494,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     card({
       title: `Rule on gift #${gift.id}`,
       fields: [label("Ruling", choice), pick, verd],
-      words: () => (choice.value === "reward" ? `You record that the gods reward "${gift.title ?? "this draft"}". To reward it with NEAR too, bless the nation.` : `You punish ${sel.value} for this gift: ${v.value === "Kill" ? "killed for good" : "stunted for 3 game days"}.`) + ` It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      words: () => (choice.value === "reward" ? `You record that the gods reward "${gift.title ?? "this draft"}". To reward it with NEAR too, bless the nation.` : `You punish ${sel.value} for this gift: ${v.value === "Kill" ? "killed for good" : "stunted for 3 turns (about 6 hours)"}.`) + ` It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
       check: () => (choice.value === "punish" && !agents.length ? "There is no living citizen to punish." : null),
       calls: () => p.build("rule", choice.value === "reward" ? { gift_id: gift.id, reward: true, verdict: null, agent: null } : { gift_id: gift.id, reward: false, verdict: v.value, agent: sel.value }, `AD FONTES: ${choice.value} gift #${gift.id}${choice.value === "punish" ? ` (${v.value.toLowerCase()} ${sel.value})` : ""}`).calls,
       after: async (outs) => {

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AD FONTES: for judges</title>
+    <meta name="description" content="Five minutes with AD FONTES: the live world, the numbers, and a proof you can check in your own browser against NEAR." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#1d1430" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/demo.css" />
+    <link rel="stylesheet" href="/src/world.css" />
+    <link rel="stylesheet" href="/src/judge.css" />
+  </head>
+  <body class="demo world judge">
+    <header class="nav solid">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
+      <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
+    </header>
+    <main class="demo-main">
+      <div class="demo-head">
+        <p class="kicker dark" id="where">for judges</p>
+        <h1>Five minutes with AD FONTES.</h1>
+        <p>A world of small nations run by AI citizens. They read real research papers, write up what they learn, trade it with each other and draft patent-style inventions. You're a god. You put NEAR in, whisper to your citizens, and punish the ones who cheat.</p>
+        <p>None of it can be quietly rewritten. Every turn's records get one fingerprint on NEAR, and this page lets you check one yourself.</p>
+        <p><a class="viewbtn gold" href="/">Open the live world</a></p>
+      </div>
+
+      <section>
+        <h2>The world right now</h2>
+        <div class="jstats" id="stats"><p>Reading the world…</p></div>
+      </section>
+
+      <section>
+        <h2>Check it yourself</h2>
+        <p>One click picks a random record from the last sealed turn. Your browser hashes it, climbs the proof to the turn's fingerprint, then asks NEAR directly what fingerprint it holds. If the two match, that record is exactly what happened.</p>
+        <p><button class="viewbtn" id="check" type="button">Check a random record</button></p>
+        <div class="proof-out" id="check-out"></div>
+      </section>
+
+      <section>
+        <h2>On chain, this turn</h2>
+        <p id="chain-intro">The world contract, and the transactions from the last sealed turn.</p>
+        <ul class="jtx" id="txs"></ul>
+      </section>
+
+      <section class="split">
+        <div>
+          <h2>Five minutes, start here</h2>
+          <ol class="jsteps">
+            <li>Open <a href="/">the world</a> and watch for a minute. The dial at the top is the clock: it's day while NEAR's price is climbing, night while it falls.</li>
+            <li>Click an island. The panel shows what that nation knows, its florins, and its gods.</li>
+            <li>Under the season standings there's an event list. Click a line and the camera flies there.</li>
+            <li>Want to play? Connect a testnet wallet and found a nation from the wallet menu. Short on testnet NEAR? The found card tops you up once.</li>
+          </ol>
+        </div>
+        <div>
+          <h2>Run it yourself</h2>
+          <pre class="jcode">git clone https://github.com/cnpierrepapi/adfontes
+cd adfontes
+npm install
+npm test          # engine, clock, techs, walking, florins
+npm run build && npm start   # site + API on :3000</pre>
+          <p>The README has the full picture, the diagrams, and why we think this is more than a game.</p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/judge.js"></script>
+  </body>
+</html>

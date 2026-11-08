@@ -306,7 +306,7 @@ export function buildMind(data, isl, ctx) {
       const top = hits.find((x) => x.scroll) ?? hits[0];
       if (top.scroll) {
         const d = top.scroll.userData.draft;
-        return { title: d.title, sub: `Draft, day ${d.day} · ${d.passed ? "the Warden passed it" : "failed the Warden"}`, kind: d.passed ? "gift" : "warden" };
+        return { title: d.title, sub: `Draft, turn ${d.day} · ${d.passed ? "the Warden passed it" : "failed the Warden"}`, kind: d.passed ? "gift" : "warden" };
       }
       const s = top.list[top.index];
       const mood = s.node.stir === "doubt" ? ` · it unsettles the citizens${s.node.stir_why ? `: "${s.node.stir_why}"` : ""}` : s.node.stir === "faith" ? ` · it lifts their faith${s.node.stir_why ? `: "${s.node.stir_why}"` : ""}` : "";

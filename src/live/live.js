@@ -196,6 +196,9 @@ export async function startLive(canvas, hud, opts = {}) {
   function riseNation(id) {
     const isl = islands.get(id);
     if (!isl || isl.userData.rose) return;
+    // Only a nation founded while you watch rises; one already standing at page load stays put
+    // (the "while you were away" replay plays its founding record again).
+    if (isl.userData.status !== "new" && W.clans.find((c) => c.id === id)?.seen) { isl.userData.rose = true; return; }
     isl.userData.rose = "rising";
     showRoutesOf(id, false); // bridges wait until the island has landed
     rising.set(id, performance.now());
@@ -235,6 +238,8 @@ export async function startLive(canvas, hud, opts = {}) {
   const beadMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0x4ff0ff, transparent: true, opacity: 0.45, depthWrite: false });
   const curves = new Map(), routeGroups = new Map(), routeDirs = new Set();
+  const paths = new Map(); // nation pair -> faint path (until their first trade)
+  const pathMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, depthWrite: false });
   const pairKey = (a, b) => [a, b].sort((x, y) => x - y).join("-"); // numeric, same as effects.js
   function addRoute(route) {
     const A = islands.get(route.seller), B = islands.get(route.buyer);
@@ -251,6 +256,7 @@ export async function startLive(canvas, hud, opts = {}) {
       g.userData.ends = [route.seller, route.buyer];
       world.add(g);
       routeGroups.set(key, g);
+      const p = paths.get(key); if (p) { p.removeFromParent(); p.geometry.dispose(); paths.delete(key); } // the path becomes the bridge
       if (A.userData.rose === "rising" || B.userData.rose === "rising") g.visible = false;
     }
     const curve = curves.get(key), beads = [];
@@ -268,7 +274,32 @@ export async function startLive(canvas, hud, opts = {}) {
     }));
   }
   for (const route of T.routes) addRoute(route);
-  const showRoutesOf = (id, on) => { for (const g of routeGroups.values()) if (g.userData.ends.includes(id)) g.visible = on; };
+  const showRoutesOf = (id, on) => {
+    for (const g of routeGroups.values()) if (g.userData.ends.includes(id)) g.visible = on;
+    for (const m of paths.values()) if (m.userData.ends.includes(id)) m.visible = on;
+  };
+  // Paths (his call 8 Nov): every nation gets a faint path to its two nearest neighbours right
+  // away; the first trade between two nations turns their path into the full bridge.
+  function updatePaths() {
+    const live = [...islands.entries()].filter(([, isl]) => isl.userData.status !== "dead");
+    const want = new Set();
+    for (const [id, isl] of live) {
+      const near = live.filter(([o]) => o !== id).map(([o, oi]) => [o, isl.position.distanceTo(oi.position)]).sort((a, b) => a[1] - b[1]).slice(0, 2);
+      for (const [o] of near) want.add(pairKey(id, o));
+    }
+    for (const [key, m] of paths) if (!want.has(key) || routeGroups.has(key)) { m.removeFromParent(); m.geometry.dispose(); paths.delete(key); }
+    for (const key of want) {
+      if (paths.has(key) || routeGroups.has(key)) continue;
+      const [a, b] = key.split("-").map(Number), A = islands.get(a), B = islands.get(b);
+      if (!A || !B) continue;
+      const m = new THREE.Mesh(new THREE.TubeGeometry(bridgeCurve(A, B), 40, 0.035, 4), pathMat);
+      m.userData.ends = [a, b];
+      m.visible = A.userData.rose !== "rising" && B.userData.rose !== "rising";
+      world.add(m);
+      paths.set(key, m);
+    }
+  }
+  updatePaths();
 
 
   // ---- night (default) and day (SPEC §12g). The sky no longer shows the weather; sound does. ----
@@ -384,7 +415,7 @@ export async function startLive(canvas, hud, opts = {}) {
     const r = replay.list[replay.i];
     // The strip names the event that's playing now (it stays up while a star-gun shot runs).
     strip.hidden = false;
-    stripText.textContent = `While you were away in ${clanName(replay.id)}: ${WHAT[r.kind]?.(r) ?? r.kind} (${replay.i + 1} of ${replay.list.length}, day ${r.day})`;
+    stripText.textContent = `While you were away in ${clanName(replay.id)}: ${WHAT[r.kind]?.(r) ?? r.kind} (${replay.i + 1} of ${replay.list.length}, turn ${r.day})`;
     replaying = true;
     try { fx.play(r); } finally { replaying = false; }
     replay.i++;
@@ -417,6 +448,7 @@ export async function startLive(canvas, hud, opts = {}) {
         if (isl && !c.alive && isl.userData.status !== "dead") { isl.userData.status = "dead"; Object.assign(isl.userData.clan, c); loadMind(c.id); }
       }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
+      updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
       for (let d = lastDay + 1; d <= now.day; d++) { const recs = ((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)); folk.dayRecords(recs, d); fx.enqueue(recs); }
       W.jackpot = now.jackpot;
       standings.update(now);

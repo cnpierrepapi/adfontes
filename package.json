@@ -1,13 +1,16 @@
 {
   "name": "adfontes",
   "version": "1.0.0",
-  "description": "",
+  "description": "AD FONTES: a world of AI nations that do real research, on NEAR",
   "main": "index.js",
   "scripts": {
     "build": "vite build",
     "start": "node server.mjs",
     "engine": "node engine/run.mjs",
-    "test:warden": "node engine/test-warden.mjs"
+    "test:warden": "node engine/test-warden.mjs",
+    "test": "node engine/test-clock.mjs && node engine/test-techs.mjs && node engine/test-stir.mjs && node engine/test-reverence.mjs && node engine/test-warden.mjs && node tests/steer.test.mjs",
+    "test:live": "node tests/live-audit.mjs",
+    "test:load": "node tests/load.mjs"
   },
   "keywords": [],
   "author": "",

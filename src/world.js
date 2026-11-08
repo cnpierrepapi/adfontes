@@ -18,7 +18,7 @@ const says = (r) => saysWith(r, clanName);
 async function loadWorld() {
   W = await api("world");
   const net = W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet, the practice world";
-  $("where").textContent = `${W.season} · day ${W.day} · ${net}`;
+  $("where").textContent = `${W.season} · turn ${W.day} · ${net}`;
   if (W.weather) {
     const w = W.weather;
     const mood = w.change > 0.1 ? "hot" : w.change < -0.05 ? "cold" : "mild";
@@ -59,7 +59,7 @@ async function loadDrafts() {
             el("button", { onclick: () => showDraft(d.id) },
               `${d.title ?? d.id}`,
               el("span", { className: `tag ${d.passed ? "ok" : "bad"}`, textContent: d.passed ? "clean" : "caught" }),
-              el("span", { className: "tag", textContent: `day ${d.day}, ${clanName(d.clan)}` }),
+              el("span", { className: "tag", textContent: `turn ${d.day}, ${clanName(d.clan)}` }),
             ),
           ),
         )
@@ -134,7 +134,7 @@ $("prove-form").addEventListener("submit", async (e) => {
   const onchain = await rootOnNear(p.rpc, p.world, d);
   const ok = h === onchain;
   out.replaceChildren(
-    el("div", { className: `verdict ${ok ? "yes" : "no"}`, textContent: ok ? `Matches NEAR. This is exactly what happened on day ${d}.` : "Doesn't match. This record isn't what was sealed that day." }),
+    el("div", { className: `verdict ${ok ? "yes" : "no"}`, textContent: ok ? `Matches NEAR. This is exactly what happened on turn ${d}.` : "Doesn't match. This record isn't what was sealed that day." }),
     el("div", { textContent: `The record: ${says(p.record)}` }),
     el("div", { textContent: `Your browser got: ${h}` }),
     el("div", {}, `NEAR holds: ${onchain} (read from `, el("a", { href: `${p.explorer}/address/${p.world}`, target: "_blank", rel: "noopener", textContent: p.world }), ")"),

@@ -228,8 +228,13 @@ const APIS = { testnet: makeApi("testnet"), mainnet: makeApi("mainnet") };
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".ico": "image/x-icon", ".glb": "model/gltf-binary", ".webp": "image/webp" };
 
 function serveStatic(req, res, url) {
-  let p = path.normalize(path.join(DIST, decodeURIComponent(url.pathname)));
-  if (!p.startsWith(DIST)) return send(res, 403, "text/plain", "forbidden");
+  let pathname;
+  try { pathname = decodeURIComponent(url.pathname); } catch { return send(res, 400, "text/plain", "bad path"); } // a malformed %-escape
+  // The live world is the homepage (his call 8 Nov); the old landing page lives at /about/.
+  if (pathname === "/" || pathname === "/index.html") pathname = "/live/index.html";
+  else if (pathname === "/about" || pathname === "/about/") pathname = "/index.html";
+  let p = path.normalize(path.join(DIST, pathname));
+  if (p !== DIST && !p.startsWith(DIST + path.sep)) return send(res, 403, "text/plain", "forbidden");
   if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, "index.html");
   if (!fs.existsSync(p) && !path.extname(p) && fs.existsSync(p + "/index.html")) p += "/index.html";
   if (!fs.existsSync(p)) {

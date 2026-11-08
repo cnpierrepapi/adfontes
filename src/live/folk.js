@@ -42,7 +42,8 @@ export function createFolk({ scene, islands, renderer, camera }) {
       col.set([c.r, c.g, c.b], i * 3);
     });
     g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 1.0, map: beadTex(), alphaTest: 0.05, vertexColors: true, transparent: true, depthWrite: false, opacity: 1 }));
+    // A constant size on screen, so citizens stay visible as moving dots however far out you are.
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, map: beadTex(), alphaTest: 0.05, vertexColors: true, transparent: true, depthWrite: false, opacity: 1 }));
     pts.frustumCulled = false;
     isl.add(pts);
     dots.set(id, { pts, living, key: living.map((a) => a.name + a.stunted_until).join(), seeds: living.map((a) => h32(a.name)) });
@@ -300,7 +301,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
     }
     if (!best) return null;
     const left = best.a.stunted_until - day;
-    return { title: best.a.name, sub: `${best.a.role}${best.stunted ? ` · stunted, ${left} more day${left === 1 ? "" : "s"}` : ""} · since day ${best.a.born_day}`, kind: best.stunted ? "stone" : "corpus" };
+    return { title: best.a.name, sub: `${best.a.role}${best.stunted ? ` · stunted, ${left} more turn${left === 1 ? "" : "s"}` : ""} · since turn ${best.a.born_day}`, kind: best.stunted ? "stone" : "corpus" };
   }
 
   // ---- errands (SPEC §14b): who goes where before a job ----
@@ -522,7 +523,8 @@ function beadTex() {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const x = c.getContext("2d"), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.45, "rgba(255,255,255,1)"); gr.addColorStop(0.62, "rgba(255,255,255,0.55)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+  // A bright core and a dark rim: readable on pale sand by day and in the dark at night.
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.5, "rgba(255,255,255,1)"); gr.addColorStop(0.62, "rgba(60,45,90,1)"); gr.addColorStop(0.8, "rgba(60,45,90,0.85)"); gr.addColorStop(1, "rgba(60,45,90,0)");
   x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
   bead = new THREE.CanvasTexture(c);
   bead.colorSpace = THREE.SRGBColorSpace;
