@@ -53,21 +53,43 @@ export async function createWallet(net) {
   }
   const selector = await setupWalletSelector({ network: net === "mainnet" ? "mainnet" : "testnet", modules });
   const listeners = new Set();
-  const account = () => selector.store.getState().accounts.find((a) => a.active)?.accountId ?? null;
+  // Play without a wallet (testnet only, 8 Nov): a NEAR key made in this browser. The account is
+  // the key's implicit account (64 hex characters); the sponsor pool funds it so a new player can
+  // found a nation at once. Never offered on mainnet: a key in a browser shouldn't hold real money.
+  const LOCAL = `adf-local-key-${net}`;
+  const localKey = () => { try { return JSON.parse(localStorage.getItem(LOCAL) || "null"); } catch { return null; } };
+  const localOn = () => net === "testnet" && localStorage.getItem(`${LOCAL}-on`) === "1" && !!localKey();
+  const account = () => localOn() ? localKey().account : selector.store.getState().accounts.find((a) => a.active)?.accountId ?? null;
+  const tell = () => { const a = account(); if (a !== last) { last = a; for (const f of listeners) f(a); } };
   let last = account();
-  selector.store.observable.subscribe(() => { const a = account(); if (a !== last) { last = a; for (const f of listeners) f(a); } });
+  selector.store.observable.subscribe(tell);
 
   async function wallets() {
     const out = [];
+    if (net === "testnet") out.push({ id: "local", name: "Play without a wallet", icon: "/favicon.svg", available: true, note: "A key made in this browser. Save it from the wallet menu." });
     for (const m of selector.store.getState().modules) out.push({ id: m.id, name: m.metadata.name, icon: m.metadata.iconUrl, available: m.metadata.available !== false });
     return out;
   }
   async function signIn(walletId) {
+    if (walletId === "local") {
+      if (net !== "testnet") throw new Error("Playing without a wallet is for testnet only.");
+      if (!localKey()) {
+        const { KeyPair } = await import("@near-js/crypto");
+        const kp = KeyPair.fromRandom("ed25519");
+        const pub = kp.getPublicKey().data;
+        const accountId = [...pub].map((b) => b.toString(16).padStart(2, "0")).join("");
+        localStorage.setItem(LOCAL, JSON.stringify({ account: accountId, key: kp.toString() }));
+      }
+      localStorage.setItem(`${LOCAL}-on`, "1");
+      tell();
+      return account();
+    }
     const w = await selector.wallet(walletId);
     await w.signIn({ accounts: [] });
     return account();
   }
   async function signOut() {
+    if (localOn()) { localStorage.removeItem(`${LOCAL}-on`); tell(); return; } // the key stays, to sign back in
     if (!selector.isSignedIn()) return;
     await (await selector.wallet()).signOut();
   }
@@ -76,7 +98,9 @@ export async function createWallet(net) {
    * previous call's return value first (a DAO vote needs the id its proposal got).
    */
   async function send(calls) {
-    const w = await selector.wallet();
+    // Signed in without a wallet: sign here with the browser's key.
+    const lk = localOn() ? localKey() : null;
+    const w = lk ? await localSigner(lk) : await selector.wallet();
     const outs = [];
     for (let c of calls) {
       if (c.bind) {
@@ -102,7 +126,15 @@ export async function createWallet(net) {
     // The very step Meteor and MyNearWallet take to hand the transaction over (their bundles call Buffer).
     return Buffer.from(encodeTransaction(tx)).toString("base64").length;
   }
-  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
+  // A signer with the same signAndSendTransaction shape the wallets have, for the browser key.
+  async function localSigner(lk) {
+    const { Account, JsonRpcProvider } = await import("near-api-js");
+    const acct = new Account(lk.account, new JsonRpcProvider({ url: rpc }), lk.key);
+    return { signAndSendTransaction: ({ receiverId, actions }) => acct.signAndSendTransaction({ receiverId, actions }) };
+  }
+  /** The browser key, for the player to save (only when playing without a wallet). */
+  const exportKey = () => (localOn() ? { account: localKey().account, private_key: localKey().key, network: net } : null);
+  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
 }
 
 /** Did this outcome fail anywhere? Returns the first failure in plain-ish words, or null. */

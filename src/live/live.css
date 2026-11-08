@@ -221,3 +221,54 @@ body.night .walletmenu .route { background: rgba(255, 255, 255, 0.07); }
 body.night .stakebox { background: linear-gradient(135deg, rgba(255, 200, 58, 0.18), rgba(255, 200, 58, 0.04)); border-color: rgba(255, 200, 58, 0.3); }
 body.night .stakebox .up { color: #6fe3a5; } body.night .stakebox .down { color: #ff8fb8; }
 .stakebox .fine { font-family: var(--body); font-size: 0.72rem; opacity: 0.75; line-height: 1.35; }
+
+/* Power tiles (8 Nov): a game's action buttons, not plain pills. */
+.godpanel .powertiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.powertile { --c: #8a5cff; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); border-radius: 16px; padding: 10px 11px; cursor: pointer; color: var(--ink);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 16%, #fff), #fff 70%); box-shadow: 0 6px 16px color-mix(in srgb, var(--c) 22%, transparent), inset 0 1px 0 rgba(255,255,255,0.9);
+  transition: transform 0.18s cubic-bezier(.2,.9,.3,1.3), box-shadow 0.18s, border-color 0.18s; position: relative; overflow: hidden; }
+.powertile:hover { transform: translateY(-2px); box-shadow: 0 10px 24px color-mix(in srgb, var(--c) 38%, transparent), 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); border-color: var(--c); }
+.powertile:active { transform: translateY(1px) scale(0.98); }
+.powertile .pi { flex: 0 0 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 55%, #fff), var(--c)); box-shadow: 0 3px 8px color-mix(in srgb, var(--c) 45%, transparent); }
+.powertile .pt { display: grid; gap: 1px; min-width: 0; }
+.powertile b { font-family: var(--display); font-weight: 800; font-size: 0.86rem; line-height: 1.1; }
+.powertile small { font-size: 0.7rem; line-height: 1.25; opacity: 0.75; }
+.powertile.bless { --c: #e8a400; grid-column: 1 / -1; padding: 12px 14px; }
+.powertile.bless b { font-size: 1rem; }
+.powertile.bless::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.55) 45%, transparent 60%); transform: translateX(-120%); animation: tile-shine 4.5s ease-in-out infinite; pointer-events: none; }
+@keyframes tile-shine { 0%, 60% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+.powertile.whisper { --c: #1ca7e8; } .powertile.smite { --c: #e8325e; } .powertile.root { --c: #8a5cff; }
+.powertile.staking { --c: #10b39a; } .powertile.claim { --c: #22a35a; } .powertile.seat { --c: #6b6f80; }
+body.night .powertile { color: #f1ecff; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 30%, #1d1640), rgba(29, 22, 64, 0.9) 75%); border-color: color-mix(in srgb, var(--c) 45%, transparent); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+body.night .powertile:hover { box-shadow: 0 10px 26px color-mix(in srgb, var(--c) 40%, transparent), 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); }
+@media (max-width: 420px) { .godpanel .powertiles { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .powertile, .powertile.bless::after { transition: none; animation: none; } }
+.powertile.claim { grid-column: 1 / -1; }
+/* The cinematic intro (8 Nov). */
+.cinema { position: fixed; inset: 0; z-index: 60; background: #05030f; display: grid; place-items: center; transition: opacity 1.3s ease; }
+.cinema.fading, .cinema.out { opacity: 0; pointer-events: none; }
+.cinema video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cine-cap { position: absolute; left: 50%; bottom: 9vh; transform: translateX(-50%); width: min(820px, 88vw); margin: 0; text-align: center; color: #fff6e0; font-family: var(--display); font-weight: 600; font-size: clamp(1.05rem, 2.3vw, 1.6rem); line-height: 1.35; text-shadow: 0 2px 18px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9); opacity: 0; }
+.cine-cap.in { animation: cine-in 0.9s ease forwards; }
+@keyframes cine-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.cine-title { position: relative; z-index: 2; display: grid; justify-items: center; gap: 10px; color: #fff6e0; text-align: center; transition: opacity 0.8s; }
+.cine-title.gone { opacity: 0; pointer-events: none; }
+.cine-title h1 { margin: 0; font-family: var(--display); font-weight: 800; letter-spacing: 0.2em; font-size: clamp(2rem, 6vw, 3.6rem); }
+.cine-title p { margin: 0 0 10px; opacity: 0.8; }
+.cine-begin { font: inherit; font-family: var(--display); font-weight: 800; font-size: 1.05rem; padding: 12px 34px; border: 0; border-radius: 999px; cursor: pointer; color: #1d1430; background: linear-gradient(135deg, #ffe08a, #ffb800); box-shadow: 0 0 0 6px rgba(255,200,58,0.18), 0 10px 30px rgba(255,184,0,0.35); animation: cine-pulse 2.4s ease-in-out infinite; }
+@keyframes cine-pulse { 50% { box-shadow: 0 0 0 12px rgba(255,200,58,0.08), 0 10px 30px rgba(255,184,0,0.45); } }
+.cine-skip { position: absolute; right: 22px; bottom: 22px; z-index: 3; font: inherit; font-size: 0.85rem; color: #fff6e0; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+/* The tutorial (8 Nov): dim everything, spotlight one thing, an arrow and a small box. */
+.tut-shade { position: fixed; inset: 0; z-index: 55; pointer-events: none; }
+.tut-hole { position: fixed; z-index: 56; border-radius: 14px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(8, 5, 26, 0.74), 0 0 0 3px #ffd34d, 0 0 30px 6px rgba(255, 211, 77, 0.55); transition: all 0.35s cubic-bezier(.2,.9,.3,1); animation: tut-glow 1.6s ease-in-out infinite; }
+@keyframes tut-glow { 50% { box-shadow: 0 0 0 9999px rgba(8, 5, 26, 0.74), 0 0 0 3px #ffd34d, 0 0 46px 12px rgba(255, 211, 77, 0.75); } }
+.tut-block { position: fixed; z-index: 57; background: transparent; }
+.tut-box { position: fixed; z-index: 58; background: #fffaf0; color: #1d1430; border-radius: 16px; padding: 14px 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.4); font-size: 0.95rem; line-height: 1.4; transition: left 0.35s, top 0.35s; }
+.tut-box.in { animation: tut-pop 0.35s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes tut-pop { from { transform: scale(0.92); opacity: 0; } }
+.tut-box p { margin: 0 0 10px; font-weight: 600; }
+.tut-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tut-row small { opacity: 0.6; }
+.tut-next { font: inherit; font-family: var(--display); font-weight: 800; border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer; background: #ffc83a; color: #1d1430; }
+.tut-arrow { position: fixed; z-index: 58; pointer-events: none; transition: left 0.35s, top 0.35s, opacity 0.3s; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5)); animation: tut-bob 1.1s ease-in-out infinite; }
+@keyframes tut-bob { 50% { translate: 0 6px; } }

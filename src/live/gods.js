@@ -9,6 +9,17 @@ import { api } from "../net.js";
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Power tile icons: simple line drawings, inherit the tile's colour.
+const svg = (d) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICONS = {
+  bless: svg('<path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/><circle cx="12" cy="12" r="2.5"/>'),
+  seat: svg('<path d="M6 21V11a6 6 0 0 1 12 0v10M4 21h16M9 15h6"/>'),
+  whisper: svg('<path d="M4 6h16v10H9l-5 4z"/><path d="M8 10h8M8 13h5"/>'),
+  smite: svg('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),
+  root: svg('<path d="M12 3v8M12 11c-4 0-6 3-6 6M12 11c4 0 6 3 6 6M12 11v10M4 21h16"/><path d="M8 3l8 8M16 3l-8 8"/>'),
+  staking: svg('<path d="M4 17h16M6 13h12M8 9h8M10 5h4"/>'),
+  claim: svg('<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>'),
+};
 // Florins (SPEC §14): 1 florin = 10^22 units on chain.
 const fl = (u) => (Number(BigInt(u || 0) / 10n ** 16n) / 1e6).toFixed(1);
 // What a god put in, in plain words (SPEC §14). The contract keeps only what counts toward the
@@ -103,6 +114,19 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     out.addEventListener("click", async () => { await wallet.signOut(); menu.hidden = true; });
     row.append(out);
     menu.append(row);
+    // Playing without a wallet: the key lives in this browser only. Save it, or lose the account
+    // with the browser's storage.
+    if (wallet.isLocal?.()) {
+      const save = el("button", { type: "button", className: "viewbtn gold", textContent: "Save your key" });
+      save.addEventListener("click", () => {
+        const k = wallet.exportKey();
+        const blob = new Blob([JSON.stringify(k, null, 2)], { type: "application/json" });
+        const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `adfontes-${k.account.slice(0, 8)}.json` });
+        a.click(); URL.revokeObjectURL(a.href);
+        toast("Key saved. Anyone with this file controls the account, so keep it private. MyNearWallet can import it too.");
+      });
+      menu.append(el("p", { className: "fine", textContent: "You're playing without a wallet. Your key lives in this browser. Save it so you don't lose your nation." }), el("div", { className: "row" }, save));
+    }
   }
 
   // ---------------------------------------------------------------- the confirm card
@@ -331,18 +355,25 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
             el("span", { className: "fine", textContent: putInWords(clan, me, cfg, st).short }));
         }).catch(() => stakeBox.remove());
       }
-      const grid = el("div", { className: "views" });
-      const power = (label, fn, cls = "") => { const b = el("button", { type: "button", className: `viewbtn ${cls}`, textContent: label }); b.addEventListener("click", fn); grid.append(b); };
-      power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "gold");
+      // Powers as tiles (his note 8 Nov: "our CTA buttons are so basic"): an icon in a coloured
+      // disc, the power, one line on what it does.
+      const grid = el("div", { className: "powertiles" });
+      const power = (label, fn, kind, sub) => {
+        const b = el("button", { type: "button", className: `powertile ${kind}` });
+        b.innerHTML = `<span class="pi">${ICONS[kind] ?? ""}</span><span class="pt"><b></b><small></small></span>`;
+        b.querySelector("b").textContent = label; b.querySelector("small").textContent = sub;
+        b.addEventListener("click", fn); grid.append(b);
+      };
+      power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "bless", me ? "Put more NEAR in. They feel it." : "Put NEAR in and become one of its gods.");
       if (me) {
-        if (!seats.includes(account)) power("Take your DAO seat", () => joinCard(clan, policy));
+        if (!seats.includes(account)) power("Take your DAO seat", () => joinCard(clan, policy), "seat", "Get your vote in the nation's DAO.");
         else {
-          power("Whisper", () => whisperCard(clan));
-          power("Smite a citizen", () => smiteCard(clan));
-          power("Root it out", () => rootCard(clan));
-          if (BigInt(clan.staking_fund) > 0n) power("Release staking fund", () => stakingCard(clan));
+          power("Whisper", () => whisperCard(clan), "whisper", "Tell your citizens what matters.");
+          power("Smite a citizen", () => smiteCard(clan), "smite", "Stun a cheat, or remove them.");
+          power("Root it out", () => rootCard(clan), "root", "Cut knowledge that unsettles them.");
+          if (BigInt(clan.staking_fund) > 0n) power("Release staking", () => stakingCard(clan), "staking", "Send the staking fund out.");
         }
-        power("Claim your stake", () => withdrawCard(clan, me));
+        power("Claim your stake", () => withdrawCard(clan, me), "claim", "Take your florins out as NEAR.");
       }
       box.append(grid, rev);
       if (clan.whisper) box.append(el("p", { className: "fine" }, "The gods' last whisper: ", el("i", { textContent: `"${clan.whisper}"` })));

@@ -32,7 +32,7 @@ async function load() {
   $("where").textContent = `${W.season} · ${W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${W.day}`;
   const stat = (v, l) => el("div", {}, el("b", { textContent: v }), el("small", { textContent: l }));
   $("stats").replaceChildren(
-    stat(c ? `${c.phase === "day" ? "Day" : "Night"} ${c.phase === "day" ? c.days : c.nights}` : `turn ${W.day}`, c ? `NEAR $${c.price.toFixed(2)}, ${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}% since ${c.phase === "day" ? "dawn" : "dusk"}` : "the world clock"),
+    stat(c ? `Turn ${W.day}, ${c.phase === "day" ? "day" : "night"}` : `Turn ${W.day}`, c ? `NEAR $${c.price.toFixed(2)}, ${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}% since ${c.phase === "day" ? "dawn" : "dusk"}` : "the world clock"),
     stat(String(live.length), live.length === 1 ? "nation" : "nations"),
     stat(String(live.reduce((a, x) => a + (x.points || 0), 0)), "points of knowledge, all nations"),
     stat(n(W.totals?.florins ?? 0, 1), `florins, ${n(W.totals?.florin_value ?? 0, 4)} NEAR each`),

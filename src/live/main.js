@@ -1,7 +1,12 @@
 import { startLive } from "./live.js";
 import { createWeatherSound, weatherKind } from "./sound.js";
 import { switchNet } from "../net.js";
-import { createRoute, playIntro } from "./route.js";
+import { createRoute } from "./route.js";
+import { playCinematic } from "./intro.js";
+import { runTutorial } from "./tutorial.js";
+
+// The cinematic intro starts at once on a first visit and covers the world loading underneath.
+const cinema = new URLSearchParams(location.search).has("stills") ? Promise.resolve(false) : playCinematic();
 
 const $ = (id) => document.getElementById(id);
 let gods = null; // the god panel, once the wallet code has loaded
@@ -61,7 +66,7 @@ function showDial(W) {
     const mood = soundKind(W);
     const pct = `${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}%`;
     $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
-    $("dial").textContent = `${W.season} · ${c.phase === "day" ? `☀ Day ${c.days}` : `☾ Night ${c.nights}`} · NEAR $${c.price.toFixed(2)} (${pct} since ${c.phase === "day" ? "dawn" : "dusk"})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
+    $("dial").textContent = `${W.season} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"} · NEAR $${c.price.toFixed(2)} (${pct} since ${c.phase === "day" ? "dawn" : "dusk"})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
     return;
   }
   const w = W.weather, mood = w ? weatherKind(w.change) : "";
@@ -90,8 +95,9 @@ function toast(text) {
 // The gods' wallet loads after the world is up, so a slow wallet script never holds the world back.
 // The god's route and the first-visit intro (SPEC §12n).
 const route = createRoute({ live, W, account: () => window.__gods?.wallet.account() ?? null });
-if (!q.has("stills")) setTimeout(() => playIntro(live, W), 1200);
-import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast, route, replayIntro: () => playIntro(live, W, { force: true }) })).then((g) => {
+// After the intro (or straight away for a returning visitor): the world, then the tutorial once.
+if (!q.has("stills")) cinema.then((played) => { if (played) live.home(); setTimeout(() => runTutorial(), played ? 900 : 1500); });
+import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast, route, replayIntro: () => playCinematic({ force: true }).then(() => { live.home(); runTutorial({ force: true }); }) })).then((g) => {
   gods = g;
   window.__gods = g;
   // A panel already open gets its powers now.
