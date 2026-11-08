@@ -10,6 +10,20 @@ const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Florins (SPEC §14): 1 florin = 10^22 units on chain.
 const fl = (u) => (Number(BigInt(u || 0) / 10n ** 16n) / 1e6).toFixed(1);
+// What a god put in, in plain words (SPEC §14). The contract keeps only what counts toward the
+// stake; a nation's founder also paid the founding costs (the DAO deposit and the staking fund,
+// from the world's config), so they see the whole amount and where it went. The founder is the
+// first god in the list (a founder who left hands that place on, so this is the usual case).
+function putInWords(clan, me, cfg, st) {
+  const put = BigInt(st.put_in), pct = put ? Math.round((Number(BigInt(st.near)) / Number(put)) * 100) : 0;
+  const founder = clan.gods[0]?.account === me.account && cfg;
+  if (!founder) return { short: `${pct}% of the ${near(put)} NEAR you put in`, long: `You put in ${near(put)} NEAR, so that's ${pct}% of it.` };
+  const costs = BigInt(cfg.dao_deposit) + BigInt(cfg.staking_deposit), whole = put + costs;
+  return {
+    short: `founded with ${near(whole)} NEAR: ${near(costs)} went to founding costs, your stake started at ${near(put)} (now ${pct}%)`,
+    long: `You founded ${clan.name} with about ${near(whole)} NEAR. ${near(costs)} of that went to founding costs (the nation's DAO and its staking fund), so your stake started at ${near(put)} NEAR, and today it's ${pct}% of that.`,
+  };
+}
 
 export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   const WORLD = W.world;
@@ -308,7 +322,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           const put = Number(BigInt(st.put_in) / 10n ** 18n), got = Number(BigInt(st.near) / 10n ** 18n);
           const pct = put ? Math.round((got / put) * 100) : 0;
           stakeBox.replaceChildren(el("small", { textContent: "Your stake" }), el("b", { textContent: `${fl(st.florins)} florins` }),
-            el("span", { className: pct >= 100 ? "up" : "down", textContent: `${near(st.near)} NEAR if you claim today · ${pct}% of what you put in` }));
+            el("span", { className: pct >= 100 ? "up" : "down", textContent: `${near(st.near)} NEAR if you claim today` }),
+            el("span", { className: "fine", textContent: putInWords(clan, me, cfg, st).short }));
         }).catch(() => stakeBox.remove());
       }
       const grid = el("div", { className: "views" });
@@ -510,13 +525,12 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   }
   async function withdrawCard(clan, me) {
     const last = clan.gods.length === 1;
-    const st = await wallet.view(WORLD, "get_stake", { clan_id: clan.id, account }).catch(() => null);
+    const [st, cfg] = await Promise.all([wallet.view(WORLD, "get_stake", { clan_id: clan.id, account }).catch(() => null), wallet.view(WORLD, "get_config").catch(() => null)]);
     if (!st) return toast("Couldn't read your stake. Try again.");
     const pays = BigInt(st.near), out = last ? pays + BigInt(clan.staking_fund) : pays > 10n ** 22n ? pays - 10n ** 22n : 0n;
-    const put = Number(BigInt(st.put_in) / 10n ** 18n), got = Number(pays / 10n ** 18n);
     card({
       title: "Claim your stake",
-      words: () => `Your stake in ${clan.name} is ${fl(st.florins)} florins. At today's florin value they pay ${near(st.near)} NEAR (you put in ${near(st.put_in)}, so that's ${put ? Math.round((got / put) * 100) : 0}% of it). ` +
+      words: () => `Your stake in ${clan.name} is ${fl(st.florins)} florins. At today's florin value they pay ${near(st.near)} NEAR. ${putInWords(clan, me, cfg, st).long} ` +
         "The 14% of every blessing that went to the jackpot stays there for the season's winner. " +
         (last
           ? `You are ${clan.name}'s last god, so claiming ends the nation: its citizens are gone and its island becomes ruins that other nations can absorb. You get about ${near(out)} NEAR, with the staking fund. This can't be undone.`
