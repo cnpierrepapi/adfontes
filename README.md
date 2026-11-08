@@ -144,7 +144,7 @@ npm run test:live      # 59 checks against the live site and the chain itself
 npm run test:load      # a crowd of simultaneous visitors (on a slow connection this mostly measures your own link)
 ```
 
-The contract has 28 unit tests (run with `cargo test` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image), plus a testnet proof against the real Sputnik factory (`contracts/world/scripts/testnet-v2.mjs`, which needs funded testnet accounts of your own). `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
+The contract has 28 unit tests: `cargo test --lib` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image (the first build compiles the whole toolchain, so give it a while). `tests/test_basics.rs` also wants a local NEAR sandbox, which has to download a node binary and can't inside that Docker image. The same flows run for real in the testnet proof against the real Sputnik factory (`contracts/world/scripts/testnet-v2.mjs`, which needs funded testnet accounts of your own). `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
 
 The live audit checks the pages, tries to read server files and secrets through path tricks, throws junk at the API, then reads the contract and confirms the money adds up: the world can pay everything it owes, every god's stake sums to the backing, florins sum exactly, the jackpot holds 14% of everything put in. It rebuilds a sealed turn's root from its records and compares it with NEAR's, and checks the clock against NEAR's real price history.
 
