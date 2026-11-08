@@ -339,7 +339,9 @@ async function sponsorPost(req, res) {
   const today = (sponsorByIp.get(ip) || []).filter((t) => Date.now() - t < 24 * 3600e3);
   if (today.length >= 2) return json(429, { error: "Two sponsorships a day from one connection. Try again tomorrow, or bless a nation instead." });
   if (await store.wasSponsored("testnet", account)) return json(409, { error: "This account was already sponsored once. Bless a nation instead." });
-  const have = await balanceOf(account);
+  // A brand-new implicit account (a key made in the browser: Play without a wallet) has no account on
+  // chain until NEAR is sent to it; the transfer creates it. Named accounts must already exist.
+  const have = (await balanceOf(account)) ?? (/^[0-9a-f]{64}$/.test(account) ? 0n : null);
   if (have == null) return json(404, { error: "That account doesn't exist on testnet yet." });
   if (have >= SPONSOR.perNation) return json(400, { error: "You already have enough to found a nation." });
   if ((await nationsLeft(pool)) < 1) return json(410, { error: "New testnet nations are full for now. Bless a nation to become one of its gods." });

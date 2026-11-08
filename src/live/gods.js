@@ -63,7 +63,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         const b = el("button", { type: "button", className: "walletpick" }, w.icon ? el("img", { src: w.icon, alt: "", width: 22, height: 22 }) : null, el("span", { textContent: w.name }));
         b.addEventListener("click", async () => {
           b.disabled = true;
-          try { await wallet.signIn(w.id); menu.hidden = true; } catch (e) { toast(`${w.name}: ${e.message || "could not connect"}`); }
+          try { await wallet.signIn(w.id); menu.hidden = true; if (w.id === "local") quickStart(); } catch (e) { toast(`${w.name}: ${e.message || "could not connect"}`); }
           b.disabled = false;
         });
         menu.append(b);
@@ -220,9 +220,26 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   }
   const waiting = (left) => `Your proposal is open. It needs ${left} more yes vote${left === 1 ? "" : "s"} from this nation's other gods, who see it in this panel. It runs as soon as it passes.`;
 
+  // Play without a wallet, the quick way (his call 8 Nov): the browser key is made, the sponsor pool
+  // funds it (once per account), and the found card opens ready. The player names the nation and
+  // presses Found; the browser key signs, so there's no wallet popup. Someone who already has a
+  // nation just lands in the world.
+  async function quickStart() {
+    if (W.net !== "testnet") return;
+    const clans = await wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []);
+    if (clans.some((c) => c.alive && c.gods.some((g) => g.account === account))) return;
+    toast("Your account is ready. Getting you free testnet NEAR to found a nation…");
+    const r = await fetch("/api/sponsor", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ account }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world." }));
+    if (r.ok) toast(`${r.sent} testnet NEAR sent to you. Now name your nation.`);
+    else if (r.error) toast(r.error);
+    setTimeout(foundCard, r.ok ? 2500 : 300); // the new account needs a moment to show its balance
+  }
+
   // ---------------------------------------------------------------- the powers
   function foundCard() {
     Promise.all([wallet.view(WORLD, "get_config"), wallet.balance(account).catch(() => null), W.net === "testnet" ? api("sponsor").catch(() => null) : null]).then(([cfg, bal, sp]) => {
+      // A brand-new browser-key account isn't on chain until NEAR reaches it: it has 0, not "?".
+      if (bal == null && /^[0-9a-f]{64}$/.test(account || "")) bal = 0n;
       const name = input({ placeholder: "Name your nation", maxLength: 40 });
       // Testnet: put in everything you have (less 0.15 for gas), since 5.5 of the minimum makes the DAO
       // and a nation founded at the bare minimum has almost nothing left to spend.

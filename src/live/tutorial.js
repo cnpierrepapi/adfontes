@@ -31,6 +31,9 @@ export function runTutorial({ force = false } = {}) {
   let i = 0, t0 = performance.now(), raf = 0, clicked = false, target = null;
 
   const place = () => {
+    // Past the wallet step and the found card is open (Play without a wallet opens it by itself):
+    // that's the tutorial's last step done, so get out of the card's way.
+    if (document.querySelector(".txshade")) return finish();
     const s = STEPS[i];
     target = s.target();
     const r = target && visible(target) ? target.getBoundingClientRect() : null;
