@@ -1,5 +1,5 @@
-// The five techs (SPEC §14): when each unlocks, and the Astrolabe's ruins from afar.
-// Run: node engine/test-techs.mjs
+// The five techs (SPEC §14): when each unlocks (a season-long climb), the pace (one a real day,
+// none on day one), and the Astrolabe's ruins from afar. Run: node engine/test-techs.mjs
 import assert from "node:assert/strict";
 import * as W from "./world.mjs";
 
@@ -7,38 +7,44 @@ const fresh = () => {
   const s = { clans: {}, corpora: {}, ruins: {}, day: 1 };
   return { s, c: W.initClan(s, { id: 1, name: "T" }) };
 };
-const ready = (c) => W.TECHS.filter((t) => t.ready(c)).map((t) => t.id);
+const ready = (c) => W.TECHS.filter((t) => t.ready(c)).map((t) => t.id).sort();
+const line = (c, n) => { let prev = c.field; for (let i = 1; i <= n; i++) { const k = `p${i}`; c.owned[k] = { depth: i, parent: prev }; prev = k; } };
+const wide = (c, n) => { for (let i = 0; i < n; i++) c.owned[`w${i}`] = { depth: 1, parent: c.field }; };
 
-// A new nation is ready for nothing.
 let { s, c } = fresh();
-assert.deepEqual(ready(c), []);
-
-// A line 3 deep (root + 3) = 4 points: Spectacles only.
-let prev = c.field;
-for (let i = 1; i <= 3; i++) { const k = `p${i}`; c.owned[k] = { depth: i, parent: prev, corpus: null, how: "researched" }; prev = k; }
+// The old thresholds fell with a 7-point line; now that's nothing.
+line(c, 6);
+assert.deepEqual(ready(c), [], "a 7-point line 6 deep unlocks nothing now");
+wide(c, 8); // 15 points, line 6 deep
 assert.deepEqual(ready(c), ["spectacles"]);
-// 6 points: + Printing Press.
-c.owned.q1 = { depth: 1, parent: c.field }; c.owned.q2 = { depth: 1, parent: c.field };
+wide(c, 18); // 33 points
 assert.deepEqual(ready(c), ["press", "spectacles"]);
-// A passed draft: + Bookkeeping. 12 points: + Clock.
-c.passedDrafts = 1;
-for (let i = 3; i <= 8; i++) c.owned[`q${i}`] = { depth: 1, parent: c.field };
-assert.deepEqual(ready(c), ["press", "spectacles", "clock", "bookkeeping"]);
-// The line reaches full depth (6): + Astrolabe.
-for (let i = 4; i <= 6; i++) { const k = `p${i}`; c.owned[k] = { depth: i, parent: prev, corpus: null, how: "researched" }; prev = k; }
-assert.deepEqual(ready(c), ["press", "spectacles", "clock", "bookkeeping", "astrolabe"]);
-console.log("PASS techs unlock in order: spectacles (line 3 deep), press (6 points), clock (12), bookkeeping (a passed draft), astrolabe (line 6 deep)");
+c.passedDrafts = 3;
+assert.deepEqual(ready(c), ["bookkeeping", "press", "spectacles"]);
+wide(c, 25); // 58 points... wide() reuses keys: add distinct ones
+for (let i = 100; i < 130; i++) c.owned[`x${i}`] = { depth: 1, parent: c.field };
+assert.ok(Object.keys(c.owned).length >= 60);
+assert.deepEqual(ready(c), ["astrolabe", "bookkeeping", "clock", "press", "spectacles"]);
+console.log("PASS thresholds: spectacles 15 pts + line 4, press 25, bookkeeping 3 drafts, clock 40, astrolabe 60 + line 6");
 
-// Ruins: a nation that gains "lithium metal anodes" doesn't find the ruin "lithium sulfur batteries"
-// (no exact match), but with the Astrolabe it does (they share "lithium").
+// Pace: none in the first real day, then one a real day.
+const H = 3600e3, t0 = 1_800_000_000_000;
+c.bornAt = t0; c.lastTechAt = undefined;
+assert.equal(W.techAllowed(c, t0 + 23 * H), false, "none on day one");
+assert.equal(W.techAllowed(c, t0 + 25 * H), true);
+c.lastTechAt = t0 + 25 * H;
+assert.equal(W.techAllowed(c, t0 + 40 * H), false, "one a real day");
+assert.equal(W.techAllowed(c, t0 + 49 * H), true);
+console.log("PASS pace: none in a nation's first real day, then at most one a real day");
+
+// Ruins: the Astrolabe finds related ruins from afar; without it, only exact matches.
 for (const astro of [false, true]) {
   ({ s, c } = fresh());
   s.ruins["lithium sulfur batteries"] = { depth: 1, parent: "batteries", corpus: "c9", from: 9 };
   s.corpora.c1 = { children: [] };
   c.owned["lithium metal anodes"] = { depth: 1, parent: c.field, corpus: "c1", how: "researched" };
   if (astro) c.techs = ["astrolabe"];
-  const taken = W.absorbRuins(s, c, ["lithium metal anodes"]);
-  assert.equal(taken.length, astro ? 1 : 0, `astrolabe=${astro}`);
+  assert.equal(W.absorbRuins(s, c, ["lithium metal anodes"]).length, astro ? 1 : 0, `astrolabe=${astro}`);
 }
 console.log("PASS the Astrolabe finds related ruins from afar; without it, only exact matches");
 console.log("ALL PASS");

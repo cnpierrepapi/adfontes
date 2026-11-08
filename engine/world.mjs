@@ -18,13 +18,20 @@ export const leafOf = (r) => sha256(canon(r));
 /** The five techs (SPEC §14), unlocked as the mind map grows. Each: a town building, a florin
  *  bonus, and the citizens want more NEAR after it (needs x techStep). */
 export const TECHS = [
-  { id: "press", name: "Printing Press", does: "+florins each time another nation buys its research", ready: (c) => Object.keys(c.owned).length >= 6 },
-  { id: "spectacles", name: "Spectacles", does: "Scholars work at full pace at night", ready: (c) => chainDepth(c) >= 3 },
-  { id: "clock", name: "Mechanical Clock", does: "upkeep costs 30% less", ready: (c) => Object.keys(c.owned).length >= 12 },
-  { id: "bookkeeping", name: "Double-entry Bookkeeping", does: "citizens can take more NEAR before they get lazy", ready: (c) => (c.passedDrafts || 0) >= 1 },
-  { id: "astrolabe", name: "Astrolabe", does: "half-price buying, and ruins found from afar", ready: (c) => chainDepth(c) >= CFG.maxDepth },
+  // A season-long climb (his call 8 Nov: the first thresholds fell in minutes): see TECH_PACE too.
+  { id: "spectacles", name: "Spectacles", does: "Scholars work at full pace at night", ready: (c) => chainDepth(c) >= 4 && Object.keys(c.owned).length >= 15 },
+  { id: "press", name: "Printing Press", does: "+florins each time another nation buys its research", ready: (c) => Object.keys(c.owned).length >= 25 },
+  { id: "bookkeeping", name: "Double-entry Bookkeeping", does: "citizens can take more NEAR before they get lazy", ready: (c) => (c.passedDrafts || 0) >= 3 },
+  { id: "clock", name: "Mechanical Clock", does: "upkeep costs 30% less", ready: (c) => Object.keys(c.owned).length >= 40 },
+  { id: "astrolabe", name: "Astrolabe", does: "half-price buying, and ruins found from afar", ready: (c) => chainDepth(c) >= CFG.maxDepth && Object.keys(c.owned).length >= 60 },
 ];
 export const hasTech = (c, id) => (c.techs || []).includes(id);
+/** At most one new tech per nation per real day, and none in a nation's first real day. */
+export const TECH_PACE = { firstAfterMs: 24 * 3600e3, everyMs: 24 * 3600e3 };
+export function techAllowed(c, now) {
+  if (now - (c.bornAt ?? now) < TECH_PACE.firstAfterMs) return false;
+  return now - (c.lastTechAt ?? 0) >= TECH_PACE.everyMs;
+}
 
 export const FIELDS = ["batteries", "solar cells", "carbon capture"];
 const LETTERS = [["E", "I"], ["S", "N"], ["T", "F"], ["J", "P"]];

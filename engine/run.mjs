@@ -345,6 +345,8 @@ for (let n = 0; n < days; n++) {
       // Techs (SPEC §14): any the nation is ready for unlock now, each with a florin bonus.
       for (const t of W.TECHS) {
         if (W.hasTech(c, t.id) || !t.ready(c)) continue;
+        if (!W.techAllowed(c, Date.now())) break; // one a real day, none on day one
+        c.lastTechAt = Date.now();
         (c.techs ||= []).push(t.id);
         earned += FL.tech; earnedFor.push(t.id);
         log({ kind: "tech", clan: oc.id, tech: t.id, name: t.name, does: t.does, florins: FL.tech });
