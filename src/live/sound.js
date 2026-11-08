@@ -56,8 +56,11 @@ export function createWeatherSound({ button, kind: startKind }) {
     }
   }
 
+  // The intro has its own narration: the weather waits until the film is gone (his note 8 Nov).
+  const filmOn = () => !!document.querySelector(".cinema");
   function start() {
     if (started || !on) return;
+    if (filmOn()) { setTimeout(start, 400); return; }
     started = true;
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     master = ctx.createGain();
@@ -78,6 +81,9 @@ export function createWeatherSound({ button, kind: startKind }) {
     else if (ctx) master.gain.setTargetAtTime(on ? 0.9 : 0, ctx.currentTime, 0.4);
     label();
   });
+
+  // Silent while the intro plays again ("Watch the intro"), back after it.
+  setInterval(() => { if (ctx && on) master.gain.setTargetAtTime(filmOn() ? 0 : 0.9, ctx.currentTime, 0.5); }, 400);
 
   // Quiet while the tab is hidden.
   document.addEventListener("visibilitychange", () => { if (ctx) document.hidden ? ctx.suspend() : ctx.resume(); });
