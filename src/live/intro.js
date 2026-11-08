@@ -2,14 +2,15 @@
 // play: browsers block sound until the visitor acts), then a short film: animated plates and stills
 // of the real world, an old narrator, captions in sync. When it ends it fades straight into the
 // live world, which has been loading underneath the whole time, and the tutorial starts.
-const CAPTIONS = [ // [from s, to s, text], timed to the voiceover's words (whisper, 8 Nov)
+const CAPTIONS = [ // [from s, to s, text], timed to the voiceover's words (whisper, 8 Nov, with the war line)
   [0.0, 6.0, "Long ago, scholars had a rule. Go back to the sources. Ad fontes."],
-  [6.3, 9.5, "This is a world of small nations."],
-  [9.76, 16.3, "Their citizens read real research, trade what they learn, and try to invent what comes next."],
-  [16.6, 21.4, "Every nation has its gods. Put NEAR in, and you're one of them."],
-  [21.66, 27.4, "When NEAR climbs, the sun is up. When it falls, night comes."],
-  [27.82, 34.4, "Feed your people and they might find something new. Forget them, and they fall to ruin."],
-  [34.7, 37.4, "Go on. They're waiting."],
+  [6.6, 9.0, "This is a world of small nations."],
+  [9.3, 15.4, "Their citizens read real research, trade what they learn, and try to invent what comes next."],
+  [15.7, 20.9, "Every nation has its gods. Put NEAR in, and you're one of them."],
+  [21.16, 25.9, "When NEAR climbs, the sun is up. When it falls, night comes."],
+  [26.2, 32.6, "Feed your people and they might find something new. Forget them, and they fall to ruin."],
+  [32.86, 40.6, "And sometimes they go to war. Nobody asks the gods. It ends when an island falls from the sky."],
+  [40.94, 43.4, "Go on. They're waiting."],
 ];
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null)); return e; };
 
@@ -43,9 +44,29 @@ export function playCinematic({ force = false } = {}) {
     const esc = (e) => { if (e.key === "Escape") end(); };
     addEventListener("keydown", esc);
     skip.addEventListener("click", end);
-    title.querySelector("button").addEventListener("click", () => {
+    // Stalls (his note 8 Nov): Begin waits until the first ~12 s are downloaded (or 10 s have passed,
+    // so nobody is stuck), showing how far along it is.
+    const begin = title.querySelector("button"), shownAt = performance.now();
+    begin.disabled = true; begin.textContent = "Loading the film…";
+    const ahead = () => (video.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0);
+    const gate = setInterval(() => {
+      const need = Math.min(12, video.duration || 12), have = ahead();
+      if (have >= need || video.readyState >= 4 || performance.now() - shownAt > 10000) { clearInterval(gate); begin.disabled = false; begin.textContent = "Begin"; }
+      else begin.textContent = `Loading the film… ${Math.min(99, Math.round((have / need) * 100))}%`;
+    }, 250);
+    begin.addEventListener("click", () => {
+      clearInterval(gate);
       title.classList.add("gone");
       video.play().catch(() => end()); // can't play: straight to the world
+    });
+    // A stall on 1080p mid-film: switch to the 720p copy at the same moment and carry on.
+    let switched = false;
+    video.addEventListener("waiting", () => {
+      if (switched || !video.currentSrc.endsWith("/intro.mp4") || video.currentTime < 0.5) return;
+      switched = true;
+      const t = video.currentTime;
+      video.src = "/intro/intro-720.mp4";
+      video.addEventListener("loadedmetadata", () => { video.currentTime = t; video.play().catch(() => {}); }, { once: true });
     });
     video.addEventListener("timeupdate", () => {
       const t = video.currentTime, c = CAPTIONS.find(([a, b]) => t >= a && t < b);

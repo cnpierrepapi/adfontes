@@ -292,3 +292,4 @@ body.night #panel .warline { color: #ff8aa5; background: rgba(232, 50, 94, 0.16)
 /* Wallet menu, his note 8 Nov: with the route, stakes and "Save your key" it ran past the bottom of the
    screen. Never taller than the window; it scrolls inside instead. */
 .walletmenu { max-height: calc(100dvh - 88px); overflow-y: auto; overscroll-behavior: contain; }
+.cine-begin:disabled { animation: none; opacity: 0.75; cursor: progress; }
