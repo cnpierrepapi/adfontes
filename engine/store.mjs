@@ -6,7 +6,7 @@ import pg from "pg";
 import { sha256, leafOf } from "./world.mjs";
 
 const URL = process.env.DATABASE_URL;
-const pool = URL ? new pg.Pool({ connectionString: URL, max: 3 }) : null;
+const pool = URL ? new pg.Pool({ connectionString: URL, max: 8 }) : null;
 let ready = null;
 
 async function db() {

@@ -3,6 +3,7 @@
 // engine's records in Postgres, and any record can be proved against the root on NEAR.
 import http from "node:http";
 import fs from "node:fs";
+import zlib from "node:zlib";
 import path from "node:path";
 import { JsonRpcProvider } from "near-api-js";
 import { NETWORKS } from "./engine/config.mjs";
@@ -29,12 +30,19 @@ const whole = (q, name, min = 0, max = 1e7) => {
 
 // Small cache so a busy page doesn't hammer the RPC or the database.
 const cache = new Map();
+// Load test 8 Nov: at 300 visitors, every expired entry was refetched by every waiting request at
+// once. Now: one fetch at a time per key; while it runs, visitors get the last copy (stale-while-
+// refresh); with no copy yet, everyone waits on the same fetch.
+const inflight = new Map();
 async function cached(key, ms, fn) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.t < ms) return hit.v;
-  const v = await fn();
-  cache.set(key, { t: Date.now(), v });
-  return v;
+  let run = inflight.get(key);
+  if (!run) {
+    run = Promise.resolve().then(fn).then((v) => { cache.set(key, { t: Date.now(), v }); return v; }).finally(() => inflight.delete(key));
+    inflight.set(key, run);
+  }
+  return hit ? hit.v : run; // stale while it refreshes
 }
 
 // Reverence (SPEC §12m) as the site sees it: who the nation follows and how much each god is revered.
@@ -57,13 +65,22 @@ function makeApi(NET) {
   const view = (method, args = {}) => rpc.callFunction({ contractId: WORLD, method, args });
   const EXPLORER = NET === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io";
   const cachedN = (key, ms, fn) => cached(`${NET}:${key}`, ms, fn);
+  const stateNow = () => cachedN("state", 3_000, () => store.loadState(NET)); // one shared copy
+  // A sealed turn never changes: keep it; the open turn is read again after 5 s.
+  const sealedDays = new Map();
+  const dayOf = async (d) => {
+    if (sealedDays.has(d)) return sealedDays.get(d);
+    const v = await cachedN(`day:${d}`, 5_000, () => store.getDay(NET, d));
+    if (v.root) { sealedDays.set(d, v); if (sealedDays.size > 300) sealedDays.delete(sealedDays.keys().next().value); }
+    return v;
+  };
   const clockCache = {}; // this network's season hours (seeded from the engine's state)
   const api = {
     // The world now: day, weather, clans (money from the chain, mind from the engine).
     async world() {
       return cachedN("world", 5_000, async () => {
-        const [cfg, totals, clans, s] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 }), store.loadState(NET)]);
-        const last = await store.getDay(NET, s.day);
+        const [cfg, totals, clans, s] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 }), stateNow()]);
+        const last = await dayOf(s.day);
         const weather = last.records.find((r) => r.kind === "weather") ?? null;
         // The world clock now (SPEC §14), not as of the last engine turn: the sky turns on time.
         let clock = null;
@@ -114,7 +131,7 @@ function makeApi(NET) {
       // ?d=<day> only splits the cache, so the live world can ask for the map right after a new day.
       const d = Number(q.get("d")) || 0;
       return cachedN(`clan:${id}:${d}`, 20_000, async () => {
-        const [s, agents, drafts] = await Promise.all([store.loadState(NET), view("list_agents", { clan_id: id, limit: 100 }), store.listDrafts(NET, 12, id)]);
+        const [s, agents, drafts] = await Promise.all([stateNow(), view("list_agents", { clan_id: id, limit: 100 }), store.listDrafts(NET, 12, id)]);
         const st = s.clans[id];
         if (!st) return { error: "no such clan" };
         const dead = st.alive === false;
@@ -141,10 +158,10 @@ function makeApi(NET) {
     async trades(q) {
       const span = Math.min(60, Number(q.get("days") || 20));
       return cachedN(`trades:${span}`, 30_000, async () => {
-        const s = await store.loadState(NET);
+        const s = await stateNow();
         const pairs = {};
         for (let d = Math.max(1, s.day - span + 1); d <= s.day; d++) {
-          const { records } = await store.getDay(NET, d);
+          const { records } = await dayOf(d);
           for (const r of records) if (r.kind === "trade") {
             const k = `${r.seller}>${r.buyer}`;
             (pairs[k] ||= { seller: r.seller, buyer: r.buyer, count: 0, near: 0, last: 0 });
@@ -160,7 +177,7 @@ function makeApi(NET) {
     async gifts(q) {
       const id = whole(q, "id", 1);
       const all = await cachedN("gifts:all", 20_000, async () => {
-        const s = await store.loadState(NET);
+        const s = await stateNow();
         const ids = Object.keys(s.gifts || {}).map(Number).sort((a, b) => b - a).slice(0, 40);
         const live = await Promise.all(ids.map((g) => view("get_gift", { gift_id: g }).catch(() => null)));
         return live.filter(Boolean).map((g) => ({
@@ -176,7 +193,7 @@ function makeApi(NET) {
   // become the first records of the next day. ?since=<ms> returns only newer ones.
   async live(q) {
     const since = Number(q.get("since")) || 0;
-    const pending = await cachedN("live", 2_500, async () => (await store.loadState(NET)).pending || []);
+    const pending = await cachedN("live", 2_500, async () => (await stateNow()).pending || []);
     return { now_ms: Date.now(), records: pending.filter((r) => (r.at || 0) > since).slice(-80) };
   },
 
@@ -184,7 +201,7 @@ function makeApi(NET) {
   async sponsor() {
     if (NET !== "testnet" || !process.env.SPONSOR_ACCOUNT_ID) return { available: false };
     return cachedN("sponsor", 15_000, async () => {
-      const s = await store.loadState(NET);
+      const s = await stateNow();
       const next = s.sponsorRefillAt ? s.sponsorRefillAt + SPONSOR.refillHours * 3600e3 : null;
       return { available: true, pool: process.env.SPONSOR_ACCOUNT_ID, nations_left: await nationsLeft(process.env.SPONSOR_ACCOUNT_ID), per_nation: near(SPONSOR.perNation.toString()), next_refill_ms: next };
     });
@@ -203,7 +220,7 @@ function makeApi(NET) {
     // A day's records, each with its index so it can be proved.
     async day(q) {
       const day = whole(q, "d", 0);
-      const d = await store.getDay(NET, day);
+      const d = await dayOf(day);
       return { day, root: d.root, tx: d.tx, records: d.records.map((r, i) => ({ i, ...r })) };
     },
   
@@ -213,7 +230,7 @@ function makeApi(NET) {
     // written before it (testnet days 1-43) used each record's exact original text.
     async proof(q) {
       const day = whole(q, "d", 1), i = whole(q, "i", 0);
-      const d = await store.getDay(NET, day);
+      const d = await dayOf(day);
       if (!d.records[i]) return { error: "no such record" };
       const onchain = await view("get_root", { day });
       const schemes = [{ scheme: "canonical", leaves: d.records.map(leafOf) }];
@@ -250,8 +267,21 @@ function serveStatic(req, res, url) {
     return send(res, 404, "text/html; charset=utf-8", fs.existsSync(nf) ? fs.readFileSync(nf) : "Not found");
   }
   const immutable = p.includes(`${path.sep}assets${path.sep}`);
-  res.writeHead(200, { "content-type": TYPES[path.extname(p)] || "application/octet-stream", "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache" });
-  fs.createReadStream(p).pipe(res);
+  // Held in memory (and gzipped once) instead of read from disk on every request: load test 8 Nov.
+  const f = fileOf(p);
+  const gz = f.gz && /gzip/.test(req.headers["accept-encoding"] || "");
+  res.writeHead(200, { "content-type": TYPES[path.extname(p)] || "application/octet-stream", "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache", vary: "accept-encoding", ...(gz ? { "content-encoding": "gzip" } : {}), "content-length": (gz ? f.gz : f.raw).length });
+  res.end(req.method === "HEAD" ? undefined : gz ? f.gz : f.raw);
+}
+const files = new Map(); // path -> { raw, gz, mtime }
+function fileOf(p) {
+  const mtime = fs.statSync(p).mtimeMs, hit = files.get(p);
+  if (hit && hit.mtime === mtime) return hit;
+  const raw = fs.readFileSync(p);
+  const gz = /\.(js|css|html|svg|json|txt)$/.test(p) && raw.length > 1024 ? zlib.gzipSync(raw, { level: 9 }) : null;
+  const f = { raw, gz, mtime };
+  if (raw.length < 20e6) files.set(p, f);
+  return f;
 }
 
 // POST /api/sponsor {account}: top a testnet founder up to what founding needs, from the pool.
