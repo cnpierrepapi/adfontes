@@ -22,6 +22,14 @@ export const REV = {
   flourishPerPoint: 2, // whisper bonus per flourish point since that god's last whisper
   flourishMax: 10,
   bless: (near) => Math.min(15, 3 + 4 * Math.log2(1 + near)),
+  // His calls 9 Nov (the god sim: the most-blessed nation won by blessing most OFTEN; a blessing's
+  // amount barely mattered and nothing limited how often, so dust blessings could farm reverence):
+  blessCap: 60, // blessings alone can't lift reverence above this; the rest the nation earns
+  blessMin: 0.1, // NEAR: a smaller blessing still goes in, but moves no reverence
+  blessWindow: 12, // game days that count as "the same real day": the k-th blessing counts 1/k
+  // Whispers are heard: the citizens judge what their god said against how the nation is doing, and
+  // a whisper that fits the moment counts like prophecy. No cap but the 0-100 scale.
+  heardMin: -15, heardMax: 25,
   reward: 6, claim: 5, staking: 4, punish: -3, stunt: -8, kill: -20, unruled: -5,
   rootDoubt: 3, // rooted out a point that unsettled the citizens
   rootGood: -2, // cut knowledge that wasn't troubling anyone
@@ -42,6 +50,20 @@ const round = (x) => Math.round(x * 10) / 10;
 export function ensure(s, oc, day, { fresh }) {
   s.rev ||= {};
   const rv = (s.rev[oc.id] ||= { gods: {}, followed: null, claimedBy: null, waiting: false, since: day, lastProposal: null, putIn: {} });
+  // A god the owner moved to a new account (move_god, 9 Nov: lost browser keys): the old account is
+  // gone and a new one holds exactly its put_in. Carry the reverence, the follow and the blessing
+  // baseline across, so the move reads as neither a departure nor a fresh blessing.
+  const gone = Object.keys(rv.gods).filter((a) => !oc.gods.some((g) => g.account === a) && !rv.gods[a].outsider);
+  for (const g of oc.gods) {
+    if (rv.gods[g.account]) continue;
+    const a = gone.find((x) => rv.putIn[x] != null && rv.putIn[x] === g.put_in);
+    if (!a) continue;
+    gone.splice(gone.indexOf(a), 1);
+    rv.gods[g.account] = rv.gods[a]; delete rv.gods[a];
+    rv.putIn[g.account] = rv.putIn[a]; delete rv.putIn[a];
+    if (rv.followed === a) rv.followed = g.account;
+    if (rv.claimedBy === a) rv.claimedBy = g.account;
+  }
   for (const g of oc.gods) {
     if (!rv.gods[g.account]) {
       rv.gods[g.account] = { r: fresh || rv.since < day ? REV.newcomer : REV.start, whispers: [], flourish: 0, enemies: [], justiceUntil: 0, faithLossUntil: 0, text: "" };
@@ -55,11 +77,17 @@ export function ensure(s, oc, day, { fresh }) {
   return rv;
 }
 
-function move(rv, god, d, why, changes, { whisper = false } = {}) {
+// The old rules, for the A/B simulation only (ADF_REV_RULES=old).
+// The new rules (9 Nov) are on in local sims (they run on a stand-in chain, ADF_SIM_CHAIN) and where
+// ADF_REV_RULES=new; the live world keeps the old ones until he says go. ADF_REV_RULES=old forces old.
+const OLD = process.env.ADF_REV_RULES === "old" || (process.env.ADF_REV_RULES !== "new" && !process.env.ADF_SIM_CHAIN);
+function move(rv, god, d, why, changes, { whisper = false, cap = null } = {}) {
   const g = rv.gods[god];
   if (!g || !d) return 0;
   const before = g.r;
-  g.r = whisper ? Math.max(g.r, Math.min(REV.whisperCap, g.r + d)) : clamp(g.r + d);
+  const top = cap ?? (whisper ? REV.whisperCap : null);
+  // A capped gain never lifts past the cap, and never pulls down a god already above it.
+  g.r = top != null && d > 0 ? Math.max(g.r, Math.min(top, g.r + d)) : clamp(g.r + d);
   const moved = round(g.r - before);
   if (moved) changes.push({ god, d: moved, why });
   return moved;
@@ -76,8 +104,22 @@ export function act(rv, god, kind, day, changes, info = {}) {
     g.flourish = 0;
     g.text = info.text ?? g.text;
     rv.waiting = false;
-    move(rv, god, REV.whisper / g.whispers.length + bonus, `whisper${bonus ? ` (+${round(bonus)} for how the nation did)` : ""}`, changes, { whisper: true });
-  } else if (kind === "bless") move(rv, god, REV.bless(info.near || 0), `blessed ${round(info.near || 0)} NEAR`, changes);
+    if (!OLD && info.heard) {
+      // Heard (9 Nov): the citizens' judgement of the words; a gain tires within the day like before.
+      const h = Math.max(REV.heardMin, Math.min(REV.heardMax, Number(info.heard.delta) || 0));
+      const d = (h > 0 ? h / g.whispers.length : h) + bonus;
+      move(rv, god, d, `whisper heard as ${info.heard.verdict || "words"}${bonus ? ` (+${round(bonus)} for how the nation did)` : ""}`, changes, { cap: 100 });
+    } else move(rv, god, REV.whisper / g.whispers.length + bonus, `whisper${bonus ? ` (+${round(bonus)} for how the nation did)` : ""}`, changes, { whisper: true });
+  } else if (kind === "bless") {
+    const near = info.near || 0;
+    if (OLD) move(rv, god, REV.bless(near), `blessed ${round(near)} NEAR`, changes);
+    else if (near < REV.blessMin) changes.push({ god, d: 0, why: `blessed ${round(near)} NEAR, too little to move them` });
+    else {
+      g.blesses = (g.blesses || []).filter((d) => day - d < REV.blessWindow);
+      g.blesses.push(day);
+      move(rv, god, REV.bless(near) / g.blesses.length, `blessed ${round(near)} NEAR${g.blesses.length > 1 ? ` (blessing ${g.blesses.length} today)` : ""}`, changes, { cap: REV.blessCap });
+    }
+  }
   else if (kind === "reward") move(rv, god, REV.reward, "rewarded a gift", changes);
   else if (kind === "punish") move(rv, god, REV.punish + (info.verdict === "Kill" ? REV.kill : REV.stunt) / 2, `punished ${info.agent ?? "a citizen"} for a gift`, changes);
   else if (kind === "claim") move(rv, god, REV.claim, "claimed a gift", changes);
@@ -238,7 +280,7 @@ export function record(rv, id, changes) {
  * look at a nation only notes where its DAO is: history before reverence isn't counted.
  * Returns records to log (reports settled by a smite or punishment).
  */
-export async function godActions({ chain, s, oc, rv, day, changes }) {
+export async function godActions({ chain, s, oc, rv, day, changes, hear = null }) {
   const out = [];
   const toNear = (y) => Number(BigInt(y) / 10n ** 18n) / 1e6;
   for (const g of oc.gods) {
@@ -265,7 +307,14 @@ export async function godActions({ chain, s, oc, rv, day, changes }) {
     try { args = JSON.parse(Buffer.from(a.actions[0].args, "base64").toString()); } catch {}
     const method = a.actions[0].method_name, god = p.proposer;
     if (method !== "rule" && Number(args.clan_id) !== oc.id) continue;
-    if (method === "whisper") act(rv, god, "whisper", day, changes, { text: args.text });
+    if (method === "whisper") {
+      // The citizens hear it (9 Nov): judged against the nation's situation; on any failure the old
+      // whisper rule applies.
+      let heard = null;
+      if (hear && !OLD) { try { heard = await hear(String(args.text || "")); } catch { heard = null; } }
+      act(rv, god, "whisper", day, changes, { text: args.text, heard });
+      if (heard?.says) out.push({ kind: "heard", clan: oc.id, god, text: String(args.text || "").slice(0, 200), delta: Math.max(REV.heardMin, Math.min(REV.heardMax, Number(heard.delta) || 0)), verdict: heard.verdict ?? null, citizen: heard.citizen ?? null, says: String(heard.says).slice(0, 220) });
+    }
     else if (method === "root_out") {
       const c = s.clans?.[oc.id];
       const doubt = c?.owned?.[args.point]?.stir === "doubt";

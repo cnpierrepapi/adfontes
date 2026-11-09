@@ -198,6 +198,43 @@ export function brokerMarket({ field, temperament, florins, sellable, mine, offe
   );
 }
 
+// The citizens hear their god (his call 9 Nov): a whisper is judged against how the nation is doing
+// right now. Words that see the nation clearly and point the right way land like prophecy; kind but
+// empty words barely move them; words that misread them shake their faith. One citizen says, in their
+// own voice, what they made of it (it shows in the event list).
+const HEARD = {
+  type: "object", additionalProperties: false, required: ["delta", "verdict", "citizen", "says"],
+  properties: {
+    delta: { type: "integer" },
+    verdict: { type: "string", enum: ["prophecy", "wise", "comfort", "empty", "misread", "insult"] },
+    citizen: { type: "string" },
+    says: { type: "string" },
+  },
+};
+export function hearWhisper({ name, field, temperament, situation, keywords = [], citizens = [], text }) {
+  if (FAKE) {
+    // Stand-in: a whisper that names something real about the nation right now lands; a generic one doesn't.
+    const t = text.toLowerCase(), hit = keywords.filter((k) => k && t.includes(String(k).toLowerCase())).length;
+    const who = citizens[Math.floor(Math.random() * citizens.length)] || "a citizen";
+    return Promise.resolve(hit >= 2 ? { delta: 20, verdict: "prophecy", citizen: who, says: "The god sees exactly where we stand." }
+      : hit === 1 ? { delta: 10, verdict: "wise", citizen: who, says: "The god knows what troubles us." }
+      : { delta: 1, verdict: "empty", citizen: who, says: "Nice words. They could be about anyone." });
+  }
+  return json(
+    CFG.agentModel,
+    `You are the citizens of ${name}, a ${field} nation in AD FONTES, and your god has just whispered to you. Judge the whisper against ` +
+      "how your nation is doing right now. Words that see your situation clearly and point the right way feel like prophecy. Wise words help. " +
+      "Kind but empty words, the kind a god could say to anyone, barely move you. Words that misread you (cheering a war you are losing, " +
+      "praising plenty while you starve) shake your faith, and contempt shakes it more. Give delta, how much your reverence for this god " +
+      "changes: prophecy 15 to 25, wise 8 to 14, comfort 3 to 7, empty 0 to 2, misread -1 to -8, insult -9 to -15. Then pick one citizen " +
+      "from the list to say, in one plain sentence in their own voice, what they made of it. No quotation marks around the sentence. " +
+      `The nation's temperament: ${temperament}.`,
+    `Right now:\n${situation}\n\nCitizens: ${citizens.slice(0, 12).join(", ") || "(unknown)"}\n\nYour god whispered: "${text}"`,
+    HEARD,
+    250,
+  );
+}
+
 // The seller names its price (his call 9 Nov: "the seller prices the sale like a real market, for all
 // types of sales"). When another nation's Broker wants something this nation holds, its own Broker
 // asks a price between half and three times the fair one, with one line on why.

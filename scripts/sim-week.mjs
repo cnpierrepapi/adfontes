@@ -12,16 +12,18 @@ import { godsTurn, rng } from "./sim-gods.mjs";
 const argv = process.argv.slice(2), opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
 const TURNS = Number(argv.find((a) => /^\d+$/.test(a))) || 84, H = 3600e3;
 const DIR = opt("--dir") || "debug/sim", GODS = argv.includes("--gods");
+const FROM = Number(opt("--from")) || 1; // continue a stopped run at this turn (its state is already in DIR)
 const { seededAt } = JSON.parse(fs.readFileSync(`${DIR}/seed.json`, "utf8"));
 const rand = rng(seededAt % 2 ** 31);
 const env = { ...process.env, ADF_SIM_CHAIN: `${DIR}/chain.json`, ADF_STATE_DIR: `${DIR}/state`, ADF_DAILY_CAP: "50", DATABASE_URL: "" }; // real Claude for everything (his OK 8 Nov); the live cap is untouched
 if (argv.includes("--fake")) env.ADF_FAKE_LLM = "1"; else delete env.ADF_FAKE_LLM; // --fake: stand-in minds, $0 (smoke tests)
 env.ADF_MARKET = "1"; // the sim always has the marketplace (the live world turns it on after its proof)
 delete env.SPONSOR_ACCOUNT_ID; delete env.SPONSOR_PRIVATE_KEY; delete env.OPERATOR_PRIVATE_KEY;
-const log = fs.createWriteStream(`${DIR}/run.log`);
-const godLog = GODS ? fs.createWriteStream(`${DIR}/gods.log`) : null;
+const flags = FROM > 1 ? { flags: "a" } : {};
+const log = fs.createWriteStream(`${DIR}/run.log`, flags);
+const godLog = GODS ? fs.createWriteStream(`${DIR}/gods.log`, flags) : null;
 const t0 = Date.now();
-for (let k = 1; k <= TURNS; k++) {
+for (let k = FROM; k <= TURNS; k++) {
   const r = spawnSync(process.execPath, ["engine/run.mjs", "testnet", "--force"], { env: { ...env, ADF_NOW: String(seededAt + k * 2 * H) }, encoding: "utf8", maxBuffer: 64e6 });
   log.write(`\n===== sim turn ${k} (${new Date(seededAt + k * 2 * H).toISOString()}) exit ${r.status}\n${r.stdout}\n${r.stderr}`);
   const spend = /today \(UTC\): \$([\d.]+)/.exec(r.stdout)?.[1];

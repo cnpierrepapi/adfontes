@@ -1111,3 +1111,63 @@ fn without_the_fund_founding_works_as_before() {
     let net = clan(&w, id).total_in.0;
     assert!(net < 1700 * MILLI && net > 1690 * MILLI, "the founder still pays DAO + staking: {net}");
 }
+
+// ---------------------------------------------------------------- moving a god (9 Nov: lost browser keys)
+
+#[test]
+fn moving_a_god_carries_their_stake_grant_and_founder_place() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("operator.adfontes.near", NEAR);
+    w.grant(a, acc("god1.near"));
+    let before = w.get_stake(a, acc("god1.near"));
+    let t0 = w.get_totals();
+    set("adfontes.near", 20 * MILLI);
+    let _ = w.move_god(a, acc("god1.near"), acc("new.near"));
+    let c = clan(&w, a);
+    assert_eq!(c.gods[0].account, acc("new.near"), "the new account takes the founder's place");
+    assert_eq!(c.gods.len(), 1);
+    let after = w.get_stake(a, acc("new.near"));
+    assert_eq!(after.florins.0, before.florins.0);
+    assert_eq!(after.put_in.0, before.put_in.0);
+    assert_eq!(after.granted.0, NEAR, "the grant moves too");
+    assert_eq!(w.get_stake(a, acc("god1.near")).florins.0, 0, "the old account has nothing left");
+    assert_eq!(w.get_stake(a, acc("god1.near")).granted.0, 0);
+    let t1 = w.get_totals();
+    assert_eq!(t1.backing.0, t0.backing.0, "no money moves");
+    assert_eq!(t1.jackpot.0, t0.jackpot.0);
+}
+
+#[test]
+fn moving_into_an_existing_god_merges_the_stakes() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("late.near", 2 * NEAR);
+    let _ = w.bless(a);
+    let (s1, s2) = (stake(&w, a, "god1.near"), stake(&w, a, "late.near"));
+    let p = clan(&w, a).gods.iter().map(|g| g.put_in.0).sum::<u128>();
+    set("adfontes.near", 20 * MILLI);
+    let _ = w.move_god(a, acc("late.near"), acc("god1.near"));
+    let c = clan(&w, a);
+    assert_eq!(c.gods.len(), 1, "one god left");
+    assert_eq!(c.gods[0].put_in.0, p, "put_in adds up");
+    assert!(close(stake(&w, a, "god1.near"), s1 + s2, 10), "stakes add up");
+}
+
+#[test]
+#[should_panic(expected = "Only the owner")]
+fn only_the_owner_can_move_a_god() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("operator.adfontes.near", 20 * MILLI);
+    let _ = w.move_god(a, acc("god1.near"), acc("thief.near"));
+}
+
+#[test]
+#[should_panic(expected = "Attach 0.02 NEAR")]
+fn moving_a_god_needs_the_dao_bonds() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("adfontes.near", 0);
+    let _ = w.move_god(a, acc("god1.near"), acc("new.near"));
+}

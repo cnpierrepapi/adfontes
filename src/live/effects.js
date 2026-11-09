@@ -404,6 +404,8 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "market-buy": comet(r.seller, r.clan, r.token?.[0] === "p" ? GOLD : CYAN); bubble(islands.get(r.clan), text, "trade", tipOf(r)); break;
       case "market-sale": if (r.learned || r.token?.[0] !== "r") bubble(islands.get(r.buyer), text, "trade"); break;
       case "royalty": beam(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift", tipOf(r)); break;
+      // The citizens on a whisper (9 Nov): a soft ring, gold if it landed, red if it shook them.
+      case "heard": ring(islands.get(r.clan), r.delta >= 8 ? GOLD : r.delta < 0 ? RED : WHITE); bubble(islands.get(r.clan), text, r.delta < 0 ? "warden" : "gift", tipOf(r)); break;
       case "council": if (r.refused) bubble(islands.get(r.clan), text, "corpus"); else bubble(islands.get(r.clan), text, "corpus"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }

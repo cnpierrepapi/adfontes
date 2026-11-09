@@ -25,6 +25,23 @@ const WHISPERS = [
   "Follow the strongest line of research.", "Check every citation twice.",
 ];
 
+// What an attentive god says (9 Nov: whispers are now judged against the nation's situation, so a god
+// who pays attention whispers about what's actually happening; a careless one says something generic).
+function situational(S, C, c, rand) {
+  const st = S.clans[c.id], name = (id) => C.clans.find((x) => x.id === id)?.name ?? `nation ${id}`;
+  const war = Object.values(S.wars || {}).find((w) => w.status === "on" && (w.a === c.id || w.b === c.id));
+  const lines = [];
+  if (war) {
+    const foe = war.a === c.id ? war.b : war.a, mine = Object.keys(st.owned || {}).length, theirs = Object.keys(S.clans[foe]?.owned || {}).length;
+    lines.push(mine < theirs ? `${name(foe)} is stronger than us. Hold the walls and offer peace before the war burns everything we know.` : `Press ${name(foe)} while the war goes our way, but don't burn our florins doing it.`);
+  }
+  if (st.mood === "hungry") lines.push("I know you're hungry. Feed the scholars first and the rest will follow.");
+  if ((st.tricksters || 0) > 0) lines.push("There's a Trickster among you. Check every citation twice.");
+  const front = Object.keys(st.frontier || {});
+  if (front.length && lines.length < 2) lines.push(`Study ${front[Math.floor(rand() * Math.min(5, front.length))]} next. It leads somewhere.`);
+  return lines.slice(0, 2).join(" ") || WHISPERS[Math.floor(rand() * WHISPERS.length)];
+}
+
 // A seeded random (mulberry32) so a run can be redone.
 export function rng(seed) {
   let a = seed >>> 0;
@@ -54,6 +71,7 @@ export function godsTurn(dir, now, rand) {
     for (const g of c.gods) {
       const key = `${c.id}:${g.account}`;
       const me = (C.simGods[key] ||= { off: Math.round((rand() * 2 - 1) * GODS.jitter * 10) / 10, mode: null, nextAt: now + rand() * GODS.dayMs });
+      me.att ??= Math.round((0.2 + rand() * 0.7) * 100) / 100; // how closely this god watches its nation
       const was = me.mode;
       me.mode = nextMode(me.mode, standing, me.off);
       if (was && was !== me.mode) out.push({ clan: c.id, god: g.account.slice(0, 8), change: `${was} -> ${me.mode}`, standing: +standing.toFixed(1) });
@@ -65,7 +83,7 @@ export function godsTurn(dir, now, rand) {
       const propose = (method, args) => dao.push({ id: dao.length, proposer: g.account, status: "Approved", description: `${method} (simulated god)`,
         kind: { FunctionCall: { receiver_id: "sim.local", actions: [{ method_name: method, args: b64(args), deposit: "0", gas: "30000000000000" }] } } });
       // 1. Whisper.
-      const text = WHISPERS[Math.floor(rand() * WHISPERS.length)];
+      const text = rand() < me.att ? situational(S, C, c, rand) : WHISPERS[Math.floor(rand() * WHISPERS.length)];
       propose("whisper", { clan_id: c.id, text });
       c.whisper = text;
       // 2. Bless a little: put_in up; 86% backs new florins at today's value (the god's shares), 14% jackpot.

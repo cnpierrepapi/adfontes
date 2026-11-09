@@ -18,6 +18,7 @@ export function tipOf(r) {
     case "trade": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, r.sellerWhy && `The seller asked ${fl(r.price)}: ${r.sellerWhy}`, why].filter(Boolean).join("\n");
     case "listed": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, `It asks ${fl(r.price)}. A Broker can ask half to three times the fair price.`, why].filter(Boolean).join("\n");
     case "market-buy": return [r.fair != null && `Fair price ${fl(r.fair)}, paid ${fl(r.price)}.`, why].filter(Boolean).join("\n");
+    case "heard": return `Reverence ${r.delta > 0 ? "+" : ""}${r.delta}: the citizens took it as ${r.verdict === "prophecy" ? "prophecy" : r.verdict === "misread" ? "a god who misread them" : r.verdict === "insult" ? "contempt" : `${r.verdict} words`}. The god said: "${r.text}"`;
     case "royalty": return `Each research buy on a point in a patent's chain pays its holder. Patents: ${(r.patents || []).join(", ")}.`;
     default: return "";
   }
@@ -85,6 +86,8 @@ export function says(r, clanName) {
       if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}${used ? ` (${used})` : ""}: both walls held.`;
       return `War, round ${r.round}${used ? ` (${used})` : ""}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} point${r.sides[id].hp === 1 ? "" : "s"} left)`).join("; ")}.`;
     }
+    // A whisper, heard (9 Nov): one citizen says what they made of their god's words.
+    case "heard": return `In ${c(r.clan)}, ${r.citizen ?? "a citizen"} on the god's words: "${r.says}"`;
     // A god's blessing (the live world's own carry their words in r.text; the season world's don't).
     case "bless": return r.text ?? (r.mode === "rescue" ? `A god who had drifted away rushed back to ${c(r.clan)} with ${n2(r.near)} NEAR.` : `A god blessed ${c(r.clan)} with ${n2(r.near)} NEAR.`);
     // The marketplace (his calls 9 Nov): only the Brokers trade, from their own wallets.

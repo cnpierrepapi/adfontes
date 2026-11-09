@@ -11,7 +11,7 @@ import { CFG, florinRates } from "./config.mjs";
 import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
-import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
+import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhisper, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
@@ -379,7 +379,25 @@ for (let n = 0; n < days; n++) {
       const revCh = [];
       try {
         rv = RV.ensure(s, oc, day, { fresh: isNew });
-        const acts = await RV.godActions({ chain, s, oc, rv, day, changes: revCh });
+        // The citizens hear a whisper against how their nation is doing right now (his call 9 Nov).
+        const hear = async (text) => {
+          const war = Object.values(s.wars || {}).find((x) => x.status === "on" && (x.a === oc.id || x.b === oc.id));
+          const foe = war ? (war.a === oc.id ? war.b : war.a) : null;
+          const pts = Object.keys(c.owned).length, foePts = foe ? Object.keys(s.clans[foe]?.owned || {}).length : 0;
+          const recent = rec.filter((r) => r.clan === oc.id || r.buyer === oc.id || r.seller === oc.id).slice(-6).map((r) => `- ${r.kind}${r.point ? `: ${r.point}` : r.title ? `: ${String(r.title).slice(0, 60)}` : ""}`);
+          const frontier = Object.keys(c.frontier).slice(0, 5);
+          const living = agents.filter((a) => a.alive);
+          const situation = [
+            war ? `At war with ${nameOfClan(foe)}, round ${war.rounds || 0}: ${pts} points of knowledge left against their ${foePts}. ${war.offer ? `Peace is on offer from ${nameOfClan(war.offer.by)}.` : ""}` : "At peace.",
+            `Mood: ${c.mood ?? "unknown"}. Florins to spend: ${Math.round(florinsOf(oc.id))}. Walls: ${Math.round(c.walls || 0)}.`,
+            (c.tricksters || 0) ? `${c.tricksters} Trickster(s) have moved in and slip fakes into the research.` : "No Tricksters among them.",
+            `Knows ${pts} points; the scholars are looking at: ${frontier.join(", ") || "nothing new"}.`,
+            recent.length ? `Lately:\n${recent.join("\n")}` : "",
+          ].filter(Boolean).join("\n");
+          const keywords = [foe != null ? nameOfClan(foe) : null, war ? "war" : null, war ? "walls" : null, c.mood === "hungry" ? "hungry" : null, (c.tricksters || 0) ? "trickster" : null, ...frontier.slice(0, 3)];
+          return hearWhisper({ name: oc.name, field: c.field, temperament: c.mbti, situation, keywords, citizens: living.map((a) => a.name), text });
+        };
+        const acts = await RV.godActions({ chain, s, oc, rv, day, changes: revCh, hear });
         for (const r of acts) log(r);
         if (acts.length) c.lastActAt = Date.now(); // a god acted: no Trickster for 24 hours
         RV.follow(s, oc.id, revCh);

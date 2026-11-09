@@ -1061,6 +1061,42 @@ impl World {
         U128(fl)
     }
 
+    /// Hand a god's place in a nation to another account (owner only, 9 Nov: testnet gods whose
+    /// browser key was lost). Moves their put_in, shares, grant and anything owed, and swaps the DAO
+    /// seat: the world proposes removing `from` and adding `to` and approves both. Works on a fallen
+    /// nation too (its gods can still claim). If `to` is already a god there, the two stakes merge.
+    /// Attach 0.02 NEAR for the two DAO proposal bonds.
+    #[payable]
+    pub fn move_god(&mut self, clan_id: u32, from: AccountId, to: AccountId) -> Promise {
+        require!(env::predecessor_account_id() == self.owner, "Only the owner");
+        require!(from != to, "Same account");
+        require!(env::attached_deposit().as_yoctonear() >= 2 * DAO_BOND, "Attach 0.02 NEAR for the DAO bonds");
+        let mut clan = self.clans.get(&clan_id).expect("No such clan").clone();
+        let i = clan.gods.iter().position(|g| g.account == from).unwrap_or_else(|| env::panic_str("Not a god of that nation"));
+        let old = clan.gods.remove(i);
+        match clan.gods.iter_mut().find(|g| g.account == to) {
+            Some(g) => { g.put_in = U128(g.put_in.0 + old.put_in.0); g.shares = U128(g.shares.0 + old.shares.0); }
+            // Keep the founder's place first in the list (the site reads gods[0] as the founder).
+            None => clan.gods.insert(i, God { account: to.clone(), put_in: old.put_in, shares: old.shares }),
+        }
+        let dao = clan.dao.clone();
+        self.clans.insert(clan_id, clan);
+        let (kf, kt) = (format!("gr:{clan_id}:{from}"), format!("gr:{clan_id}:{to}"));
+        let g = raw_u128(&kf);
+        if g > 0 {
+            set_raw_u128(&kt, raw_u128(&kt) + g);
+            env::storage_remove(kf.as_bytes());
+        }
+        if let Some(o) = self.owed.remove(&from) {
+            let t = self.owed.get(&to).copied().unwrap_or(0);
+            self.owed.insert(to.clone(), t + o);
+        }
+        env::log_str(&format!("moved god {from} -> {to} in clan {clan_id}"));
+        // Two separate proposals (a joint promise can't be returned).
+        Self::propose_god(dao.clone(), from, false).detach();
+        Self::propose_god(dao, to, true)
+    }
+
     /// Put NEAR into the founding fund (anyone; it only ever pays new nations' DAO and staking).
     #[payable]
     pub fn fund_founding(&mut self) -> U128 {
