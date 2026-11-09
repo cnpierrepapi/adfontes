@@ -22,6 +22,8 @@ export function wanted(s, holderOf) {
       seen.add(v.corpus);
       add(clan, `r:${v.corpus}`, s.corpora[v.corpus].title);
     }
+    // Research bought on the market for a point it already knew still comes as a token.
+    for (const id of c.marketCorpora || []) if (!seen.has(id) && s.corpora?.[id]) { seen.add(id); add(clan, `r:${id}`, s.corpora[id].title); }
     for (const k of c.kits || []) if (s.tools?.[k]) add(clan, `k:${k}`, `Figure kit from ${s.clans[s.tools[k].clan]?.name ?? `nation ${s.tools[k].clan}`}`);
   }
   for (const d of Object.values(s.drafts || {})) if (d.passed) add(d.clan, `p:${d.id}`, d.title || d.draft?.title || `Patent draft ${d.id}`);

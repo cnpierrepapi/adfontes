@@ -16,6 +16,7 @@ const { seededAt } = JSON.parse(fs.readFileSync(`${DIR}/seed.json`, "utf8"));
 const rand = rng(seededAt % 2 ** 31);
 const env = { ...process.env, ADF_SIM_CHAIN: `${DIR}/chain.json`, ADF_STATE_DIR: `${DIR}/state`, ADF_DAILY_CAP: "50", DATABASE_URL: "" }; // real Claude for everything (his OK 8 Nov); the live cap is untouched
 if (argv.includes("--fake")) env.ADF_FAKE_LLM = "1"; else delete env.ADF_FAKE_LLM; // --fake: stand-in minds, $0 (smoke tests)
+env.ADF_MARKET = "1"; // the sim always has the marketplace (the live world turns it on after its proof)
 delete env.SPONSOR_ACCOUNT_ID; delete env.SPONSOR_PRIVATE_KEY; delete env.OPERATOR_PRIVATE_KEY;
 const log = fs.createWriteStream(`${DIR}/run.log`);
 const godLog = GODS ? fs.createWriteStream(`${DIR}/gods.log`) : null;

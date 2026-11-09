@@ -11,7 +11,7 @@ import { CFG, florinRates } from "./config.mjs";
 import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
-import { scholarTurn, draftTurn, brokerPick, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
+import { scholarTurn, draftTurn, brokerPick, brokerMarket, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
@@ -19,6 +19,9 @@ import { newName } from "./names.mjs";
 import * as W from "./world.mjs";
 import { researchPrice, kitPrice } from "./prices.mjs";
 import * as TK from "./tokens.mjs";
+import * as MK from "./market.mjs";
+import { clampPrice } from "./prices.mjs";
+const MARKET_ON = process.env.ADF_MARKET === "1"; // the Brokers' market days (settling sales and royalties always run)
 import * as store from "./store.mjs";
 import { renderFigure } from "./figures.mjs";
 
@@ -105,6 +108,46 @@ for (let n = 0; n < days; n++) {
   const log = (r) => { rec.push({ day, ...r, ...(INSTANT ? { live: `${Date.now().toString(36)}-${seq++}`, at: Date.now() } : {}) }); console.log(`  [${r.kind}]`, JSON.stringify(r).slice(0, 220)); };
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
+  // Patent royalties owed this turn: { [clan]: { florins, patents: [], n } }, paid in settleMarket.
+  const owe = (list) => { for (const r of list) { const d = ((s.royaltyDue ||= {})[r.clan] ||= { florins: 0, patents: [], n: 0 }); d.florins += FL.royalty; d.patents.push(r.draft); d.n++; } };
+  // The market's listings, read once a run (null: a world contract from before the market).
+  let marketNow;
+  const listingsNow = async () => (marketNow === undefined ? (marketNow = await chain.marketListings(0)) : marketNow);
+  /** One nation's Broker on the market: list, take down, buy. Returns the florins it spent. */
+  async function marketDay(oc, c, florins) {
+    const all = await listingsNow();
+    if (!all) return 0;
+    c.lastMarketAt = Date.now();
+    const mine = all.filter((l) => l.open && l.seller === oc.id);
+    const sell = MK.sellable(s, oc.id, FL).filter((x) => !mine.some((m) => m.token_id === x.token_id));
+    const offers = all.filter((l) => l.open && l.seller !== oc.id && s.clans[l.seller] && MK.useful(s, oc.id, l.token_id))
+      .map((l) => { const f = MK.fairOf(s, l.token_id, FL); return f && { id: l.id, seller: l.seller, token_id: l.token_id, title: f.title, kind: f.kind, price: l.price, fair: f.price }; }).filter(Boolean);
+    if (!sell.length && !offers.length && !mine.length) return 0;
+    const m = await brokerMarket({ field: c.field, temperament: c.mbti, florins, sellable: sell, mine: mine.map((x) => ({ id: x.id, token_id: x.token_id, price: x.price })), offers, open: Object.keys(c.frontier) });
+    let openN = mine.length;
+    for (const id of (m.delist || []).slice(0, 10)) {
+      const x = mine.find((y) => y.id === id);
+      if (!x) continue;
+      const r = await chain.marketDelist(oc.id, id);
+      x.open = false; openN--;
+      log({ kind: "delisted", clan: oc.id, listing: id, token: x.token_id, tx: r.hash, signer: r.signer });
+    }
+    for (const L of (m.list || []).slice(0, 3)) {
+      const x = sell.find((y) => y.token_id === L.token_id);
+      if (!x || openN >= 10) continue;
+      const price = clampPrice(L.price, x.price);
+      const r = await chain.marketList(oc.id, x.token_id, price, L.why);
+      openN++;
+      log({ kind: "listed", clan: oc.id, listing: r.value, token: x.token_id, title: x.title, price, fair: +x.price.toFixed(4), priceWhy: x.why, why: String(L.why).slice(0, 200), tx: r.hash, signer: r.signer });
+    }
+    const o = offers.find((y) => y.id === m.buy);
+    if (!o || o.price >= florins) return 0;
+    const r = await chain.marketBuy(oc.id, o.id, m.buy_why);
+    const l = all.find((y) => y.id === o.id);
+    if (l && l.kind === "sale") l.open = false; // a patent is gone for the next nation this run
+    log({ kind: "market-buy", clan: oc.id, listing: o.id, seller: o.seller, token: o.token_id, title: o.title, price: o.price, fair: +o.fair.toFixed(4), why: String(m.buy_why).slice(0, 200), tx: r.hash, signer: r.signer });
+    return o.price;
+  }
   const capped = (kind) => {
     if (canSpend(kind)) return false;
     if (!capNoted) { capNoted = true; log({ kind: "budget", cap: CFG.dailyCapUsd, spent: +spentToday().toFixed(4), note: "daily Claude cap reached: research and drafts wait for tomorrow (UTC)" }); }
@@ -301,6 +344,7 @@ for (let n = 0; n < days; n++) {
             delete c.frontier[deal.point];
             W.grow(c, deal.point, deal.sc.children);
             log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, priceWhy, tx: r.hash, signer: r.signer ?? "operator", why: deal.why });
+            owe(MK.royaltiesFor(s, [deal.point, deal.sc.node], oc.id)); // patent royalties (paid at the end of the turn)
             // The seller's Printing Press: copies are cheap, so each sale earns it a little more.
             if (W.hasTech(s.clans[deal.seller], "press")) {
               try { await chain.mint(deal.seller, FL.pressSale, `printing press: sale to ${oc.id}`); }
@@ -308,6 +352,14 @@ for (let n = 0; n < days; n++) {
             }
           }
         }
+      }
+
+      // The Broker's market day (his calls 9 Nov: the marketplace is the agents' alone). Once a real
+      // day it lists, takes down or buys, from its own trader wallet, in the nation's florins.
+      // Off until the marketplace is proven on testnet (step 5.5): ADF_MARKET=1 turns it on.
+      if (MARKET_ON && !INSTANT && able("Broker").length && c.agentWallets === 2 && Date.now() - (c.lastMarketAt || 0) >= CFG.draftEveryMs && !capped("agent")) {
+        try { wallet -= await marketDay(oc, c, wallet); }
+        catch (e) { log({ kind: "error", clan: oc.id, error: `market: ${String(e.message || e).slice(0, 160)}` }); }
       }
 
       // Research: each able Scholar takes its turns on the Patron's chosen point.
@@ -577,6 +629,30 @@ for (let n = 0; n < days; n++) {
       }
       log({ kind: "fallen", war: w.id, clan: loser, name: nameOf(loser), by: winner, byName: nameOf(winner), rounds: w.rounds, ...(surrendered ? { surrendered: true } : {}), loot, knowledge: taken.length, refugees, tx });
     }
+  }
+
+  // The market's sales since last time teach their buyers; then patent royalties are paid (before
+  // the token sync, so a bought copy is minted this same turn).
+  if (!INSTANT) {
+    try { await settleMarket(); } catch (e) { log({ kind: "error", error: `market settle: ${String(e.message || e).slice(0, 200)}` }); }
+  }
+  async function settleMarket() {
+    const sales = await chain.marketSales(s.marketSeen || 0);
+    for (const sale of sales || []) {
+      s.marketSeen = sale.id + 1;
+      const res = MK.applySale(s, sale);
+      if (!res) continue;
+      const f = MK.fairOf(s, sale.token_id, FL);
+      log({ kind: "market-sale", buyer: sale.buyer, seller: sale.seller, token: sale.token_id, title: f?.title ?? sale.token_id, price: sale.price, fair: f?.price ?? null, why: sale.reason, listing: sale.listing, learned: res.learned ?? null });
+      if (sale.token_id[0] === "r") owe(MK.royaltiesFor(s, [s.corpora[sale.token_id.slice(2)]?.node], sale.buyer));
+    }
+    for (const [clan, due] of Object.entries(s.royaltyDue || {})) {
+      try {
+        const r = await chain.mint(Number(clan), due.florins, `patent royalties: ${[...new Set(due.patents)].join(",")}`.slice(0, 200));
+        log({ kind: "royalty", clan: Number(clan), florins: +due.florins.toFixed(4), patents: [...new Set(due.patents)], sales: due.n, tx: r?.hash ?? null });
+      } catch (e) { log({ kind: "error", clan: Number(clan), error: `royalty: ${String(e.message || e).slice(0, 160)}` }); }
+    }
+    s.royaltyDue = {};
   }
 
   // Research, patents and kits as NEP-245 tokens held by each nation's DAO (engine/tokens.mjs):

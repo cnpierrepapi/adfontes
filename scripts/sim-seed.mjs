@@ -36,7 +36,7 @@ for (const wc of W.clans) {
     }
   }
   for (const f of d.frontier || []) frontier[f.point] = { depth: f.depth, parent: f.parent };
-  for (const dr of d.drafts || []) s.drafts[dr.id] = { id: dr.id, clan: wc.id, day: dr.day, passed: dr.passed, title: dr.title };
+  for (const dr of d.drafts || []) s.drafts[dr.id] = { id: dr.id, clan: wc.id, day: dr.day, passed: dr.passed, title: dr.title, chain: dr.chain || [] };
   const passed = (d.drafts || []).filter((x) => x.passed).length;
   s.clans[wc.id] = {
     id: wc.id, name: wc.name, field: d.field, mbti: d.mbti, fortune: d.fortune ?? 1, tricksters: wc.tricksters ?? 0,

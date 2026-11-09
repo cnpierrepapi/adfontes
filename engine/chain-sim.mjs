@@ -70,6 +70,29 @@ export function connectSim(file) {
     mtMoveToBroker: async () => ({ moved: 0, hash: null }),
     mtHoldsAny: async () => false,
     mtBalances: async (owner, ids) => ids.map((t) => (S.mt || {})[`${owner}|${t}`] || "0"),
+    // The marketplace, as the contract does it (contracts/world/src/market.rs), in the sim's file.
+    marketList: async (id, tokenId, florins, reason) => {
+      S.market ||= { listings: [], sales: [] };
+      const open = S.market.listings.filter((l) => l.seller === id && l.open);
+      if (open.length >= 10) throw new Error("A nation can have at most 10 open listings");
+      if (open.some((l) => l.token_id === tokenId)) throw new Error("That's already listed");
+      const l = { id: S.market.listings.length, seller: id, token_id: tokenId, price: florins, kind: tokenId.startsWith("p:") ? "sale" : "copy", open: true, day: S.config.day, reason, sold: 0 };
+      S.market.listings.push(l); save(); return { ...tx(l.id), signer: `trader${id}.sim-operator` };
+    },
+    marketDelist: async (id, listingId) => { const l = S.market?.listings[listingId]; if (!l || l.seller !== id || !l.open) throw new Error("Not your open listing"); l.open = false; save(); return tx(); },
+    marketBuy: async (id, listingId, reason) => {
+      const l = S.market?.listings[listingId];
+      if (!l || !l.open) throw new Error("That listing is closed");
+      if (l.seller === id) throw new Error("That's your own listing");
+      const b = clan(id), sl = clan(l.seller), u = units(l.price);
+      if (BigInt(b.florins) < u) throw new Error("Buyer can't afford it");
+      add(b, -u); add(sl, u);
+      if (l.kind === "sale") l.open = false; else l.sold++;
+      const sale = { id: S.market.sales.length, listing: l.id, buyer: id, seller: l.seller, token_id: l.token_id, price: l.price, day: S.config.day, reason };
+      S.market.sales.push(sale); save(); return { ...tx(sale.id), signer: `trader${id}.sim-operator` };
+    },
+    marketListings: async (from = 0) => (S.market?.listings || []).slice(from),
+    marketSales: async (from = 0) => (S.market?.sales || []).slice(from),
     agentBuy: async function (buyer, seller, florins, memo) { const r = await this.trade(buyer, seller, florins, memo); return { ...r, signer: `trader${buyer}.sim-operator` }; },
     agentSpend: async function (id, florins, memo) { const r = await this.burn(id, florins, memo); return { ...r, signer: `patron${id}.sim-operator` }; },
     setRoot: async (day, root) => { S.roots[day] = root; save(); return tx(); },

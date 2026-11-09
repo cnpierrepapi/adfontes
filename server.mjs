@@ -194,7 +194,8 @@ function makeApi(NET) {
         return {
           id, field: st.field, mbti: st.mbti, fortune: st.fortune, alive: !dead, points, frontier,
           frontier_total: Object.keys(st.frontier).length, line: deepestChain(st), depth: chainDepth(st),
-          drafts: drafts.map((x) => ({ id: x.id, day: x.day, passed: x.passed, title: x.title })), agents,
+          // chain: the points a draft stands on (a passed one's patent earns royalties on them).
+          drafts: drafts.map((x) => ({ id: x.id, day: x.day, passed: x.passed, title: x.title, chain: x.chain || [] })), agents,
           reverence: revOf(s, id), reports: reportsOf(s, id),
         };
       });

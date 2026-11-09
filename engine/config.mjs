@@ -98,5 +98,5 @@ export function florinRates(net) {
   const f = net === "testnet" ? CFG.florinK * (CFG.startNear.testnet / CFG.startNear.mainnet) : 1;
   const out = Object.fromEntries(Object.entries(CFG.florin).map(([k, v]) => [k, k === "draftOwn" ? v : v * f]));
   // Prices live in engine/prices.mjs (one readable file); here they're only scaled for the network.
-  return { ...out, corpusBase: PRICES.researchBase * f, kit: PRICES.kit * f, scale: f };
+  return { ...out, corpusBase: PRICES.researchBase * f, kit: PRICES.kit * f, patentBase: PRICES.patentPerLink * f, royalty: PRICES.patentRoyalty * f, scale: f };
 }

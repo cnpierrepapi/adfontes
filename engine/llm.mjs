@@ -153,6 +153,51 @@ export function brokerPick({ field, open, offers, temperament }) {
   );
 }
 
+// The Broker's market day (his calls 9 Nov: the marketplace is the agents' alone). Once a real day
+// each nation's Broker looks at what it could sell (with fair prices, engine/prices.mjs), what it has
+// listed, and what other nations list, then lists, takes down or buys. The engine holds every price
+// to 0.5x-3x of fair and checks every buy, so the model only chooses.
+const MARKET = {
+  type: "object",
+  additionalProperties: false,
+  required: ["list", "delist", "buy", "buy_why"],
+  properties: {
+    list: { type: "array", items: { type: "object", additionalProperties: false, required: ["token_id", "price", "why"], properties: { token_id: { type: "string" }, price: { type: "number" }, why: { type: "string" } } } },
+    delist: { type: "array", items: { type: "integer" } },
+    buy: { type: "integer" },
+    buy_why: { type: "string" },
+  },
+};
+/** sellable: [{token_id,title,kind,price(fair)}]; mine: [{id,token_id,price}]; offers: [{id,seller,title,kind,price,fair}] */
+export function brokerMarket({ field, temperament, florins, sellable, mine, offers, open }) {
+  if (FAKE) {
+    // Stand-in: list the dearest thing not yet listed at 1.2x fair (up to 3 open), buy the first
+    // offer it can use at no more than 1.5x fair that it can afford.
+    const listed = new Set(mine.map((m) => m.token_id));
+    const list = mine.length < 3 ? sellable.filter((x) => !listed.has(x.token_id)).slice(0, 1).map((x) => ({ token_id: x.token_id, price: +(x.price * 1.2).toFixed(4), why: `${x.title} is worth something to a nation that lacks it.` })) : [];
+    const o = offers.find((x) => x.price <= x.fair * 1.5 && x.price < florins);
+    return Promise.resolve({ list, delist: [], buy: o ? o.id : -1, buy_why: o ? `${o.title} fills a gap in what we know.` : "" });
+  }
+  const fmt = (x) => (Math.round(x * 100) / 100).toString();
+  const sell = sellable.slice(0, 15).map((x) => `${x.token_id} | ${x.kind} | "${x.title}" | fair ${fmt(x.price)}`).join("\n") || "(nothing)";
+  const listedNow = mine.map((m) => `#${m.id} ${m.token_id} at ${fmt(m.price)}`).join("\n") || "(nothing listed)";
+  const market = offers.slice(0, 20).map((o) => `#${o.id} | from nation ${o.seller} | ${o.kind} | "${o.title}" | asking ${fmt(o.price)} (fair ${fmt(o.fair)})`).join("\n") || "(nothing on offer)";
+  return json(
+    CFG.agentModel,
+    "You are the Broker of a nation in AD FONTES, trading on the marketplace with your nation's florins. Research and figure kits sell as copies " +
+      "(you keep yours, every buyer gets one); a patent sells once and its holder earns a royalty whenever anyone buys research in its chain. " +
+      "Once a day you may: list up to 3 things you hold (token_id from your list, a price in florins between half and three times its fair price, " +
+      "and why a buyer would want it), take down listings that aren't selling (their # numbers), and buy at most one listing (its # number, or -1 for " +
+      "none) if it truly helps your open questions and the price is sensible for what you have. A nation may keep at most 10 listings open. " +
+      "Every why is one plain sentence a citizen would understand. " +
+      `Your temperament: ${temperament}.`,
+    `Your field: ${field}. Your nation holds ${fmt(florins)} florins.\n\nYour open questions:\n${open.slice(0, 15).map((p) => `- ${p}`).join("\n") || "(none)"}\n\n` +
+      `What you could sell:\n${sell}\n\nYour listings now:\n${listedNow}\n\nOn the market from other nations:\n${market}`,
+    MARKET,
+    900,
+  );
+}
+
 // The war council (his call 8 Nov): once a real day the Patron decides war and peace for the
 // nation. The gods have no say: whispers are not shown to it. The engine checks every move
 // against the rules (engine/war.mjs) before anything happens.
