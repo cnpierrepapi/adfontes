@@ -8,7 +8,10 @@ import { getPapers, putPapers } from "./store.mjs";
 // on a miss, asks OpenAlex with its own key (ADF_SIM_OPENALEX_KEY) or none (the per-IP free pool).
 const SIM = !!process.env.ADF_SIM_CHAIN;
 const KEY = SIM ? process.env.ADF_SIM_OPENALEX_KEY : process.env.OPENALEX_API_KEY || (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").match(/^OPENALEX_API_KEY=(\S+)/m)?.[1];
-const AUTH = KEY ? { Authorization: `Bearer ${KEY}` } : {};
+// His call 9 Nov: a second key. The live world uses the new one and falls back to the old one
+// (OPENALEX_API_KEY_FALLBACK) when the new one's day runs out (429).
+const FALLBACK = SIM ? null : process.env.OPENALEX_API_KEY_FALLBACK || null;
+const auth = (k) => (k ? { Authorization: `Bearer ${k}` } : {});
 
 const unInvert = (idx) => {
   const words = [];
@@ -27,10 +30,13 @@ export async function papersFor(query, n = 10) {
   url.searchParams.set("per-page", String(n));
   url.searchParams.set("select", "id,title,publication_year,abstract_inverted_index,keywords");
   let res;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    res = await fetch(url, { headers: { "User-Agent": "adfontes-engine", ...AUTH } });
-    if (res.status !== 429 && res.status < 500) break;
-    await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt)); // 2s, 4s, 8s, 16s
+  for (const k of FALLBACK ? [KEY, FALLBACK] : [KEY]) {
+    for (let attempt = 0; attempt < (FALLBACK && k === KEY ? 2 : 4); attempt++) {
+      res = await fetch(url, { headers: { "User-Agent": "adfontes-engine", ...auth(k) } });
+      if (res.status !== 429 && res.status < 500) break;
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt)); // 2s, 4s, 8s, 16s
+    }
+    if (res.status !== 429) break; // only an exhausted key moves on to the fallback
   }
   if (!res.ok) throw new Error(`OpenAlex ${res.status}`);
   const j = await res.json();
