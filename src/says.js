@@ -33,8 +33,21 @@ function thing(r, from) {
   return `${of}research on "${r.title ?? t.slice(2)}"`;
 }
 
+// Ended nations (his call 10 Nov): a nation whose last god claimed out is gone from the game. Pages
+// no longer know its name, so it reads as "another nation", "another nation's Broker" becomes "the
+// Broker", and lines that are only its own housekeeping aren't shown at all.
+const OTHER = "another nation";
+const HOUSEKEEPING = new Set(["alias", "forwarded", "wallets", "team", "tokens", "tokens-moved", "mint", "ruins", "delisted", "reverence", "gas", "upkeep", "needs", "waiting"]);
+export function tidy(t) {
+  if (!t || !t.includes(OTHER)) return t;
+  return t.replace(new RegExp(`${OTHER}'s `, "g"), "the ").replace(/(^|[.!?:]\s+)the /g, (m, a) => `${a}The `);
+}
 export function says(r, clanName) {
-  const c = clanName;
+  const c = (id) => { const n = clanName(id); return n == null || /^nation \d+$/.test(n) ? OTHER : n; };
+  if (HOUSEKEEPING.has(r.kind) && r.clan != null && c(r.clan) === OTHER) return "";
+  return tidy(saysRaw(r, c));
+}
+function saysRaw(r, c) {
   switch (r.kind) {
     case "alias": return `${c(r.clan)} got its own name on NEAR: ${r.account}.`;
     case "forwarded": return `${n2(r.near)} NEAR came in at ${r.account} and went on to ${c(r.clan)}'s treasury.`;

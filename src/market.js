@@ -2,6 +2,7 @@
 // contract through /api/market; names from /api/world. Refreshes every 30 seconds.
 import { api } from "./net.js";
 import { sectionNav } from "./pagenav.js";
+import { tidy } from "./says.js";
 sectionNav();
 
 const $ = (id) => document.getElementById(id);
@@ -11,7 +12,8 @@ const fl = (x) => `${n2(x)} florin${Math.abs(x - 1) < 1e-9 ? "" : "s"}`;
 const KIND = { research: "Research", patent: "Patent", kit: "Figure kit" };
 
 let names = {}, explorer = "https://testnet.nearblocks.io";
-const who = (id) => names[id] ?? `nation ${id}`;
+// A nation that has ended isn't in the world list any more: it reads as "another nation" (tidy).
+const who = (id) => names[id] ?? "another nation";
 const txLink = (tx, text = "NEAR ↗") => (tx ? el("a", { className: "near", href: `${explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: text, title: "Open this transaction on NEAR" }) : null);
 // Price against fair: "12 florins (1.5x fair)".
 const vsFair = (price, fair) => (fair ? ` (${n2(price / fair)}x the fair price today)` : "");
@@ -40,7 +42,7 @@ async function load() {
     el("span", { className: "mkind", textContent: `${KIND[l.kind] ?? l.kind}${l.copy ? " · copies" : " · one of a kind"}` }),
     el("h3", { textContent: l.title }),
     el("p", { className: "mprice" }, el("b", { textContent: fl(l.price) }), vsFair(l.price, l.fair)),
-    el("p", { className: "mseller", textContent: `Sold by ${who(l.seller)}'s Broker since turn ${l.day}${l.copy && l.sold ? `, ${l.sold} sold` : ""}` }),
+    el("p", { className: "mseller", textContent: tidy(`Sold by ${who(l.seller)}'s Broker since turn ${l.day}${l.copy && l.sold ? `, ${l.sold} sold` : ""}`) }),
     l.reason ? el("blockquote", { textContent: l.reason }) : null,
     txLink(l.tx, "Listing on NEAR ↗"),
   ));

@@ -132,6 +132,14 @@ function makeApi(NET) {
   const clockCache = {}; // this network's season hours (seeded from the engine's state)
   const api = {
     // The world now: day, weather, clans (money from the chain, mind from the engine).
+    // Nations whose last god claimed out (his call 10 Nov): gone from the game. A fallen nation (lost a
+    // war) isn't here: its ruins are part of the war's story. Not an endpoint (no letters-only name).
+    async _ended() {
+      return cachedN("ended", 30_000, async () => {
+        const [clans, s] = await Promise.all([view("list_clans", { limit: 100 }), stateNow()]);
+        return clans.filter((c) => !c.alive && !s.clans?.[c.id]?.fallen && !(c.gods?.length > 0)).map((c) => ({ id: c.id, name: c.name }));
+      });
+    },
     async world() {
       return cachedN("world", 5_000, async () => {
         const [cfg, totals, clans, s] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 }), stateNow()]);
@@ -395,6 +403,23 @@ function makeApi(NET) {
 }
 const APIS = { testnet: makeApi("testnet"), mainnet: makeApi("mainnet") };
 
+// "Babamako's Broker walked away" -> "The Broker walked away"; "bought what Babamako knows" ->
+// "bought what another nation knows". Also drops ended nations from the world's nation list.
+function scrubEnded(out, ended, isWorld) {
+  const ids = new Set(ended.map((e) => e.id));
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pats = ended.filter((e) => e.name).map((e) => [new RegExp(`${esc(e.name)}'s `, "g"), new RegExp(esc(e.name), "g")]);
+  const text = (t) => {
+    let x = t;
+    for (const [poss, bare] of pats) x = x.replace(poss, "the ").replace(bare, "another nation");
+    return x === t ? t : x.replace(/(^|[.!?:]\s+)the /g, (m, a) => `${a}The `);
+  };
+  const walk = (v) => typeof v === "string" ? text(v) : Array.isArray(v) ? v.map(walk) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)])) : v;
+  const res = walk(out);
+  if (isWorld && Array.isArray(res?.clans)) res.clans = res.clans.filter((c) => !ids.has(c.id));
+  return res;
+}
+
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".ico": "image/x-icon", ".glb": "model/gltf-binary", ".webp": "image/webp", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".webm": "video/webm", ".jpg": "image/jpeg" };
 
 function serveStatic(req, res, url) {
@@ -537,7 +562,14 @@ http
       const fn = Object.hasOwn(APIS[net], m[1]) ? APIS[net][m[1]] : null;
       if (!fn) return send(res, 404, "application/json", JSON.stringify({ error: "unknown endpoint" }));
       try {
-        const out = await fn(url.searchParams);
+        let out = await fn(url.searchParams);
+        // Ended nations leave the game (his call 10 Nov): out of the world list, and their names
+        // rewritten in every text sent out. /api/proof is left exact: it's what the NEAR fingerprint
+        // is checked against, and the sealed records themselves never change.
+        if (m[1] !== "proof") {
+          const ended = await APIS[net]._ended().catch(() => []);
+          if (ended.length) out = scrubEnded(out, ended, m[1] === "world");
+        }
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-cache", "access-control-allow-origin": "*" });
         return res.end(JSON.stringify(out));
       } catch (e) {

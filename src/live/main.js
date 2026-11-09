@@ -34,7 +34,7 @@ function showClan(c, status) {
   btn("Plaza", () => live.viewPlaza(c.id));
   // War (the finale): who it's fighting and how both islands are holding up; or how it fell.
   const war = document.createElement("p"); war.className = "warline";
-  const nm = (id) => W.clans.find((k) => k.id === id)?.name ?? `nation ${id}`;
+  const nm = (id) => W.clans.find((k) => k.id === id)?.name ?? "another nation";
   if (c.fallen) war.textContent = `Fallen in war to ${nm(c.fallen.by)} on turn ${c.fallen.day}.`;
   else if (c.war?.enemy) war.textContent = `At war with ${nm(c.war.enemy)} · round ${c.war.rounds} · island ${c.war.hp} vs ${c.war.enemyHp} · walls ${c.war.walls}${c.war.offer ? (c.war.offer === c.id ? " · offered peace" : " · peace on offer") : ""}`;
   else if (c.war && !c.war.fairGame) war.textContent = "Safe from war until its first patent passes.";
