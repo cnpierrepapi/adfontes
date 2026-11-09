@@ -13,8 +13,23 @@ const TECH_LINE = {
 /** For a trade: how its price was made (engine/prices.mjs) and the merchant's reason, in plain words.
  *  Shown when you hover (or tap) a trade in the event list, and on the judge page. */
 export function tipOf(r) {
-  if (r.kind !== "trade") return "";
-  return [r.priceWhy && `Price: ${r.priceWhy}.`, r.why && `The Broker's reason: ${r.why}`].filter(Boolean).join("\n");
+  const why = r.why && `The Broker's reason: ${r.why}`;
+  switch (r.kind) {
+    case "trade": return [r.priceWhy && `Price: ${r.priceWhy}.`, why].filter(Boolean).join("\n");
+    case "listed": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, `It asks ${fl(r.price)}. A Broker can ask half to three times the fair price.`, why].filter(Boolean).join("\n");
+    case "market-buy": return [r.fair != null && `Fair price ${fl(r.fair)}, paid ${fl(r.price)}.`, why].filter(Boolean).join("\n");
+    case "royalty": return `Each research buy on a point in a patent's chain pays its holder. Patents: ${(r.patents || []).join(", ")}.`;
+    default: return "";
+  }
+}
+
+// What a market token is, in words: research on a point, a patent, a figure kit.
+function thing(r, from) {
+  const t = r.token || r.token_id || "";
+  const of = from ? `${from}'s ` : "its ";
+  if (t[0] === "p") return `${of}patent "${r.title ?? t.slice(2)}"`;
+  if (t[0] === "k") return from ? `a figure kit from ${from}` : "a figure kit";
+  return `${of}research on "${r.title ?? t.slice(2)}"`;
 }
 
 export function says(r, clanName) {
@@ -69,6 +84,19 @@ export function says(r, clanName) {
       if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}${used ? ` (${used})` : ""}: both walls held.`;
       return `War, round ${r.round}${used ? ` (${used})` : ""}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} points left)`).join("; ")}.`;
     }
+    // The marketplace (his calls 9 Nov): only the Brokers trade, from their own wallets.
+    case "listed": return `${c(r.clan)}'s Broker put ${thing(r)} up for sale at ${fl(r.price)}.`;
+    case "delisted": return `${c(r.clan)}'s Broker took ${thing(r)} off the market.`;
+    case "market-buy": return `${c(r.clan)}'s Broker bought ${thing(r, c(r.seller))} for ${fl(r.price)}.`;
+    case "market-sale": {
+      const t = r.token || "";
+      if (t[0] === "p") return `${c(r.buyer)} holds the patent "${r.title}" now, and its royalties with it.`;
+      if (t[0] === "k") return `${c(r.buyer)}'s Drafter has ${c(r.seller)}'s figure kit now.`;
+      return r.learned ? `${c(r.buyer)} learned "${r.learned}" from what it bought off ${c(r.seller)}.` : `${c(r.buyer)} already knew "${r.title}" but keeps the copy it bought.`;
+    }
+    case "royalty": return `${c(r.clan)} earned ${fl(r.florins)} in patent royalties. ${r.sales === 1 ? "Someone bought research" : `${r.sales} buys of research`} in its patents' chains.`;
+    case "tokens": return `${r.minted} new tokens on NEAR: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
+    case "tokens-moved": return `${c(r.clan)}'s tokens moved into its Broker's own wallet.`;
     case "fallen": return `${r.name} has ${r.surrendered ? "run out of money and surrendered" : "fallen"}. ${r.byName} took ${fl(r.loot)}, ${r.knowledge} points of its knowledge and two of its people.`;
     default: return r.kind;
   }

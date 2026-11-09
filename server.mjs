@@ -6,7 +6,9 @@ import fs from "node:fs";
 import zlib from "node:zlib";
 import path from "node:path";
 import { JsonRpcProvider } from "near-api-js";
-import { NETWORKS } from "./engine/config.mjs";
+import { NETWORKS, florinRates } from "./engine/config.mjs";
+import { PRICES } from "./engine/prices.mjs";
+import { fairOf, kindOf, holderOfPatent } from "./engine/market.mjs";
 import * as store from "./engine/store.mjs";
 import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, PUBLIC_KEY } from "./engine/sponsor.mjs";
@@ -74,6 +76,27 @@ function reportsOf(s, id) {
     .map((r) => ({ id: r.id, day: r.day, accuser: r.accuser, accused: r.accused, claim: r.claim, settled: r.settled, ...(r.settled ? { outcome: r.outcome, truth: r.truth } : { lapses_day: r.day + 12 }) }));
 }
 
+// Development only: ADF_SIM_CHAIN=<a fast-forward run's chain.json> (with ADF_STATE_DIR=<its state>)
+// serves that simulated world instead of NEAR, to look at the site on a world with more going on.
+const SIM_CHAIN = process.env.ADF_SIM_CHAIN || null;
+function simView(method, args) {
+  const S = JSON.parse(fs.readFileSync(SIM_CHAIN, "utf8"));
+  const units = (fl) => (BigInt(Math.round(fl * 1e6)) * 10n ** 16n).toString();
+  const priced = (l) => l.map((x) => ({ ...x, price: units(x.price) }));
+  switch (method) {
+    case "get_config": return S.config;
+    case "get_totals": { const f = BigInt(S.totals.florins), b = BigInt(S.totals.backing); return { ...S.totals, florin_value: f > 0n ? ((b * 10n ** 22n) / f).toString() : "0" }; }
+    case "list_clans": return S.clans;
+    case "list_agents": return S.agents[args.clan_id] || [];
+    case "get_agent_wallet": return `trader${args.clan_id}.sim.local`;
+    case "get_gift": return S.gifts?.[args.gift_id] ?? null;
+    case "get_root": return S.roots?.[args.day] ?? null;
+    case "market_listings": return priced(S.market?.listings || []);
+    case "market_sales": return priced(S.market?.sales || []);
+    default: return null;
+  }
+}
+
 function makeApi(NET) {
   // The main RPC first (testnet: dRPC, his call 9 Nov); the backup (testnet: FastNEAR) if it fails or
   // rate-limits us, and for a minute after.
@@ -84,6 +107,7 @@ function makeApi(NET) {
   const WORLD = NETWORKS[NET].world;
   let primaryDownUntil = 0;
   const view = async (method, args = {}) => {
+    if (SIM_CHAIN) return simView(method, args);
     const call = (p) => p.callFunction({ contractId: WORLD, method, args });
     if (Date.now() < primaryDownUntil) return call(rpcs[1]);
     try { return await call(rpcs[0]); }
@@ -251,6 +275,40 @@ function makeApi(NET) {
       const s = await stateNow();
       const next = s.sponsorRefillAt ? s.sponsorRefillAt + SPONSOR.refillHours * 3600e3 : null;
       return { available: true, pool: process.env.SPONSOR_ACCOUNT_ID, nations_left: await nationsLeft(process.env.SPONSOR_ACCOUNT_ID), per_nation: near(SPONSOR.perNation.toString()), next_refill_ms: next };
+    });
+  },
+
+  // The marketplace (adfontes.fun/marketplace, view only): open listings and sales straight from the
+  // world contract, priced against the fair price in engine/prices.mjs, each joined to its
+  // transaction from the engine's records; every passed patent with its holder and royalties.
+  async market() {
+    return cachedN("market", 20_000, async () => {
+      const [s, listings, sales] = await Promise.all([stateNow(), view("market_listings", { from_index: 0, limit: 500 }).catch(() => []), view("market_sales", { from_index: 0, limit: 500 }).catch(() => [])]);
+      const FL = florinRates(NET);
+      // Transactions: from the records of the turns the open listings and recent sales happened on
+      // (the contract's day can be a turn behind the record's), and what's happened since.
+      const listTx = {}, buyTx = {};
+      const note = (r) => {
+        if (r.kind === "listed" && r.listing != null) listTx[r.listing] = r.tx;
+        if (r.kind === "market-buy") buyTx[`${r.listing}|${r.clan}`] = r.tx;
+      };
+      const days = new Set([...listings.filter((l) => l.open), ...sales.slice(-40)].flatMap((x) => [x.day, x.day + 1]).filter((d) => d >= 1 && d <= s.day));
+      for (const d of days) (await dayOf(d)).records.forEach(note);
+      (s.pending || []).forEach(note);
+      const item = (token) => { const f = fairOf(s, token, FL); return { token, kind: f?.kind ?? kindOf(token), title: f?.title ?? token.slice(2), fair: f ? +f.price.toFixed(4) : null, fair_why: f?.why ?? null }; };
+      const open = listings.filter((l) => l.open).map((l) => ({ id: l.id, seller: l.seller, day: l.day, price: florins(l.price), copy: l.kind === "copy", sold: l.sold, reason: l.reason, tx: listTx[l.id] ?? null, ...item(l.token_id) }));
+      const recent = sales.slice(-40).reverse().map((x) => ({ id: x.id, listing: x.listing, buyer: x.buyer, seller: x.seller, day: x.day, price: florins(x.price), reason: x.reason, tx: buyTx[`${x.listing}|${x.buyer}`] ?? null, ...item(x.token_id) }));
+      const listed = new Set(open.map((l) => l.token));
+      const patents = Object.values(s.drafts || {}).filter((d) => d.passed).map((d) => ({
+        id: d.id, day: d.day, drafter: d.clan, holder: holderOfPatent(s, d.id), chain: d.chain || [],
+        royalties: s.royaltyEarned?.[d.id] ?? 0, listed: listed.has(`p:${d.id}`), ...item(`p:${d.id}`),
+      })).sort((a, b) => b.royalties - a.royalties || b.day - a.day);
+      return {
+        net: NET, world: WORLD, explorer: EXPLORER, day: s.day, on: process.env.ADF_MARKET === "1" || null,
+        bounds: { min: PRICES.marketMin, max: PRICES.marketMax }, royalty: +FL.royalty.toFixed(4),
+        counts: { listings: listings.length, open: open.length, sales: sales.length, royalties: +Object.values(s.royaltyEarned || {}).reduce((a, b) => a + b, 0).toFixed(4) },
+        open, sales: recent, patents,
+      };
     });
   },
 

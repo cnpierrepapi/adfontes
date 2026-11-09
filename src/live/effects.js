@@ -396,6 +396,11 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "peace-offer": ring(islands.get(r.clan), WHITE); bubble(islands.get(r.clan), text, "corpus"); break;
       case "peace": beam(islands.get(r.a), WHITE); beam(islands.get(r.b), WHITE); bubble(islands.get(r.a), text, "gift"); break;
       case "fallen": sink(islands.get(r.clan)); debris(islands.get(r.clan), islands.get(r.by)); bubble(islands.get(r.by), text, "warden"); break;
+      // The marketplace: a listing glints, a buy flies seller to buyer, royalties land in gold.
+      case "listed": ring(islands.get(r.clan), CYAN); bubble(islands.get(r.clan), text, "trade", tipOf(r)); break;
+      case "market-buy": comet(r.seller, r.clan, r.token?.[0] === "p" ? GOLD : CYAN); bubble(islands.get(r.clan), text, "trade", tipOf(r)); break;
+      case "market-sale": if (r.learned || r.token?.[0] !== "r") bubble(islands.get(r.buyer), text, "trade"); break;
+      case "royalty": beam(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift", tipOf(r)); break;
       case "council": if (r.refused) bubble(islands.get(r.clan), text, "corpus"); else bubble(islands.get(r.clan), text, "corpus"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }

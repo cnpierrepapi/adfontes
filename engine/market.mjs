@@ -33,7 +33,7 @@ export function fairOf(s, tokenId, FL) {
   if (p === "p") {
     const d = s.drafts?.[id];
     if (!d?.passed) return null;
-    return { title: d.title || `Patent ${id}`, kind: "patent", ...patentPrice({ base: FL.patentBase, links: (d.chain || []).length }) };
+    return { title: d.title || d.draft?.title || `Patent ${id}`, kind: "patent", ...patentPrice({ base: FL.patentBase, links: (d.chain || []).length }) };
   }
   return null;
 }

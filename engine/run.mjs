@@ -130,7 +130,7 @@ for (let n = 0; n < days; n++) {
       if (!x) continue;
       const r = await chain.marketDelist(oc.id, id);
       x.open = false; openN--;
-      log({ kind: "delisted", clan: oc.id, listing: id, token: x.token_id, tx: r.hash, signer: r.signer });
+      log({ kind: "delisted", clan: oc.id, listing: id, token: x.token_id, title: MK.fairOf(s, x.token_id, FL)?.title ?? null, tx: r.hash, signer: r.signer });
     }
     for (const L of (m.list || []).slice(0, 3)) {
       const x = sell.find((y) => y.token_id === L.token_id);
@@ -649,6 +649,7 @@ for (let n = 0; n < days; n++) {
     for (const [clan, due] of Object.entries(s.royaltyDue || {})) {
       try {
         const r = await chain.mint(Number(clan), due.florins, `patent royalties: ${[...new Set(due.patents)].join(",")}`.slice(0, 200));
+        for (const p of due.patents) (s.royaltyEarned ||= {})[p] = +(((s.royaltyEarned[p] || 0) + FL.royalty).toFixed(4));
         log({ kind: "royalty", clan: Number(clan), florins: +due.florins.toFixed(4), patents: [...new Set(due.patents)], sales: due.n, tx: r?.hash ?? null });
       } catch (e) { log({ kind: "error", clan: Number(clan), error: `royalty: ${String(e.message || e).slice(0, 160)}` }); }
     }
