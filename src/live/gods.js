@@ -149,49 +149,43 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     shade.addEventListener("pointerdown", (e) => { if (e.target === shade) close(); });
     const words = el("p", { className: "words" });
     const err = el("p", { className: "err" });
-    const tx = el("div", { className: "tx" });
     const sign = el("button", { type: "button", className: "viewbtn gold", textContent: "Sign in your wallet" });
     const cancel = el("button", { type: "button", className: "viewbtn", textContent: "Cancel" });
     cancel.addEventListener("click", close);
     const fields = el("div", { className: "fields" }, ...(spec.fields || []));
-    box.append(el("h3", { textContent: spec.title }), words, fields, el("p", { className: "fine", textContent: "What your wallet will be asked to sign:" }), tx, err, el("div", { className: "row" }, sign, cancel));
+    box.append(el("h3", { textContent: spec.title }), words, fields, err, el("div", { className: "row" }, sign, cancel));
     let calls = [];
     function redraw() {
       words.textContent = spec.words();
       const bad = spec.check?.() ?? null;
       err.textContent = bad ?? "";
       sign.disabled = !!bad || !account;
-      tx.replaceChildren();
       if (bad) return;
+      // His call 10 Nov: no contract, method, arguments or gas on the card. The words above say
+      // what happens; the wallet itself shows the details to anyone who wants them.
       try { calls = spec.calls(); } catch (e) { err.textContent = e.message; sign.disabled = true; return; }
-      calls.forEach((c, i) => {
-        const shown = c.show ?? c.args;
-        tx.append(el("dl", {},
-          calls.length > 1 ? el("dt", { textContent: `Transaction ${i + 1} of ${calls.length}` }) : null,
-          el("dd", { className: "note", textContent: c.note ?? "" }),
-          el("dt", { textContent: "Contract" }), el("dd", { textContent: c.receiver }),
-          el("dt", { textContent: "Method" }), el("dd", { textContent: c.method }),
-          el("dt", { textContent: "Arguments" }), el("dd", {}, el("pre", { textContent: JSON.stringify(shown, null, 1) })),
-          el("dt", { textContent: "NEAR attached" }), el("dd", { textContent: `${near(c.deposit)} NEAR` }),
-          el("dt", { textContent: "Gas" }), el("dd", { textContent: `${BigInt(c.gas) / TGAS} Tgas (unused gas is refunded)` }),
-        ));
-      });
     }
     for (const f of spec.fields || []) f.addEventListener("input", redraw);
     sign.addEventListener("click", async () => {
       sign.disabled = cancel.disabled = true;
       err.textContent = "";
-      sign.textContent = "Waiting for your wallet…";
+      sign.textContent = wallet.isLocal?.() ? (spec.working ?? "Sending…") : "Approve it in your wallet…";
       try {
         await spec.before?.(); // a last look at the chain before anything is signed
-        const outs = await wallet.send(calls);
+        spec.start?.(); // what can begin as soon as it's signed (a founding watches for its island)
+        const sent = wallet.send(calls);
+        // Plain words while NEAR works (a founding builds the nation's DAO and takes a little while).
+        if (spec.working && !wallet.isLocal?.()) setTimeout(() => { if (sign.isConnected && sign.textContent !== "Done") sign.textContent = spec.working; }, 15000);
+        // spec.settled() can finish first: the chain already shows the result, so nobody waits on a slow wallet.
+        const got = spec.settled ? await Promise.race([sent, spec.settled()]) : await sent;
+        const outs = Array.isArray(got) ? got : [];
         const bad = outs.map(failure).find(Boolean);
         if (bad) throw new Error(`NEAR refused it: ${bad}`);
-        const hashes = outs.map((o) => o?.transaction?.hash).filter(Boolean);
+        const hash = outs.map((o) => o?.transaction?.hash).find(Boolean);
         sign.textContent = "Done";
         const msg = (await spec.after?.(outs)) ?? "Done.";
         box.replaceChildren(el("h3", { textContent: spec.title }), el("p", { className: "words", textContent: msg }),
-          ...hashes.map((h) => el("p", { className: "fine" }, el("a", { href: `${wallet.explorer}/txns/${h}`, target: "_blank", rel: "noopener", textContent: `See it on NearBlocks: ${h.slice(0, 10)}…` }))),
+          hash ? el("p", { className: "fine" }, el("a", { href: `${wallet.explorer}/txns/${hash}`, target: "_blank", rel: "noopener", textContent: "See it on NEAR ↗" })) : null,
           el("div", { className: "row" }, Object.assign(el("button", { type: "button", className: "viewbtn", textContent: "Close" }), { onclick: close })));
         refreshPanel();
       } catch (e) {
@@ -250,6 +244,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       // The world's founding fund (9 Nov): while it pays the DAO and staking, a founder needs only
       // its smaller minimum, and all of it becomes florins. A world without the fund keeps min_found.
       if (fund?.[1]) cfg = { ...cfg, min_found: fund[1] };
+      const fundPays = !!(fund && BigInt(fund[0]) > 0n && BigInt(fund[1]) < 2n * 10n ** 24n);
       // A brand-new browser-key account isn't on chain until NEAR reaches it: it has 0, not "?".
       if (bal == null && /^[0-9a-f]{64}$/.test(account || "")) bal = 0n;
       const name = input({ placeholder: "Name your nation", maxLength: 40 });
@@ -265,7 +260,6 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       const help = el("div", { className: "fields" });
       const line = (t, warn) => el("p", { className: `fine${warn ? " warn" : ""}`, textContent: t });
       help.append(line(`You have ${bal == null ? "?" : near(bal)} ${W.net === "mainnet" ? "NEAR" : "testnet NEAR"}; founding takes at least ${near(cfg.min_found)} plus a little for gas.${W.net === "mainnet" ? " This is real NEAR." : ""}`, short));
-      if (fund && BigInt(fund[0]) > 0n && BigInt(fund[1]) < 2n * 10n ** 24n) help.append(line("The world pays for your nation's DAO. Everything you put in becomes florins, less 14% for the season jackpot."));
       if (W.net === "testnet" && sp?.available) {
         const left = sp.nations_left;
         const refill = sp.next_refill_ms ? Math.max(1, Math.round((sp.next_refill_ms - Date.now()) / 3600e3)) : null;
@@ -288,7 +282,21 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       card({
         title: "Found a nation",
         fields: [help, label("Name", name), label("NEAR to put in", amt)],
-        words: () => `You found "${name.value.trim() || "…"}" and become its first god. ${near(cfg.dao_deposit)} NEAR makes its DAO, ${near(cfg.staking_deposit)} NEAR goes to its staking fund and a little pays for storage. The rest is the nation's money: 86% for its citizens to spend, 14% kept in reserve.`,
+        words: () => fundPays
+          ? `You found "${name.value.trim() || "…"}" and become its first god. The world pays for its DAO, so everything you put in is the nation's money: 86% for its citizens to spend, 14% to the season jackpot.`
+          : `You found "${name.value.trim() || "…"}" and become its first god. ${near(cfg.dao_deposit)} NEAR makes its DAO, ${near(cfg.staking_deposit)} NEAR goes to its staking fund and a little pays for storage. The rest is the nation's money: 86% for its citizens to spend, 14% to the season jackpot.`,
+        working: "Founding… NEAR is building your nation's DAO. About 20 seconds.",
+        start: () => { const want = name.value.trim(); live.refresh?.(want); route?.founded(want); },
+        // Done as soon as the world lists the nation with you as its god, whatever the wallet is doing.
+        settled: () => new Promise((res) => {
+          const want = name.value.trim(), t0 = Date.now();
+          const look = async () => {
+            const cs = await wallet.view(WORLD, "list_clans", { limit: 200 }).catch(() => []);
+            if (cs.some((c) => c.name === want && c.gods?.some((g) => g.account === account))) return res(true);
+            if (Date.now() - t0 < 120e3) setTimeout(look, 4000);
+          };
+          setTimeout(look, 4000);
+        }),
         check: () => {
           if (cfg.paused) return "The world is paused for new money right now.";
           if (!name.value.trim()) return "Give it a name.";
@@ -300,10 +308,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         },
         calls: () => [C.found(WORLD, name.value.trim(), toYocto(amt.value))],
         after: async () => {
-          const want = name.value.trim();
-          live.refresh?.(want);
-          route?.founded(want); // your island, confetti, "You are a god", the neighbours' welcome
-          return `${want} is founded. Its island rises into the world in a moment, and its first citizens arrive within seconds.`;
+          const want = name.value.trim(); // the island watch began when you signed (start, above)
+          return `${want} is founded. Watch its island rise. Its first citizens arrive within seconds.`;
         },
       });
     });

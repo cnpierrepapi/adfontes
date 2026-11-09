@@ -202,7 +202,10 @@ export async function startLive(canvas, hud, opts = {}) {
     // (the "while you were away" replay plays its founding record again).
     // His note 8 Nov: no replayed births. A nation already on the map when the page loaded never
     // rises again; only one founded while you're here comes up out of the clouds.
-    if (atLoad.has(id) || (isl.userData.status !== "new" && W.clans.find((c) => c.id === id)?.seen)) { isl.userData.rose = true; return; }
+    // 10 Nov fix: any nation that wasn't on the map at page load rises. (It used to also skip one the
+    // engine had already "seen", but the engine now starts a new nation within seconds, so by the
+    // time the page noticed it, it was always "seen" and no island ever rose.)
+    if (atLoad.has(id)) { isl.userData.rose = true; return; }
     isl.userData.rose = "rising";
     showRoutesOf(id, false); // bridges wait until the island has landed
     rising.set(id, performance.now());
@@ -518,7 +521,9 @@ export async function startLive(canvas, hud, opts = {}) {
   // After a god's transaction: look again now and after the API's 20 s cache, and fly to a nation
   // they just founded (by name) once it shows up.
   async function refresh(foundedName) {
-    for (const wait of [2500, 12000, 23000]) {
+    // A founding: look every 3 s for up to 90 s, so the island rises the moment the world shows it.
+    const waits = foundedName ? Array(30).fill(3000) : [2500, 12000, 23000];
+    for (const wait of waits) {
       await new Promise((r) => setTimeout(r, wait));
       const now = await poll();
       const c = foundedName && now?.clans.find((x) => x.name === foundedName && islands.has(x.id));
