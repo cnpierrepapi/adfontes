@@ -52,6 +52,12 @@ async function load() {
     x.reason ? el("span", { className: "tip", textContent: `The Broker's reason: ${x.reason}` }) : null, " ", txLink(x.tx)));
   $("sales").replaceChildren(...(sold.length ? sold : [el("li", { textContent: "No sales yet." })]));
 
+  // Royalties paid: from the sealed records, newest first.
+  const titleOf = (id) => M.patents.find((p) => p.id === id)?.title ?? id;
+  const paid = (M.royalties || []).map((r) => el("li", {},
+    el("span", { textContent: `Turn ${r.day}: ${who(r.clan)} earned ${fl(r.florins)} from ${r.patents.length === 1 ? "its patent" : "its patents"} ${r.patents.map((p) => `"${titleOf(p)}"`).join(", ")}. ${r.sales === 1 ? "One research buy" : `${r.sales} research buys`} landed in ${r.patents.length === 1 ? "its" : "their"} chain.` }), " ", txLink(r.tx)));
+  $("royalties").replaceChildren(...(paid.length ? paid : [el("li", { textContent: "No royalties paid yet." })]));
+
   // Patents: who drafted it, who holds it, what it stands on, what it's earned.
   const head = el("tr", {}, ...["Patent", "Drafted by", "Held by", "Stands on", "Fair price", "Royalties"].map((h) => el("th", { textContent: h })));
   const rows = M.patents.map((p) => el("tr", {},

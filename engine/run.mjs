@@ -649,8 +649,10 @@ for (let n = 0; n < days; n++) {
     for (const [clan, due] of Object.entries(s.royaltyDue || {})) {
       try {
         const r = await chain.mint(Number(clan), due.florins, `patent royalties: ${[...new Set(due.patents)].join(",")}`.slice(0, 200));
-        for (const p of due.patents) (s.royaltyEarned ||= {})[p] = +(((s.royaltyEarned[p] || 0) + FL.royalty).toFixed(4));
-        log({ kind: "royalty", clan: Number(clan), florins: +due.florins.toFixed(4), patents: [...new Set(due.patents)], sales: due.n, tx: r?.hash ?? null });
+        // per: what each patent earned in this payment (the marketplace page sums these from the records).
+        const per = {};
+        for (const p of due.patents) per[p] = +((per[p] || 0) + FL.royalty).toFixed(4);
+        log({ kind: "royalty", clan: Number(clan), florins: +due.florins.toFixed(4), patents: [...new Set(due.patents)], per, sales: due.n, tx: r?.hash ?? null });
       } catch (e) { log({ kind: "error", clan: Number(clan), error: `royalty: ${String(e.message || e).slice(0, 160)}` }); }
     }
     s.royaltyDue = {};

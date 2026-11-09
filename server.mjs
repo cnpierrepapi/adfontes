@@ -295,19 +295,27 @@ function makeApi(NET) {
       const days = new Set([...listings.filter((l) => l.open), ...sales.slice(-40)].flatMap((x) => [x.day, x.day + 1]).filter((d) => d >= 1 && d <= s.day));
       for (const d of days) (await dayOf(d)).records.forEach(note);
       (s.pending || []).forEach(note);
+      // Royalties, from the sealed records themselves (every turn; a sealed turn is cached for good):
+      // each payment's share per patent (older records without `per` split their total evenly).
+      const royalties = [], earned = {};
+      for (let d = 1; d <= s.day; d++) for (const r of (await dayOf(d)).records) if (r.kind === "royalty") {
+        const per = r.per ?? Object.fromEntries((r.patents || []).map((p) => [p, +(r.florins / Math.max(1, r.patents.length)).toFixed(4)]));
+        for (const [p, v] of Object.entries(per)) earned[p] = +((earned[p] || 0) + v).toFixed(4);
+        royalties.push({ day: d, clan: r.clan, florins: r.florins, patents: r.patents || [], sales: r.sales, tx: r.tx ?? null });
+      }
       const item = (token) => { const f = fairOf(s, token, FL); return { token, kind: f?.kind ?? kindOf(token), title: f?.title ?? token.slice(2), fair: f ? +f.price.toFixed(4) : null, fair_why: f?.why ?? null }; };
       const open = listings.filter((l) => l.open).map((l) => ({ id: l.id, seller: l.seller, day: l.day, price: florins(l.price), copy: l.kind === "copy", sold: l.sold, reason: l.reason, tx: listTx[l.id] ?? null, ...item(l.token_id) }));
       const recent = sales.slice(-40).reverse().map((x) => ({ id: x.id, listing: x.listing, buyer: x.buyer, seller: x.seller, day: x.day, price: florins(x.price), reason: x.reason, tx: buyTx[`${x.listing}|${x.buyer}`] ?? null, ...item(x.token_id) }));
       const listed = new Set(open.map((l) => l.token));
       const patents = Object.values(s.drafts || {}).filter((d) => d.passed).map((d) => ({
         id: d.id, day: d.day, drafter: d.clan, holder: holderOfPatent(s, d.id), chain: d.chain || [],
-        royalties: s.royaltyEarned?.[d.id] ?? 0, listed: listed.has(`p:${d.id}`), ...item(`p:${d.id}`),
+        royalties: earned[d.id] ?? 0, listed: listed.has(`p:${d.id}`), ...item(`p:${d.id}`),
       })).sort((a, b) => b.royalties - a.royalties || b.day - a.day);
       return {
         net: NET, world: WORLD, explorer: EXPLORER, day: s.day, on: process.env.ADF_MARKET === "1" || null,
         bounds: { min: PRICES.marketMin, max: PRICES.marketMax }, royalty: +FL.royalty.toFixed(4),
-        counts: { listings: listings.length, open: open.length, sales: sales.length, royalties: +Object.values(s.royaltyEarned || {}).reduce((a, b) => a + b, 0).toFixed(4) },
-        open, sales: recent, patents,
+        counts: { listings: listings.length, open: open.length, sales: sales.length, royalties: +royalties.reduce((a, r) => a + r.florins, 0).toFixed(4), royalty_payments: royalties.length },
+        open, sales: recent, patents, royalties: royalties.slice(-40).reverse(),
       };
     });
   },
