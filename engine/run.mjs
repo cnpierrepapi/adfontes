@@ -347,6 +347,20 @@ for (let n = 0; n < days; n++) {
       log({ kind: "ruins", clan: c.id, points: Object.keys(st.owned).length });
     }
   }
+  // A nation that ended (its last god claimed out, or it fell in a war) takes its goods off the
+  // market (his call 10 Nov), so nobody buys from a nation that's gone. Its own Broker signs.
+  if (!INSTANT && chain.marketListings) {
+    const ended = new Set(onchain.filter((c) => !c.alive || s.clans[c.id]?.fallen).map((c) => c.id));
+    if (ended.size) {
+      const shelf = await chain.marketListings().catch(() => null);
+      for (const l of (shelf || []).filter((x) => x.open && ended.has(x.seller))) {
+        try {
+          const r = await chain.marketDelist(l.seller, l.id);
+          log({ kind: "delisted", clan: l.seller, listing: l.id, token: l.token_id, why: "its nation has ended", tx: r?.hash, signer: r?.signer });
+        } catch (e) { console.log(`  couldn't take down listing ${l.id} of ended nation ${l.seller}: ${String(e.message || e).slice(0, 140)}`); }
+      }
+    }
+  }
 
   for (const oc of live) {
     if (!INSTANT && s.inProgress.done.includes(oc.id)) continue;

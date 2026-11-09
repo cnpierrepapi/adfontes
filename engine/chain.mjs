@@ -183,7 +183,19 @@ export function connect(net) {
       const have = await view("get_alias", { clan_id: clanId }).catch(() => undefined);
       if (have === undefined) return null; // a world contract from before named accounts
       if (have) return have;
-      const r = await op.callFunctionRaw({ contractId: world, methodName: "create_alias", args: { clan_id: clanId }, deposit: ALIAS_DEPOSIT, gas: T(60) });
+      // 9 Nov: dRPC answered "Internal server error" while the account was being made (Babamako and
+      // Colo Colo); it existed seconds later. On an RPC error, look on NEAR before calling it a failure.
+      let r;
+      try { r = await op.callFunctionRaw({ contractId: world, methodName: "create_alias", args: { clan_id: clanId }, deposit: ALIAS_DEPOSIT, gas: T(60) }); }
+      catch (e) {
+        if (/panicked|ExecutionError|FunctionCallError/.test(String(e.message || e))) throw e; // the contract itself said no
+        for (let i = 0; i < 8; i++) {
+          await new Promise((res) => setTimeout(res, 3000));
+          const a = await view("get_alias", { clan_id: clanId }).catch(() => null);
+          if (a) return a;
+        }
+        throw e;
+      }
       const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
       if (fail) throw new Error(`create_alias failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
       // Testnet view reads lag behind a fresh write: ask again for up to ~10 s.

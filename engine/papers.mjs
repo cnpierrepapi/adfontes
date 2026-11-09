@@ -7,10 +7,9 @@ import { getPapers, putPapers } from "./store.mjs";
 // day's budget and the live nations' research failed with 429s). It reads the shared paper cache and,
 // on a miss, asks OpenAlex with its own key (ADF_SIM_OPENALEX_KEY) or none (the per-IP free pool).
 const SIM = !!process.env.ADF_SIM_CHAIN;
-const KEY = SIM ? process.env.ADF_SIM_OPENALEX_KEY : process.env.OPENALEX_API_KEY || (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").match(/^OPENALEX_API_KEY=(\S+)/m)?.[1];
-// His call 9 Nov: a second key. The live world uses the new one and falls back to the old one
-// (OPENALEX_API_KEY_FALLBACK) when the new one's day runs out (429).
-const FALLBACK = SIM ? null : process.env.OPENALEX_API_KEY_FALLBACK || null;
+// His call 10 Nov: one key, the new one (Railway OPENALEX_API_KEY). The old key and its fallback are
+// gone: it had no budget left, so every short burst limit on the new key fell through to it and failed.
+const KEY = SIM ? process.env.ADF_SIM_OPENALEX_KEY : process.env.OPENALEX_API_KEY;
 const auth = (k) => (k ? { Authorization: `Bearer ${k}` } : {});
 
 const unInvert = (idx) => {
@@ -30,13 +29,13 @@ export async function papersFor(query, n = 10) {
   url.searchParams.set("per-page", String(n));
   url.searchParams.set("select", "id,title,publication_year,abstract_inverted_index,keywords");
   let res;
-  for (const k of FALLBACK ? [KEY, FALLBACK] : [KEY]) {
-    for (let attempt = 0; attempt < (FALLBACK && k === KEY ? 2 : 4); attempt++) {
-      res = await fetch(url, { headers: { "User-Agent": "adfontes-engine", ...auth(k) } });
-      if (res.status !== 429 && res.status < 500) break;
-      await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt)); // 2s, 4s, 8s, 16s
-    }
-    if (res.status !== 429) break; // only an exhausted key moves on to the fallback
+  // A 429 here is almost always a burst (too many at once), not the day's budget: wait as OpenAlex
+  // asks (Retry-After) or back off, and try the same key again, up to 6 times (about a minute).
+  for (let attempt = 0; attempt < 6; attempt++) {
+    res = await fetch(url, { headers: { "User-Agent": "adfontes-engine", ...auth(KEY) } });
+    if (res.status !== 429 && res.status < 500) break;
+    const after = Number(res.headers.get("retry-after"));
+    await new Promise((r) => setTimeout(r, after > 0 ? Math.min(30, after) * 1000 : 1500 * 2 ** attempt)); // 1.5s, 3s, 6s, 12s, 24s
   }
   if (!res.ok) throw new Error(`OpenAlex ${res.status}`);
   const j = await res.json();
