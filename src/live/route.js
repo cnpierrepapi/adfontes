@@ -124,33 +124,3 @@ export function createRoute({ live, W, account, onChange }) {
     progress: () => STEPS.map((s) => ({ id: s.id, title: s.title, done: done.has(s.id), hint: s.hint })),
   };
 }
-
-// ---- the first-visit intro (SPEC §12l, compact): a camera tour with five lines, then the world ----
-const LINES = [
-  "These islands are nations. Their people are AI, and they do real research.",
-  "Every star above an island is something its people found out.",
-  "Nations trade what they know. The comets are deals.",
-  "NEAR's price is the weather. On hot weeks they rush, and slip up.",
-  "Gods fund them with NEAR. The most revered nation at the season's end wins. Tap one to start.",
-];
-export function playIntro(live, W, { force = false } = {}) {
-  if (!force && localStorage.getItem("adf-intro-seen")) return;
-  localStorage.setItem("adf-intro-seen", "1");
-  const ranked = W.clans.filter((c) => c.alive !== false).sort((a, b) => (b.reverence?.standing ?? 0) - (a.reverence?.standing ?? 0));
-  const [a, b] = ranked;
-  const cap = el("div", { className: "intro" }, el("p", {}), el("button", { type: "button", textContent: "Skip" }));
-  document.body.append(cap);
-  const timers = [];
-  const end = () => { timers.forEach(clearTimeout); cap.remove(); removeEventListener("keydown", esc); live.home(); };
-  const esc = (e) => { if (e.key === "Escape") end(); };
-  addEventListener("keydown", esc);
-  cap.querySelector("button").addEventListener("click", end);
-  const say = (i) => { const p = cap.querySelector("p"); p.classList.remove("in"); void p.offsetWidth; p.textContent = LINES[i]; p.classList.add("in"); };
-  const at = (ms, f) => timers.push(setTimeout(f, ms));
-  at(0, () => { live.home(); say(0); });
-  if (a) at(4500, () => { live.flyTo(a.id); say(1); });
-  if (a && b) at(9500, () => { say(2); live.fx.play({ kind: "welcome", from: b.id, clan: a.id, text: `${b.name} trades with ${a.name}.` }); });
-  at(14000, () => { live.home(); say(3); });
-  at(18500, () => say(4));
-  at(24000, end);
-}

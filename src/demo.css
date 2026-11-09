@@ -4,7 +4,6 @@
 .demo-head { max-width: 820px; margin-bottom: 7vh; }
 .demo-head h1 { font-size: clamp(2.4rem, 5.4vw, 4.6rem); line-height: 0.98; margin-bottom: 22px; }
 .demo-head p { font-size: 1.12rem; line-height: 1.6; }
-.demo-grid { display: grid; grid-template-columns: 300px 1fr; gap: 4vw; align-items: start; }
 .scholar { position: sticky; top: 90px; background: #fff; border-radius: 26px; padding: 18px; border-top: 8px solid var(--violet); box-shadow: 0 12px 34px rgba(25, 150, 190, 0.18); }
 .scholar #scholar-art { background: #efe8ff; border-radius: 18px; }
 .scholar svg { width: 100%; display: block; }
@@ -24,4 +23,4 @@
 .papers h2 { font-size: 2rem; margin-bottom: 18px; }
 .papers ol { line-height: 1.6; padding-left: 22px; }
 .papers span { font-family: var(--mono); font-size: 0.8rem; color: #6b6280; }
-@media (max-width: 860px) { .demo-grid { grid-template-columns: 1fr; } .scholar { position: static; max-width: 340px; } }
+@media (max-width: 860px) { .scholar { position: static; max-width: 340px; } }

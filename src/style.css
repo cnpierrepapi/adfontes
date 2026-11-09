@@ -18,32 +18,20 @@ body { margin: 0; font-family: var(--body); color: var(--ink); background: var(-
 body.one { height: 100vh; overflow: hidden; background: #6fe3ff; }
 a { color: inherit; }
 h1, h2, h3 { font-family: var(--display); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-.mono { font-family: var(--mono); font-size: 0.85rem; letter-spacing: 0.02em; }
 .accent { color: var(--coral); }
 
 #world { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
-.veil { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(ellipse 60% 75% at 0% 85%, rgba(6, 92, 124, 0.55), rgba(6, 92, 124, 0) 70%); transition: opacity 0.3s; }
-body.reading .veil { opacity: 0; }
 
 .nav { position: fixed; inset: 0 0 auto 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: 18px 4vw; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 1.15rem; letter-spacing: 0.08em; text-decoration: none; color: #fff; background: rgba(29, 20, 48, 0.55); padding: 5px 16px 5px 5px; border-radius: 999px; backdrop-filter: blur(6px); }
 .brand img { display: block; border-radius: 9px; }
-.nav-cta { background: #fff; color: var(--ink); padding: 9px 16px; border-radius: 999px; font-weight: 600; text-decoration: none; }
-
-.hero-copy { position: fixed; left: 5vw; bottom: 11vh; max-width: 540px; color: #fff; z-index: 5; transition: opacity 0.3s, transform 0.3s; }
-body.reading .hero-copy { opacity: 0; transform: translateY(16px); pointer-events: none; }
 .kicker { font-family: var(--mono); text-transform: uppercase; font-size: 0.78rem; letter-spacing: 0.14em; margin: 0 0 14px; }
-.hero-copy .kicker { display: inline-block; background: rgba(29, 20, 48, 0.35); padding: 7px 12px; border-radius: 8px; backdrop-filter: blur(6px); }
 .kicker.dark { color: var(--coral); text-shadow: none; }
-.hero-copy h1 { font-size: clamp(3rem, 7.4vw, 6.8rem); line-height: 0.92; text-shadow: 0 6px 30px rgba(0, 90, 130, 0.35); }
-.hero-copy h1 span { color: var(--gold); text-shadow: 0 4px 0 #ff6f61, 0 8px 30px rgba(255, 111, 97, 0.4); }
 .sub { font-size: 1.12rem; line-height: 1.5; margin: 22px 0 26px; max-width: 470px; text-shadow: 0 2px 14px rgba(0, 80, 120, 0.55); }
-.ctas { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
 .btn { display: inline-block; padding: 15px 26px; border-radius: 999px; font-weight: 600; text-decoration: none; font-size: 1.02rem; }
 .btn.primary { background: var(--coral); color: #fff; box-shadow: 0 6px 0 #d4473a, 0 14px 30px rgba(255, 111, 97, 0.45); }
 .btn.primary:hover { transform: translateY(2px); box-shadow: 0 4px 0 #d4473a, 0 10px 24px rgba(255, 111, 97, 0.45); }
 .hint { font-size: 0.95rem; text-shadow: 0 1px 8px rgba(0, 80, 120, 0.6); }
-.chips { display: none; }
 .chip { border: 0; font: inherit; font-weight: 600; font-size: 0.85rem; padding: 7px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--ink); box-shadow: inset 0 0 0 2px var(--c); cursor: pointer; }
 .corner { position: fixed; right: 4vw; bottom: 3.5vh; margin: 0; max-width: 290px; text-align: right; color: #fff; font-size: 0.82rem; z-index: 5; text-shadow: 0 1px 8px rgba(0, 80, 120, 0.6); }
 
@@ -76,43 +64,23 @@ body.reading .hero-copy { opacity: 0; transform: translateY(16px); pointer-event
 .steps b { font-family: var(--mono); font-size: 0.8rem; color: var(--coral); margin-right: 12px; }
 .steps .gift { background: linear-gradient(110deg, var(--coral), var(--pink), var(--gold)); color: #fff; }
 .steps .gift b { color: #fff; }
-
-.roster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
 .card { background: #fff; border-radius: 22px; padding: 12px 12px 16px; box-shadow: 0 10px 26px rgba(25, 150, 190, 0.16); border-top: 7px solid var(--c); }
 .card:nth-child(odd) { margin-top: 22px; }
-.card .art { background: var(--bg); border-radius: 15px; padding: 4px 2px 0; }
 .card svg { width: 100%; height: auto; display: block; }
 .card h3 { font-size: 1.15rem; margin-top: 10px; }
 .card .type { font-family: var(--mono); color: var(--c); margin: 2px 0 6px; font-size: 0.85rem; }
 .card p { font-size: 0.86rem; line-height: 1.35; margin: 0; }
-.g-nt { --c: var(--violet); --bg: #efe8ff; }
-.g-nf { --c: var(--leaf); --bg: #dcfbea; }
-.g-sj { --c: var(--sky); --bg: #def1ff; }
-.g-sp { --c: #f29a00; --bg: #fff1d1; }
-.legend { margin-top: 22px !important; font-size: 0.98rem !important; }
-.legend .g { display: inline-block; padding: 5px 12px; border-radius: 999px; color: #fff; font-weight: 600; font-size: 0.82rem; margin: 0 6px 8px 0; }
-.legend .nt { background: var(--violet); } .legend .nf { background: var(--leaf); } .legend .sj { background: var(--sky); } .legend .sp { background: #f29a00; }
 
 .stat { display: flex; gap: 18px; align-items: center; background: var(--violet); color: #fff; border-radius: 22px; padding: 18px 22px; margin-top: 18px; }
 .stat span { font-family: var(--display); font-weight: 800; font-size: 5rem; line-height: 0.9; color: var(--gold); }
 .stat p { margin: 0; font-size: 0.98rem; }
 
-.chart { width: 100%; height: 230px; display: block; margin-top: 16px; border-radius: 16px; background: #fff; }
-.chart-axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 0.8rem; margin-top: 8px; }
-.chart-axis i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 5px 0 12px; vertical-align: -1px; }
-.chart-axis .hot { background: #ff6f61; } .chart-axis .cold { background: #2fa8ff; }
-
 @media (max-width: 900px) {
-  .roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card:nth-child(odd) { margin-top: 0; }
 }
 @media (max-width: 700px) {
-  .hero-copy { left: 6vw; right: 6vw; bottom: 6vh; }
-  .hero-copy h1 { font-size: 3.1rem; }
   .sub { font-size: 1rem; margin: 14px 0 18px; }
-  .veil { background: linear-gradient(0deg, rgba(6, 92, 124, 0.7), rgba(6, 92, 124, 0) 55%); }
   .panel { left: 3vw; right: 3vw; width: auto; top: 76px; padding: 30px 22px; }
   .pin .txt { display: none; }
   .hint { display: none; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 }

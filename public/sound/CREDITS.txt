@@ -1,11 +1,5 @@
-Weather sounds for the AD FONTES live world. All CC0 (public domain) from freesound.org,
-trimmed to seamless mono loops (scripts/make-loop.sh). Thank you to the recordists.
+Sound for the AD FONTES live world.
 
-insects.mp3  felix.blume       "Forest at night, crickets, cicadas and insects in the Sian Ka'an Biosphere Reserve"  https://freesound.org/people/felix.blume/sounds/328293/
-birds.mp3    petebuchwald      "Rocky Mountain Outdoors: wind and birds"                                             https://freesound.org/people/petebuchwald/sounds/288899/
-wind.mp3     dhallcomposer     "Looping Gentle Wind Ambience on an Open Desert Plain"                                https://freesound.org/people/dhallcomposer/sounds/697217/
-rain.mp3     speakwithanimals  "Rain Slowly Passing TREATED LOOP"                                                    https://freesound.org/people/speakwithanimals/sounds/525046/
-storm.mp3    Soojay            "distant storm 1"                                                                     https://freesound.org/people/Soojay/sounds/319568/
-
-calm.mp3 (8 Nov 2026): generated for AD FONTES with minimax-music-3.0 (instrumental), then evened out and
-looped. The weather recordings above are no longer played.
+calm.mp3 (8 Nov 2026): generated for AD FONTES with minimax-music-3.0 (instrumental), then evened out
+and looped (scripts/make-loop.sh). It replaced the earlier weather recordings (CC0, from freesound.org),
+which were removed on 9 Nov.
