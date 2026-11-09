@@ -169,9 +169,8 @@ function showClan(c) {
   const sim = season.isSim(d);
   const rows = [
     [x.points, "points of knowledge"],
-    // Worked out (9 Nov): turns with no printed numbers are filled by arithmetic on the records.
-    [x.florins != null ? Math.round(x.florins) : "not recorded", x.est ? "florins (worked out)" : "florins"],
-    [x.total_in != null ? n2(x.total_in) : "not recorded", x.est ? "NEAR its gods put in (worked out)" : "NEAR its gods put in"],
+    [x.florins != null ? Math.round(x.florins) : "not recorded", "florins"],
+    [x.total_in != null ? n2(x.total_in) : "not recorded", "NEAR its gods put in"],
     [x.clean_gifts, x.clean_gifts === 1 ? "patent" : "patents"],
   ];
   const war = x.fallen ? `Fallen in war to ${season.nameOf(x.fallen.by)} on turn ${x.fallen.day}.`
@@ -215,7 +214,7 @@ function showAll() {
   box.replaceChildren(
     el("div", { className: "ss-all-head" }, el("b", { textContent: `Every nation on turn ${d}` }), el("span", { className: `ss-chip ${sim ? "sim" : ""}`, textContent: sim ? "simulated" : "real" }), el("button", { type: "button", className: "ss-x", textContent: "✕", onclick: () => (box.hidden = true) })),
     xs.length ? el("div", { className: "ss-all-scroll" }, el("table", {}, el("thead", {}, head), el("tbody", {}, ...rows))) : el("p", { textContent: "No nation has been founded yet." }),
-    el("small", { textContent: xs.some((x) => x.est) ? "Florins and NEAR in on this turn are worked out from the records (the engine didn't print them). Click a nation to fly there." : "Click a nation to fly there." }),
+    el("small", { textContent: "Click a nation to fly there." }),
   );
   box.hidden = false;
 }
