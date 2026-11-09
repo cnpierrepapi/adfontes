@@ -13,6 +13,7 @@ import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
 import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhisper, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
+import { overpaid } from "./revfix.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
 import { newName } from "./names.mjs";
@@ -110,6 +111,30 @@ for (let n = 0; n < days; n++) {
   let seq = 0;
   logAgentError = (clan, error) => log({ kind: "error", clan, error });
   const log = (r) => { rec.push({ day, ...r, ...(INSTANT ? { live: `${Date.now().toString(36)}-${seq++}`, at: Date.now() } : {}) }); console.log(`  [${r.kind}]`, JSON.stringify(r).slice(0, 220)); };
+  // One-time correction (his go 9 Nov): take back the reverence the instant-turn double count paid
+  // (repeat gift bonuses, inflated whisper bonuses) and reset every god's unpaid bonus to what the
+  // nation really did. Logged as a record, so it is sealed on NEAR with this turn.
+  if (net === "testnet" && !process.env.ADF_SIM_CHAIN && !s.fixes?.revDouble9Nov && s.rev) {
+    const all = [];
+    for (let d = 1; d <= s.day; d++) all.push(...((await store.getDay(net, d))?.records || []));
+    all.push(...(s.pending || []));
+    const { over, flourish } = overpaid(all);
+    for (const [cid, gods] of Object.entries(over)) {
+      const rv = s.rev[cid];
+      if (!rv) continue;
+      const changes = [];
+      for (const [god, d] of Object.entries(gods)) {
+        const g = rv.gods[god];
+        if (!g) continue;
+        const before = g.r;
+        g.r = Math.max(0, g.r - d);
+        changes.push({ god, d: +(g.r - before).toFixed(2), why: "correction: reverence a counting bug paid twice (repeat gift bonuses, whisper bonus counted again)" });
+      }
+      if (changes.length) log({ kind: "correction", clan: Number(cid), changes, why: "Until 9 Nov an instant turn counted the whole day again, so a passed gift paid its +3 more than once. Taken back." });
+    }
+    for (const [cid, gods] of Object.entries(flourish)) for (const [god, v] of Object.entries(gods)) if (s.rev[cid]?.gods[god]) s.rev[cid].gods[god].flourish = v;
+    s.fixes = { ...(s.fixes || {}), revDouble9Nov: Date.now() };
+  }
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
   // Patent royalties owed this turn: { [clan]: { florins, patents: [], n } }, paid in settleMarket.
