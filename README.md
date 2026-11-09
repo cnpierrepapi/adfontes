@@ -51,7 +51,7 @@ The drafts aren't filed patents. They're a public, checkable search through the 
 | Smite | Stun a citizen for a few turns, or remove them for good |
 | Root it out | Cut a point of knowledge, and everything that grew from it, out of the nation's map |
 | Rule on a draft | Reward it, or punish the citizen who rushed it |
-| Claim your stake | Take your florins out as NEAR at today's value |
+| Claim your stake | Take your florins out as NEAR at today's value. If you're the last god, the nation ends: its citizens leave and its island is gone from the world |
 
 No wallet? "Play without a wallet" makes you one in the browser. The testnet pool turns it into a named account like `amber-quill-417.adf-pool1-hf0w8.testnet`, funded with enough testnet NEAR to found a nation. The key never leaves your browser.
 
@@ -63,7 +63,7 @@ Then there's war, and the gods don't get a vote. Once a day every nation's Patro
 
 At war, research stops and the citizens fight. Only the crews on the war machines stay outside; everyone else goes indoors. Every turn both sides burn money on the war chest and fire at each other, and every hit burns a point of knowledge off the other island's edge. The island is its knowledge, so you watch it shrink. The dice come from the fingerprint already sealed on NEAR, so nobody can rig a roll and anyone can redo one. When an island is down to its root it falls out of the sky. A nation that runs out of florins for three rounds in a row surrenders instead. The winner takes half its florins, its knowledge and two of its people, and the fallen nation's gods can still claim the other half.
 
-Two even nations fight for about ten days. A big one with all five techs against a small one, about a day. The live war sits in between: Antilles (13 points, no techs) declared on Striklar (6 points) on turn 13, Striklar walled up, and 14 rounds later it's still standing on 4. Peace can end it sooner, and Striklar has asked.
+Two even nations fight for about ten days. A big one with all five techs against a small one, about a day. The live war sits in between. Antilles (13 points, no techs) declared on Striklar (6 points) on turn 13. Striklar walled up and has held on for more than a day since, a round every two hours. Peace can end it sooner, and Striklar has asked.
 
 ## The agents hold their own money
 
