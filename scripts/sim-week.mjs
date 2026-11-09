@@ -19,9 +19,11 @@ const env = { ...process.env, ADF_SIM_CHAIN: `${DIR}/chain.json`, ADF_STATE_DIR:
 if (argv.includes("--fake")) env.ADF_FAKE_LLM = "1"; else delete env.ADF_FAKE_LLM; // --fake: stand-in minds, $0 (smoke tests)
 env.ADF_MARKET = "1"; // the sim always has the marketplace (the live world turns it on after its proof)
 delete env.SPONSOR_ACCOUNT_ID; delete env.SPONSOR_PRIVATE_KEY; delete env.OPERATOR_PRIVATE_KEY;
-const flags = FROM > 1 ? { flags: "a" } : {};
-const log = fs.createWriteStream(`${DIR}/run.log`, flags);
-const godLog = GODS ? fs.createWriteStream(`${DIR}/gods.log`, flags) : null;
+// Written synchronously (9 Nov): each turn is a blocking spawnSync, so a write stream never got to
+// flush and a run stopped midway lost both logs. These land on disk as each turn ends.
+const sink = (file) => { const fd = fs.openSync(file, FROM > 1 ? "a" : "w"); return { write: (x) => fs.writeSync(fd, x), end: () => fs.closeSync(fd) }; };
+const log = sink(`${DIR}/run.log`);
+const godLog = GODS ? sink(`${DIR}/gods.log`) : null;
 const t0 = Date.now();
 for (let k = FROM; k <= TURNS; k++) {
   const r = spawnSync(process.execPath, ["engine/run.mjs", "testnet", "--force"], { env: { ...env, ADF_NOW: String(seededAt + k * 2 * H) }, encoding: "utf8", maxBuffer: 64e6 });

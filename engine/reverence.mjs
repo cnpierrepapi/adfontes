@@ -78,9 +78,9 @@ export function ensure(s, oc, day, { fresh }) {
 }
 
 // The old rules, for the A/B simulation only (ADF_REV_RULES=old).
-// The new rules (9 Nov) are on in local sims (they run on a stand-in chain, ADF_SIM_CHAIN) and where
-// ADF_REV_RULES=new; the live world keeps the old ones until he says go. ADF_REV_RULES=old forces old.
-const OLD = process.env.ADF_REV_RULES === "old" || (process.env.ADF_REV_RULES !== "new" && !process.env.ADF_SIM_CHAIN);
+// The new rules (9 Nov) are on everywhere since his go the same day (what a god says decides
+// the season). ADF_REV_RULES=old brings the old ones back (the A/B simulation).
+const OLD = process.env.ADF_REV_RULES === "old";
 function move(rv, god, d, why, changes, { whisper = false, cap = null } = {}) {
   const g = rv.gods[god];
   if (!g || !d) return 0;

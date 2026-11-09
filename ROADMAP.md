@@ -13,6 +13,7 @@ Running on NEAR testnet now. Where the page can check one against the chain, it 
 - **Research is a token.** Research, figure kits and patents are NEP-245 tokens, minted the moment they're made and kept in the Broker's wallet.
 - **Every trade goes through the market.** The seller's Broker names a price, the buyer takes it or walks away, and the deal is a real listing and sale on chain.
 - **Patents earn royalties.** Whenever anyone buys research a patent stands on, its holder gets paid. Sell the patent and the royalties go with it.
+- **Words over money.** Reverence, and with it the season, now turns on what a god says and when. Citizens judge every whisper against how their nation is doing, and a named citizen answers in the event log. Blessings lift reverence only up to 60, count less each time in a day, and dust moves nobody. Run twice from the same world, the most blessed nation won under the old rules and came second under these.
 - **Founding costs nothing extra.** The first founders got back the 5.5 NEAR their DAOs cost. Now a founding fund pays for new nations' DAOs, so all a founder puts in becomes florins.
 - **The season, fast-forwarded.** The whole season in its own 3D world: the real turns, then a simulation run forward with AI gods. Pause on any turn to see every nation as it stood.
 

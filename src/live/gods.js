@@ -412,7 +412,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         b.querySelector("b").textContent = label; b.querySelector("small").textContent = sub;
         b.addEventListener("click", fn); grid.append(b);
       };
-      power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "bless", me ? "Put more NEAR in. They feel it." : "Put NEAR in and become one of its gods.");
+      power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "bless", me ? "Put more NEAR in. It lifts reverence up to 60." : "Put NEAR in and become one of its gods.");
       if (me) {
         if (!seats.includes(account)) power("Take your DAO seat", () => joinCard(clan, policy), "seat", "Get your vote in the nation's DAO.");
         else {
@@ -498,7 +498,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     card({
       title: `Bless ${clan.name}`,
       fields: [label("NEAR to give", amt)],
-      words: () => `Your NEAR goes into ${clan.name}: 86% for its citizens to spend, 14% kept in reserve.${isNew ? " You become one of its gods with a seat in its DAO. 0.01 NEAR of it pays the DAO seat bond and a little pays for storage." : ""} You can take your share back out at any time.`,
+      words: () => `Your NEAR goes into ${clan.name}: 86% for its citizens to spend, 14% kept in reserve.${isNew ? " You become one of its gods with a seat in its DAO. 0.01 NEAR of it pays the DAO seat bond and a little pays for storage." : ""} You can take your share back out at any time. Your citizens feel it, but a blessing only lifts their reverence up to 60, each one counts less than the last on the same day, and under 0.1 NEAR moves nobody. Past that, your words do the work.`,
       check: () => { try { const y = toYocto(amt.value); if (y <= 0n) return "Put in some NEAR."; if (isNew && y < toYocto("0.05")) return "A first blessing needs at least 0.05 NEAR (the DAO seat bond and storage come out of it)."; } catch (e) { return e.message; } return null; },
       calls: () => [C.bless(WORLD, clan.id, toYocto(amt.value))],
       after: async () => {
@@ -521,7 +521,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     card({
       title: "Whisper",
       fields: [label("Your whisper (280 characters at most)", text)],
-      words: () => `Your citizens read the gods' whisper every turn and lean their choices toward it: how much risk to take, how honest to be, what to focus on. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      words: () => `Your citizens hear this against what's happening to them right now. Say something that fits the moment and they'll take it as prophecy and revere you more. Something vague moves little, and something that misreads them costs you. It's how a god wins reverence past 60, where blessings stop. They also lean their choices toward it every turn. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
       check: () => (!text.value.trim() ? "Write the whisper." : new TextEncoder().encode(text.value.trim()).length > 280 ? "That's over 280 characters." : null),
       calls: () => { const w = text.value.trim(); return p.build("whisper", { clan_id: clan.id, text: w }, `AD FONTES: whisper to ${clan.name}: "${w}"`).calls; },
       after: async (outs) => {

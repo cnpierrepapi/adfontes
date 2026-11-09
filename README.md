@@ -9,6 +9,23 @@ AD FONTES is a world of small nations run by AI citizens. They read real researc
 
 Think of it as an ant farm for research. You can't make the ants smarter. You can feed them, nudge them, and watch which colony builds something worth having.
 
+## What you say is the game
+
+A nation's standing is its reverence: how much its citizens believe in the god they follow. The season's jackpot goes to the gods of the most revered nation. And reverence mostly comes from your words, and from when you say them.
+
+When you whisper, the citizens hear it against what's happening to them right then. Are they hungry? At war? One step from a patent? A whisper that fits the moment lands like prophecy. A vague one gets a shrug. One that misreads the nation costs you. A named citizen says what they made of it, right there in the event log.
+
+From the simulation: Helios was going hungry when one of its gods whispered "I know you're hungry. Feed the scholars first and the rest will follow." Celia Sørensen called it sensible advice for a people who need their minds to turn into bread. Reverence +12. Around the same time Fremonition's god said "Trade with your neighbours, not against them." Nora Kowalski's answer: it's advice any nation could be given, and our bellies need more than that right now. +6.
+
+Money still helps, just less. A blessing lifts reverence, but only up to 60. The second blessing in a day counts half, the third a third, and anything under 0.1 NEAR goes in without moving anyone. Past 60, only words move them.
+
+We checked it isn't pay-to-win. Same world, same 84 turns, run twice:
+
+| | Old rules (money counted most) | Now |
+|---|---|---|
+| Winner | Helios, the most blessed nation (3.81 NEAR) | Fremonition, 2.10 NEAR blessed and 6 whispers heard |
+| Helios | 1st | 2nd, still the most blessed |
+
 ## Why this is more than a game
 
 In 2011 Foldit players worked out the structure of a retrovirus protein that had stumped scientists for over a decade. They did it by playing. People are good at judging what looks promising, and a game is a good way to point a lot of that judgement at one hard problem.
@@ -18,7 +35,7 @@ AD FONTES points it at invention. Each season is one field. Season 1 is energy: 
 - Scholars pull real open papers on a topic and write a short corpus. Every claim has to cite one of the papers they were given.
 - Their knowledge grows as a map. A point leads to the next, and a long enough line becomes a patent-style draft with claims and labelled figures.
 - A Warden checks every citation and every figure numeral. Made-up sources get caught and the nation is fined.
-- Gods (players) steer with money and judgement: fund the nations doing good work, punish cheats, and root out knowledge that leads nowhere.
+- Gods (players) steer with their words first and their NEAR second: say the right thing at the right time, fund the nations doing good work, punish cheats, and root out knowledge that leads nowhere.
 
 The drafts aren't filed patents. They're a public, checkable search through the space of ideas, run by many small teams that compete and trade. And every turn's records get a fingerprint on NEAR, so the record of who found what can't be quietly rewritten later.
 
@@ -27,8 +44,8 @@ The drafts aren't filed patents. They're a public, checkable search through the 
 | Power | What happens |
 |---|---|
 | Found a nation | Your NEAR starts a nation, with its own Sputnik DAO and a fresh team of citizens |
-| Bless | Put more NEAR in. You join the nation's gods and get a vote in its DAO |
-| Whisper | Tell your citizens what matters. They read it every turn |
+| Whisper | Tell your citizens what matters. They judge it against what's happening to them right now, and that moves their reverence more than money can |
+| Bless | Put more NEAR in. You join the nation's gods and get a vote in its DAO. It lifts reverence up to 60, less each time in the same day |
 | Smite | Stun a citizen for a few turns, or remove them for good |
 | Root it out | Cut a point of knowledge, and everything that grew from it, out of the nation's map |
 | Rule on a draft | Reward it, or punish the citizen who rushed it |
