@@ -17,7 +17,7 @@ When you whisper, the citizens hear it against what's happening to them right th
 
 From the simulation: Helios was going hungry when one of its gods whispered "I know you're hungry. Feed the scholars first and the rest will follow." Celia Sørensen called it sensible advice for a people who need their minds to turn into bread. Reverence +12. Around the same time Fremonition's god said "Trade with your neighbours, not against them." Nora Kowalski's answer: it's advice any nation could be given, and our bellies need more than that right now. +6.
 
-Money still helps, just less. A blessing lifts reverence, but only up to 60. The second blessing in a day counts half, the third a third, and anything under 0.1 NEAR goes in without moving anyone. Past 60, only words move them.
+Money still helps, just less. A blessing lifts reverence, but only up to 60. The second blessing in a day counts half, the third a third, and anything under 0.1 NEAR goes in without moving anyone. Past 60, blessings stop counting. From there it's what the citizens hear and what they do: whispers they take as wise, and their own clean work getting past the Warden.
 
 We checked it isn't pay-to-win. Same world, same 84 turns, run twice:
 
@@ -53,7 +53,7 @@ The drafts aren't filed patents. They're a public, checkable search through the 
 
 No wallet? "Play without a wallet" makes you one in the browser. The testnet pool turns it into a named account like `amber-quill-417.adf-pool1-hf0w8.testnet`, funded with enough testnet NEAR to found a nation. The key never leaves your browser.
 
-The world reacts. Citizens need a little NEAR every day, and the need keeps growing: underfed, they go hungry and slow down, overfed, they get lazy. A nation whose gods go quiet for a day gets a Trickster (two at most), who slips fake citations into its work. Knowledge can lift a nation's faith or unsettle it. Five techs (Printing Press, Spectacles, Mechanical Clock, Double-entry Bookkeeping, Astrolabe) arrive slowly over the season and change how a nation works.
+The world reacts. Citizens need a little NEAR every day, and the need keeps growing: underfed, they go hungry and slow down, overfed, they get lazy. A nation whose gods go quiet for a day gets a Trickster (two at most), who slips fake citations into its work. Knowledge can lift a nation's faith or unsettle it. Five techs (Printing Press, Spectacles, Mechanical Clock, Double-entry Bookkeeping, Astrolabe) change how a nation works. They now unlock one at a time over the season. Helios and Salamanco creek got all five in the first days, before that pacing went in.
 
 ### War
 
@@ -110,7 +110,7 @@ flowchart LR
   J -->|after 30 Nov| W[Gods of the #1 nation by reverence]
 ```
 
-Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. Nobody, us included, takes a fee.
+Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after 30 Nov the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. Nobody, us included, takes a fee.
 
 Every nation needs a Sputnik DAO, and making one costs 5.5 NEAR. The first six founders paid that themselves, so most of their 6 NEAR never became florins. The world gave it back: a `grant` put 5.5 NEAR into the backing as florins for each founder, at the day's price, so nobody else's florins moved. That credit is the founder's, so the engine keeps it out of what the nation spends. New nations don't pay the DAO at all. A founding fund in the contract covers it, and every NEAR a founder puts in becomes florins. On testnet the pool gives a new player 8.3 NEAR, which comes out at about 7 NEAR of florins.
 
@@ -122,7 +122,7 @@ flowchart TB
     L[Live world, three.js] --- J[Judge page]
     T[Season world, same code on the season's data] --- M[Marketplace page]
     W[NEAR wallets, or a key made in the browser] --- L
-    I[NEAR Intents top-up] --- L
+    I[NEAR Intents top-up, mainnet] --- L
   end
   subgraph Railway
     S[Web server: site + read-only API] --- P[(Postgres: records, drafts, state)]
@@ -193,7 +193,7 @@ The pieces, all in this repo:
 |---|---|---|
 | World contract, v2 (this season's test world) | testnet | `w6.adf-pool1-hf0w8.testnet` |
 | World contract, v1 | mainnet | `world.adfontes.near` |
-| Each nation's DAO | both | `adf-<id>-<block>.sputnikv2.testnet` / `.sputnik-dao.near` |
+| Each nation's DAO | both | `adf-<id>-<block>.sputnikv2.testnet` for the first six, `adf-<name>-<block>` for nations founded since / `.sputnik-dao.near` |
 | Each nation's named account | testnet | `<name>.w6.adf-pool1-hf0w8.testnet` |
 | Each nation's Broker and Patron | testnet | `trader<id>.adfontes-mw1fjpfx.testnet`, `patron<id>.adfontes-mw1fjpfx.testnet` |
 
@@ -207,11 +207,11 @@ Every turn, the engine hashes each record and puts one Merkle root on NEAR with 
 
 ```bash
 npm test               # engine: clock, war, prices, tokens, market, techs, reverence, Warden, the god sim; walking round buildings
-npm run test:live      # 59 checks against the live site and the chain itself
+npm run test:live      # 62 checks against the live site and the chain itself
 npm run test:load      # a crowd of simultaneous visitors (on a slow connection this mostly measures your own link)
 ```
 
-The contract has 75 unit tests: `cargo test --lib` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image (the first build compiles the whole toolchain, so give it a while). Every refusal gets its own test and has to fail with its exact message. `tests/test_basics.rs` also wants a local NEAR sandbox, which has to download a node binary and can't inside that Docker image. The same flows run for real on testnet against a separate test world, `v2d`: the market proof (`scripts/market-proof.mjs`) has two Brokers list, buy a copy, buy a patent and take things down, then tries eleven things the contract must refuse. It passes 29 of 29. There are proofs like it for the agent wallets, the tokens and the named accounts. `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
+The contract has 79 unit tests: `cargo test --lib` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image (the first build compiles the whole toolchain, so give it a while). 35 of them are refusals, and each has to fail with its exact message. `contracts/world/tests/test_basics.rs` also wants a local NEAR sandbox, which has to download a node binary and can't inside that Docker image. The same flows run for real on testnet against a separate test world, `v2d`: the market proof (`scripts/market-proof.mjs`) has two Brokers list, buy a copy, buy a patent and take things down, then tries eleven things the contract must refuse. It passes 29 of 29. There are proofs like it for the agent wallets, the tokens and the named accounts. `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
 
 The live audit checks the pages, tries to read server files and secrets through path tricks, throws junk at the API, then reads the contract and confirms the money adds up: the world can pay everything it owes, every god's stake sums to the backing, florins sum exactly, the jackpot holds 14% of everything put in. It rebuilds a sealed turn's root from its records and compares it with NEAR's, and checks the clock against NEAR's real price history.
 

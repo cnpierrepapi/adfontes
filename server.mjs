@@ -294,12 +294,12 @@ function makeApi(NET) {
       const FL = florinRates(NET);
       // Transactions: from the records of the turns the open listings and recent sales happened on
       // (the contract's day can be a turn behind the record's), and what's happened since.
-      const listTx = {}, buyTx = {};
+      const listTx = {}, buyTx = {}, fairAt = {}; // fairAt: the fair price a sale was struck against (9 Nov: the page showed today's, which falls as knowledge spreads)
       const note = (r) => {
         if (r.kind === "listed" && r.listing != null) listTx[r.listing] = r.tx;
-        if (r.kind === "market-buy") buyTx[`${r.listing}|${r.clan}`] = r.tx;
+        if (r.kind === "market-buy") { buyTx[`${r.listing}|${r.clan}`] = r.tx; if (r.fair != null) fairAt[`${r.listing}|${r.clan}`] = r.fair; }
         // A trade between Brokers goes through the market too (9 Nov): the seller lists, the buyer buys.
-        if (r.kind === "trade" && r.listing != null) { buyTx[`${r.listing}|${r.buyer}`] = r.tx; if (r.listTx) listTx[r.listing] = r.listTx; }
+        if (r.kind === "trade" && r.listing != null) { buyTx[`${r.listing}|${r.buyer}`] = r.tx; if (r.fair != null) fairAt[`${r.listing}|${r.buyer}`] = r.fair; if (r.listTx) listTx[r.listing] = r.listTx; }
       };
       const days = new Set([...listings.filter((l) => l.open), ...sales.slice(-40)].flatMap((x) => [x.day, x.day + 1]).filter((d) => d >= 1 && d <= s.day));
       for (const d of days) (await dayOf(d)).records.forEach(note);
@@ -314,7 +314,7 @@ function makeApi(NET) {
       }
       const item = (token) => { const f = fairOf(s, token, FL); return { token, kind: f?.kind ?? kindOf(token), title: f?.title ?? token.slice(2), fair: f ? +f.price.toFixed(4) : null, fair_why: f?.why ?? null }; };
       const open = listings.filter((l) => l.open).map((l) => ({ id: l.id, seller: l.seller, day: l.day, price: florins(l.price), copy: l.kind === "copy", sold: l.sold, reason: l.reason, tx: listTx[l.id] ?? null, ...item(l.token_id) }));
-      const recent = sales.slice(-40).reverse().map((x) => ({ id: x.id, listing: x.listing, buyer: x.buyer, seller: x.seller, day: x.day, price: florins(x.price), reason: x.reason, tx: buyTx[`${x.listing}|${x.buyer}`] ?? null, ...item(x.token_id) }));
+      const recent = sales.slice(-40).reverse().map((x) => ({ id: x.id, listing: x.listing, buyer: x.buyer, seller: x.seller, day: x.day, price: florins(x.price), reason: x.reason, tx: buyTx[`${x.listing}|${x.buyer}`] ?? null, ...item(x.token_id), ...(fairAt[`${x.listing}|${x.buyer}`] != null ? { fair: +fairAt[`${x.listing}|${x.buyer}`].toFixed(4), fair_why: "the fair price when it sold" } : {}) }));
       const listed = new Set(open.map((l) => l.token));
       const patents = Object.values(s.drafts || {}).filter((d) => d.passed).map((d) => ({
         id: d.id, day: d.day, drafter: d.clan, holder: holderOfPatent(s, d.id), chain: d.chain || [],

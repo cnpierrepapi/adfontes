@@ -63,7 +63,7 @@ async function load() {
   const sections = R.groups.map((g) => {
     const list = el("ul", { className: "rm-list" });
     for (const it of R.items.filter((x) => x.group === g.id)) {
-      const status = el("p", { className: "rm-status", textContent: it.check ? "Checking…" : g.id === "not" ? "Dropped." : "Planned." });
+      const status = el("p", { className: "rm-status", textContent: it.check ? "Checking…" : g.id === "not" ? "Dropped." : g.id === "done" ? "Done." : "Planned." });
       const li = el("li", { className: `rm-item ${g.id}` }, el("span", { className: `rm-dot ${g.id}` }), el("div", {}, el("b", { textContent: it.title }), el("p", { textContent: it.text }), status));
       list.append(li);
       if (it.check && CHECKS[it.check]) CHECKS[it.check]().then((r) => { status.textContent = r.text; status.className = `rm-status ${r.state}`; }).catch((e) => { status.textContent = `Couldn't check just now (${String(e.message || e).slice(0, 60)}).`; status.className = "rm-status info"; });
