@@ -16,6 +16,39 @@
 import fs from "node:fs";
 import { chainDepth, deepestChain } from "../engine/world.mjs";
 
+// What a turn's records do to each nation's florins (checked against the engine's printed numbers).
+function florinFx(rs) {
+  const e = {}, add = (c, v) => { if (c != null && isFinite(v)) e[c] = (e[c] || 0) + v; };
+  for (const r of rs) {
+    if (r.kind === "mint") add(r.clan, r.florins);
+    else if (r.kind === "upkeep") add(r.clan, -(r.paid ?? r.florins));
+    else if (r.kind === "warden") add(r.clan, -(r.fine || 0));
+    else if (r.kind === "trade" || r.kind === "market-sale") { add(r.buyer, -(r.price || 0)); add(r.seller, r.price || 0); }
+    else if (r.kind === "royalty") add(r.clan, r.florins);
+    else if (r.kind === "fortify") add(r.clan, -(r.spent || 0));
+    else if (r.kind === "battle") for (const [id, sd] of Object.entries(r.sides)) add(+id, -(sd.spend || 0));
+    else if (r.kind === "fallen") { add(r.by, r.loot || 0); add(r.clan, -(r.loot || 0)); }
+  }
+  return e;
+}
+// Florins made and destroyed in a turn (trades and loot only move them between nations).
+function mintBurn(rs) {
+  let minted = 0, burned = 0;
+  for (const r of rs) {
+    if (r.kind === "mint" || r.kind === "royalty") minted += r.florins || 0;
+    else if (r.kind === "upkeep") burned += r.paid ?? r.florins ?? 0;
+    else if (r.kind === "warden") burned += r.fine || 0;
+    else if (r.kind === "fortify") burned += r.spent || 0;
+    else if (r.kind === "battle") for (const sd of Object.values(r.sides)) burned += sd.spend || 0;
+  }
+  return { minted, burned };
+}
+// NEAR a turn's records show each nation's gods blessing (the engine writes "blessed X NEAR").
+function blessedIn(rs) {
+  const e = {};
+  for (const r of rs) if (r.kind === "reverence") for (const ch of r.changes || []) { const m = /^blessed ([\d.]+) NEAR/.exec(ch.why || ""); if (m) e[r.clan] = (e[r.clan] || 0) + +m[1]; }
+  return e;
+}
 const SIM = process.argv[2] || "debug/sim-gods", SITE = process.argv[3] || "https://adfontes.fun";
 const CACHE = "debug/season-cache";
 fs.mkdirSync(CACHE, { recursive: true });
@@ -85,20 +118,7 @@ for (const line of fs.readFileSync(`${SIM}/run.log`, "utf8").split("\n")) {
   const missing = [];
   for (let d = REAL_TO + 1; d <= lastSim; d++) if (!status[d] || !Object.keys(status[d]).length) missing.push(d);
   if (missing.length) {
-    const fx = (rs) => {
-      const e = {}, add = (c, v) => { if (c != null && isFinite(v)) e[c] = (e[c] || 0) + v; };
-      for (const r of rs) {
-        if (r.kind === "mint") add(r.clan, r.florins);
-        else if (r.kind === "upkeep") add(r.clan, -(r.paid ?? r.florins));
-        else if (r.kind === "warden") add(r.clan, -(r.fine || 0));
-        else if (r.kind === "trade" || r.kind === "market-sale") { add(r.buyer, -(r.price || 0)); add(r.seller, r.price || 0); }
-        else if (r.kind === "royalty") add(r.clan, r.florins);
-        else if (r.kind === "fortify") add(r.clan, -(r.spent || 0));
-        else if (r.kind === "battle") for (const [id, sd] of Object.entries(r.sides)) add(+id, -(sd.spend || 0));
-        else if (r.kind === "fallen") { add(r.by, r.loot || 0); add(r.clan, -(r.loot || 0)); }
-      }
-      return e;
-    };
+    const fx = florinFx;
     const F = Object.fromEntries(CHk.clans.map((c) => [c.id, Number(BigInt(c.florins) / 10n ** 16n) / 1e6]));
     const fl = {};
     for (let d = lastSim; d > REAL_TO; d--) { fl[d] = { ...F }; const e = fx(days[d]); for (const id of Object.keys(F)) F[id] -= e[id] || 0; }
@@ -217,6 +237,86 @@ for (let d = 1; d <= LAST; d++) {
     };
   }
 }
+// ---- backfill (his call 9 Nov): every turn shows a value. Nothing is re-run; it is all arithmetic on
+// the records, anchored on turns whose numbers we have (the live world on turn REAL_TO, the engine's
+// printed turns, the sim's final state). est: true marks what is worked out rather than printed.
+const totalsOut = {};
+{
+  const known = (d) => status[d] && Object.values(status[d]).some((x) => x.total_in != null);
+  // 1. Florins on the real turns: wound back from the live world on turn REAL_TO through the real
+  //    records. That world already held the founders' refunded 5.5 NEAR as florins (granted 9 Nov), so
+  //    winding back carries those florins to each founding: as if the refund was there from the start.
+  const F = Object.fromEntries(before.clans.map((c) => [c.id, c.florins]));
+  for (let d = REAL_TO - 1; d >= 1; d--) {
+    const e = florinFx(days[d + 1] || []);
+    for (const id of Object.keys(F)) F[id] -= e[id] || 0;
+    for (const n of nations) if (W[d]?.[n.id] && W[d][n.id].florins == null) { W[d][n.id].florins = +Math.max(0, F[n.id]).toFixed(3); W[d][n.id].est = true; }
+  }
+  // 2. NEAR put in. Real turns: wound back from turn REAL_TO by the blessings the records show.
+  const N = Object.fromEntries(before.clans.map((c) => [c.id, c.total_in]));
+  for (let d = REAL_TO - 1; d >= 1; d--) {
+    const b = blessedIn(days[d + 1] || []);
+    for (const id of Object.keys(N)) N[id] = Math.max(0, N[id] - (b[id] || 0));
+    for (const n of nations) if (W[d]?.[n.id] && W[d][n.id].total_in == null) { W[d][n.id].total_in = +N[n.id].toFixed(4); W[d][n.id].est = true; }
+  }
+  //    Sim turns with no printed number: between two known turns, add the blessings the records show;
+  //    whatever the records don't show (a blessing made at the reverence cap leaves none) is spread over
+  //    the turns where one of the nation's gods sat at the cap, or evenly if none did.
+  const knownDays = [REAL_TO, ...Object.keys(status).map(Number).filter((d) => d > REAL_TO && known(d))].sort((a, b) => a - b);
+  const inAt = (d, id) => (d === REAL_TO ? before.clans.find((c) => c.id === id)?.total_in : status[d][id]?.total_in);
+  for (let k = 0; k + 1 < knownDays.length; k++) {
+    const a = knownDays[k], z = knownDays[k + 1];
+    if (z - a < 2) continue;
+    for (const n of nations) {
+      const start = inAt(a, n.id), end = inAt(z, n.id);
+      if (start == null || end == null) continue;
+      const seen = {}; let sum = 0;
+      for (let d = a + 1; d <= z; d++) { seen[d] = blessedIn(days[d])[n.id] || 0; sum += seen[d]; }
+      const capped = [];
+      for (let d = a + 1; d <= z; d++) { const g = W[d - 1]?.[n.id]?.reverence?.gods || {}; if (Object.values(g).some((x) => (x.r ?? 0) >= 59.5)) capped.push(d); }
+      const spread = capped.length ? capped : Array.from({ length: z - a }, (_, i) => a + 1 + i);
+      const rest = Math.max(0, end - start - sum);
+      let v = start;
+      for (let d = a + 1; d < z; d++) {
+        v += seen[d] + (spread.includes(d) ? rest / spread.length : 0);
+        if (W[d]?.[n.id] && W[d][n.id].total_in == null) { W[d][n.id].total_in = +v.toFixed(4); W[d][n.id].est = true; }
+      }
+    }
+  }
+  // 3. Mood and fortune on the real turns: a new nation starts content with fortune 1; needs records
+  //    change the mood, rulings the fortune.
+  const mood = {}, fortune = {};
+  for (let d = 1; d <= REAL_TO; d++) {
+    for (const r of days[d]) { if (r.kind === "founded") { mood[r.clan] = "content"; fortune[r.clan] = 1; } if (r.kind === "needs" && r.mood) mood[r.clan] = r.mood; if (r.kind === "ruling" && r.fortune != null) fortune[r.clan] = r.fortune; }
+    for (const n of nations) { const x = W[d]?.[n.id]; if (!x) continue; if (x.mood == null) { x.mood = mood[n.id] ?? "content"; x.est = true; } if (x.fortune == null) { x.fortune = fortune[n.id] ?? 1; x.est = true; } }
+  }
+  // 4. The world's totals. Checked on every printed turn: jackpot = 14% of all NEAR put in; backing =
+  //    86% of it plus the founders' grants (a constant); florin value = backing / florins. All florins
+  //    (gods' and fallen nations' included) wind back by what each turn made and destroyed.
+  const T = (d) => totals[d] ?? (d === REAL_TO ? before.totals : null);
+  const sumIn = (d) => Object.values(W[d] || {}).reduce((a, x) => a + (x.total_in || 0), 0);
+  const grants = before.totals.backing - 0.86 * sumIn(REAL_TO);
+  let fl = null, minted = null, burned = null;
+  for (let d = LAST; d >= 1; d--) {
+    if (T(d) && d === REAL_TO && fl != null) console.log(`backfill: all florins wound back to turn ${REAL_TO}: ${fl.toFixed(1)}, the live world had ${T(d).florins.toFixed(1)}`);
+    if (T(d)) { fl = T(d).florins; minted = T(d).minted; burned = T(d).burned; totalsOut[d] = T(d); }
+    else if (fl != null) {
+      const jackpot = +(0.14 * sumIn(d)).toFixed(6), backing = +(0.86 * sumIn(d) + grants).toFixed(6);
+      totalsOut[d] = { balance: null, owed: null, backing, florins: +fl.toFixed(3), florin_value: +(backing / fl).toFixed(6), minted: +minted.toFixed(3), burned: +burned.toFixed(3), jackpot, est: true };
+    }
+    const mb = mintBurn(days[d] || []);
+    // A blessing mints its god shares: 86% of the NEAR, at that turn's florin value.
+    const blessFl = d > 1 && fl != null ? (0.86 * Math.max(0, sumIn(d) - sumIn(d - 1))) / ((0.86 * sumIn(d) + grants) / fl) : 0;
+    if (fl != null) { fl -= mb.minted - mb.burned + blessFl; minted -= mb.minted; burned -= mb.burned; }
+  }
+  // Checks: the backing constant on every printed turn, and every value filled.
+  let worst = 0;
+  for (const d of knownDays) if (d > REAL_TO && T(d)) worst = Math.max(worst, Math.abs(T(d).backing - (0.86 * sumIn(d) + grants)), Math.abs(T(d).jackpot - 0.14 * sumIn(d)));
+  let gaps = 0;
+  for (let d = 1; d <= LAST; d++) { if (!totalsOut[d]) gaps++; for (const x of Object.values(W[d] || {})) for (const k of ["florins", "total_in", "mood", "fortune"]) if (x[k] == null) gaps++; }
+  console.log(`backfill: totals formula off by at most ${worst.toFixed(4)} NEAR on printed turns; ${gaps} values still empty; founding florins ${nations.map((n) => `${n.name} ${Math.round(W[n.founded]?.[n.id]?.florins ?? NaN)}`).join(", ")}`);
+}
+
 // Walls check: the rebuilt walls against the sim's final state.
 for (const n of nations) { const want = +(S.clans[n.id].walls || 0).toFixed(1), got = W[LAST][n.id]?.walls; if (Math.abs(want - got) > 0.5) console.log(`walls: ${n.name} rebuilt ${got}, final state ${want}`); }
 
@@ -246,7 +346,7 @@ for (let d = 1; d <= LAST; d++) {
   turns.push({
     day: d, sim: d > REAL_TO,
     clock: clock ? { phase: clock.phase, price: clock.price, change: clock.change, unit: clock.unit, days: clock.days, nights: clock.nights, cycle: clock.cycle } : null,
-    totals: totals[d] ?? (d === REAL_TO ? before.totals : null),
+    totals: totalsOut[d] ?? null,
     records: days[d].filter((r) => KEEP.has(r.kind)).map(({ hash, raw, at, live: _l, signer, ...r }) => ({ ...r, day: d })),
     clans: W[d],
   });

@@ -25,7 +25,7 @@ export async function loadSeason() {
       alive: !c.fallen, fallen: c.fallen, seen: true, gods: c.gods, war: c.war,
       florins: fl, worth: fl != null && value != null ? +(fl * value).toFixed(4) : null, total_in: c.total_in,
       clean_gifts: c.clean_gifts, fortune: c.fortune ?? 1, tricksters: c.tricksters, points: c.points, depth: c.depth, line: c.line,
-      reverence: c.reverence, techs: c.techs, mood: c.mood, walls: c.walls, tokens: null,
+      reverence: c.reverence, techs: c.techs, mood: c.mood, walls: c.walls, tokens: null, est: !!c.est,
     };
   }
   function world(d) {
