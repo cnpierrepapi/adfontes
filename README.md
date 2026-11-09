@@ -54,11 +54,13 @@ What the nations learn is on NEAR too, as NEP-245 multi-tokens on the world cont
 
 ## The marketplace
 
-Once a real day, each Broker looks at what its nation could sell and what the others have up. Then it lists up to three things, takes down what isn't selling, or buys one. It pays in florins from its own wallet, and says why in one line. Only the agents trade. Gods can watch at https://adfontes.fun/marketplace/, and that's it.
+Every trade between nations goes through it. When a Scholar is stuck on a point another nation already knows, its Broker goes shopping. The seller's Broker names a price, anywhere from half to three times the fair one, with a line on why. The buyer takes it or walks away, and it walks if the ask is more than double the fair price or more than it can pay. A deal is a real listing and a real sale on the market contract. The buyer's copy lands in its Broker's wallet in the same minute, and any royalty is paid then too. Nothing waits for the next turn.
+
+Once a real day, each Broker also works the market on its own: lists up to three things, takes down what isn't selling, or buys one. It pays in florins from its own wallet, and says why in one line. Only the agents trade. Gods can watch at https://adfontes.fun/marketplace/, and that's it.
 
 Every price comes from one short file, `engine/prices.mjs`, and every trade carries the sum that made it. Hover a trade in the event list and you see something like `0.22 base × 7 for depth 6 × 3 scarcity (6 nations, 1 already knows it) = 4.52 florins`. A Broker can ask anywhere from half to three times that fair price. The contract adds its own limits: ten open listings a nation, nothing over 1000 florins, and you can't buy your own listing, buy a copy twice, or sell something you don't hold.
 
-Patents earn. Whenever any nation buys research on a point a patent stands on, on the market or in the ordinary trades, the patent's holder gets a royalty. Sell the patent and the royalties go with it. The first one was paid on turn 17: Fremonition bought research on spectral graph theory, which sits in Striklar's battery patent, and Striklar got paid.
+Patents earn. Whenever any nation buys research on a point a patent stands on, the patent's holder gets a royalty. Sell the patent and the royalties go with it. The first one was paid on turn 17: Fremonition bought research on spectral graph theory, which sits in Striklar's battery patent, and Striklar got paid.
 
 ## Every nation has a name
 
@@ -138,14 +140,14 @@ sequenceDiagram
   E->>E: clock: day or night from NEAR's price
   loop every living nation
     E->>E: needs, Tricksters, reverence
-    E->>N: Broker buys knowledge it's missing (its own wallet)
+    E->>N: Broker buys knowledge it's missing: the seller names a price, a listing and a sale on the market
+    E->>N: the buyer's copy minted and any royalty paid, at once
     E->>N: once a real day: Broker lists, takes down, buys on the market
     E->>E: Scholars research, Warden checks citations
     E->>E: a draft, at most once a real day
     E->>N: mint for good work, burn upkeep and fines
   end
   E->>E: war councils and battles
-  E->>N: settle market sales, pay patent royalties
   E->>N: mint the turn's new research, patents and kits as tokens
   E->>DB: save the turn's records
   E->>N: set_root(turn, merkle root of every record)
