@@ -8,6 +8,8 @@ import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
 import { returned } from "./calls.js";
 
 const RPC = { testnet: "https://near-testnet.drpc.org", mainnet: "https://rpc.mainnet.fastnear.com" }; // testnet: dRPC (9 Nov)
+// Where the browser key sends its transactions (10 Nov): FastNEAR first, the way it worked before 9 Nov.
+const SEND_RPCS = ["https://rpc.testnet.fastnear.com", "https://near-testnet.drpc.org"];
 export const YOCTO = 10n ** 24n;
 export const TGAS = 10n ** 12n;
 const enc = new TextEncoder(), dec = new TextDecoder();
@@ -137,10 +139,42 @@ export async function createWallet(net) {
     return Buffer.from(encodeTransaction(tx)).toString("base64").length;
   }
   // A signer with the same signAndSendTransaction shape the wallets have, for the browser key.
+  // 10 Nov fix: near-api-js's own send waits for the result inside one RPC call and, when the RPC
+  // answers 500/408/503 (dRPC does on longer calls like a founding or a claim), quietly re-sends up to
+  // 12 times with growing waits: the card sat on "Sending…" for minutes after the chain was done.
+  // Now: sign here, hand it over and wait only until it is in a block, then ask for the outcome every second ourselves,
+  // FastNEAR first and dRPC as the backup, each call with its own short timeout.
   async function localSigner(lk) {
     const { Account, JsonRpcProvider } = await import("near-api-js");
-    const acct = new Account(lk.account, new JsonRpcProvider({ url: rpc }), lk.key);
-    return { signAndSendTransaction: ({ receiverId, actions }) => acct.signAndSendTransaction({ receiverId, actions }) };
+    const { baseEncode } = await import("@near-js/utils");
+    const acct = new Account(lk.account, new JsonRpcProvider({ url: SEND_RPCS[0] }), lk.key);
+    const call = (url, method, params, ms) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }), signal: AbortSignal.timeout(ms) }).then((x) => x.json());
+    const b64 = (bytes) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
+    return {
+      async signAndSendTransaction({ receiverId, actions }) {
+        const tx = await acct.createTransaction(receiverId, actions, await acct.signer.getPublicKey());
+        const [h, signed] = await acct.signer.signTransaction(tx);
+        const hash = baseEncode(h), body = b64(signed.encode());
+        let handed = false, refused = null;
+        for (const url of SEND_RPCS) {
+          // "INCLUDED": back in a block or two, and a refusal (bad nonce, not enough NEAR) comes back at once.
+          const j = await call(url, "send_tx", { signed_tx_base64: body, wait_until: "INCLUDED" }, 15000).catch(() => null);
+          if (j?.result) { handed = true; break; }
+          // The chain itself said no (bad nonce, not enough NEAR, expired): no point trying elsewhere.
+          if (j?.error?.cause?.name === "INVALID_TRANSACTION") { refused = j.error.data ?? j.error.cause; break; }
+        }
+        if (refused) throw new Error(`NEAR refused it: ${JSON.stringify(refused).slice(0, 160)}`);
+        const t0 = Date.now();
+        while (Date.now() - t0 < 120e3) {
+          for (const url of SEND_RPCS) {
+            const j = await call(url, "tx", { tx_hash: hash, sender_account_id: lk.account, wait_until: "EXECUTED_OPTIMISTIC" }, 12000).catch(() => null);
+            if (j?.result?.status) return j.result;
+          }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        throw new Error(handed ? "NEAR hasn't confirmed it yet. It may still go through: look again in a minute before trying again." : "Couldn't reach NEAR. Nothing was sent. Try again.");
+      },
+    };
   }
   /** The browser key, for the player to save (only when playing without a wallet). */
   const exportKey = () => (localOn() ? { account: localKey().account, private_key: localKey().key, network: net } : null);
