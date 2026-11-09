@@ -24,7 +24,8 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
     if (tip) li.append(el("span", { className: "tip", textContent: tip }));
     // Its own transaction on NEAR, when it has one (9 Nov). Research, battles and councils have none:
     // they live in the turn's sealed records, not in a transaction of their own.
-    if (tx && W.explorer) {
+    // A simulated turn's stand-in chain makes ids like "sim-70-19-..." that are not on NEAR: no link.
+    if (tx && W.explorer && !String(tx).startsWith("sim-")) {
       const a = el("a", { className: "evtx", href: `${W.explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: "NEAR ↗", title: "Open this transaction on NEAR" });
       a.addEventListener("click", (e) => e.stopPropagation());
       li.append(" ", a);

@@ -23,6 +23,11 @@ export function makeCut() {
         case "corpus": return !r.fake && first(`corpus:${r.clan}`);
         case "trade": return !r.tool && first(`trade:${Math.min(r.buyer, r.seller)}-${Math.max(r.buyer, r.seller)}`);
         case "tool": return first(`tool:${r.clan}`);
+        // 9 Nov: a whisper the citizens heard (the new reverence rule): each nation's first, and any that moved them a lot.
+        // ...and one whisper heard as empty words, to show what generic words get you.
+        case "heard": return first(`heard:${r.clan}`) || Math.abs(r.delta || 0) >= 12 || (r.verdict === "empty" && first("heard:empty"));
+        case "royalty": return first("royalty"); // the first time a patent pays its holder
+        case "market-buy": return first(`market:${r.clan}`); // a nation's first buy on the marketplace
         default: return false;
       }
     });

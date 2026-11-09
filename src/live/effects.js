@@ -354,7 +354,9 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   const deadIsland = () => [...islands.values()].find((i) => i.userData.status === "dead");
 
   function play(r) {
-    const text = r.text ?? says(r, clanName); // a god's own action brings its own words
+    // A god's own action brings its own words; a heard whisper shows the citizen's answer instead (its
+    // r.text is the god's whisper, which the tooltip already quotes).
+    const text = r.kind === "heard" ? says(r, clanName) : r.text ?? says(r, clanName);
     playingTx = r.tx ?? null;
     if (!fx.quiet) onRecord?.(r);
     switch (r.kind) {

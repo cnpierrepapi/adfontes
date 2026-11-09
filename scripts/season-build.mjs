@@ -49,6 +49,18 @@ for (const line of fs.readFileSync(`${SIM}/gods.log`, "utf8").split("\n")) {
   days[d].unshift({ kind: "bless", day: d, clan: g.clan, god: g.god, near: g.blessed, mode: g.mode, sim: true });
 }
 
+// Turns gods.log lost (debug/ab-new): the blessings the engine saw, from its reverence records.
+{
+  const logged = new Set(Object.entries(days).filter(([d, rs]) => +d > REAL_TO && rs.some((r) => r.kind === "bless" && r.sim)).map(([d]) => +d));
+  const firstLogged = logged.size ? Math.min(...logged) : Infinity;
+  for (const [d, rs] of Object.entries(days)) {
+    if (+d <= REAL_TO || +d >= firstLogged) continue;
+    const add = [];
+    for (const r of rs) if (r.kind === "reverence") for (const ch of r.changes || []) { const m = /^blessed ([\d.]+) NEAR/.exec(ch.why || ""); if (m) add.push({ kind: "bless", day: +d, clan: r.clan, god: String(ch.god).slice(0, 8), near: +m[1], sim: true }); }
+    rs.unshift(...add);
+  }
+}
+
 // ---- the engine's per-turn status lines (sim turns) ----
 const status = {}, totals = {};
 let cur = null;
@@ -59,6 +71,47 @@ for (const line of fs.readFileSync(`${SIM}/run.log`, "utf8").split("\n")) {
   if (m && cur) { status[cur][m[1]] = { florins: +m[2], total_in: +m[3], mood: m[4], points: +m[5], depth: +m[6], frontier: +m[7], clean_gifts: +m[8], fortune: +m[9] }; continue; }
   m = line.match(/^world: balance ([\d.]+) owes ([\d.]+) storage ([\d.]+) \| backing ([\d.]+) jackpot ([\d.]+) \| florins ([\d.]+) worth ([\d.]+) NEAR each, minted ([\d.]+) burned ([\d.]+)/);
   if (m && cur) totals[cur] = { balance: +m[1], owed: +m[2], backing: +m[4], florins: +m[6], florin_value: +m[7], minted: +m[8], burned: +m[9], jackpot: +m[5] };
+}
+
+// ---- sim turns the run log lost (debug/ab-new kept only its last 15 turns' status lines) ----
+// Florins: rewound from the sim's final state through every record that moves them. Checked on the
+// turns that were printed (largest gap 0.215 florins: patent royalties paid with no record of their
+// own) and against the live world on the seed turn. Mood (needs records) and fortune (rulings) carry
+// forward from the seed turn. NEAR put in stays unknown: a blessing made at the reverence cap
+// leaves no record, so it can't be rewound without guessing.
+{
+  const CHk = JSON.parse(fs.readFileSync(`${SIM}/chain.json`, "utf8"));
+  const lastSim = Math.max(...Object.keys(days).map(Number));
+  const missing = [];
+  for (let d = REAL_TO + 1; d <= lastSim; d++) if (!status[d] || !Object.keys(status[d]).length) missing.push(d);
+  if (missing.length) {
+    const fx = (rs) => {
+      const e = {}, add = (c, v) => { if (c != null && isFinite(v)) e[c] = (e[c] || 0) + v; };
+      for (const r of rs) {
+        if (r.kind === "mint") add(r.clan, r.florins);
+        else if (r.kind === "upkeep") add(r.clan, -(r.paid ?? r.florins));
+        else if (r.kind === "warden") add(r.clan, -(r.fine || 0));
+        else if (r.kind === "trade" || r.kind === "market-sale") { add(r.buyer, -(r.price || 0)); add(r.seller, r.price || 0); }
+        else if (r.kind === "royalty") add(r.clan, r.florins);
+        else if (r.kind === "fortify") add(r.clan, -(r.spent || 0));
+        else if (r.kind === "battle") for (const [id, sd] of Object.entries(r.sides)) add(+id, -(sd.spend || 0));
+        else if (r.kind === "fallen") { add(r.by, r.loot || 0); add(r.clan, -(r.loot || 0)); }
+      }
+      return e;
+    };
+    const F = Object.fromEntries(CHk.clans.map((c) => [c.id, Number(BigInt(c.florins) / 10n ** 16n) / 1e6]));
+    const fl = {};
+    for (let d = lastSim; d > REAL_TO; d--) { fl[d] = { ...F }; const e = fx(days[d]); for (const id of Object.keys(F)) F[id] -= e[id] || 0; }
+    const mood = Object.fromEntries(before.clans.map((c) => [c.id, c.mood ?? null]));
+    const fortune = Object.fromEntries(before.clans.map((c) => [c.id, c.fortune ?? null]));
+    for (let d = REAL_TO + 1; d <= lastSim; d++) {
+      for (const r of days[d]) { if (r.kind === "needs" && r.mood) mood[r.clan] = r.mood; if (r.kind === "ruling" && r.fortune != null) fortune[r.clan] = r.fortune; }
+      if (!missing.includes(d)) continue;
+      status[d] = Object.fromEntries(CHk.clans.map((c) => [c.id, { florins: +fl[d][c.id].toFixed(3), total_in: null, mood: mood[c.id], fortune: fortune[c.id], points: null, clean_gifts: null }]));
+    }
+    console.log(`filled ${missing.length} sim turns the run log lost (florins rewound, mood + fortune carried forward, NEAR put in unknown); seed-turn check:`,
+      before.clans.map((c) => `${c.name} ${Math.round(F[c.id])} vs ${Math.round(c.florins)}`).join(", "));
+  }
 }
 
 // ---- the nations ----
@@ -145,7 +198,9 @@ for (let d = 1; d <= LAST; d++) {
     const c = { owned: Object.fromEntries(pts.map((p) => [p, { ...(info[id][p] || { parent: n.field, depth: 1 }) }])), field: n.field };
     if (c.owned[n.field]) c.owned[n.field].depth = 0;
     const s = status[d]?.[id];
-    const R = rev[id];
+    // The last turn reads the sim's final state: a turn whose research failed (OpenAlex 429) skipped the
+    // nation's reverence record, so Helios and Fremonition have none after day 80 in debug/ab-new.
+    const R = d === LAST && S.rev?.[id] ? { followed: S.rev[id].followed ?? null, claimed_by: S.rev[id].claimedBy ?? null, waiting: !!S.rev[id].waiting, gods: Object.fromEntries(Object.entries(S.rev[id].gods).map(([a, g]) => [a, g.r])) } : rev[id];
     const godR = R ? Object.fromEntries(Object.entries(R.gods).map(([a, v]) => [a, { r: Math.round((typeof v === "number" ? v : v.r ?? 0) * 10) / 10, enemies: 0, outsider: false }])) : {};
     const war = Object.values(wars).find((w) => w.status === "on" && (w.a === id || w.b === id));
     const enemy = war ? (war.a === id ? war.b : war.a) : null;
@@ -184,7 +239,7 @@ const drafts = Object.values(S.drafts || {}).map((x) => ({ id: x.id, clan: x.cla
 const frontier = Object.fromEntries(nations.map((n) => [n.id, Object.entries(S.clans[n.id].frontier || {}).slice(0, 80).map(([k, v]) => [k, v.parent, v.depth])]));
 
 // ---- the turns: clock, totals, records (trimmed to what the world plays and the captions say) ----
-const KEEP = new Set(["clock", "corpus", "trade", "gift", "warden", "trickster", "absorb", "tech", "founded", "rooted", "ruling", "tool", "war", "battle", "fortify", "peace-offer", "peace", "fallen", "council", "bless", "report", "report-settled", "needs", "listed", "market-buy", "royalty"]);
+const KEEP = new Set(["clock", "corpus", "trade", "gift", "warden", "trickster", "absorb", "tech", "founded", "rooted", "ruling", "tool", "war", "battle", "fortify", "peace-offer", "peace", "fallen", "council", "bless", "report", "report-settled", "needs", "listed", "market-buy", "royalty", "market-sale", "delisted", "broker", "heard"]); // the last four feed the plain view (market, gods)
 const turns = [];
 for (let d = 1; d <= LAST; d++) {
   const clock = days[d].find((r) => r.kind === "clock");
