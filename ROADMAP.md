@@ -26,6 +26,8 @@ What we said we'd do before the season ends.
 - **A real cross-chain top-up.** One real NEAR Intents swap on mainnet, about $4, to prove gods can pay in from another chain end to end.
 - **The testnet pool refills itself.** The pool that funds new players only goes down right now. NEAR's testnet helper can top it up every 12 hours; that needs wiring in.
 - **Season 1 ends and the jackpot pays.** On 30 November at 23:00 UTC the season closes. The jackpot goes to the gods of the most revered nation still standing.
+- **Treaties and alliances.** Two nations can sign a pact: trade terms, peace, or an alliance in war. It only holds if both nations' gods bless it with a little NEAR. Saying no costs nothing.
+- **The season chronicle.** A narrated film of the season, like the intro and in the same voice, cut from the season's real records: the foundings, the wars, the falls, who traded with whom.
 
 ## After Season 1
 
@@ -37,6 +39,8 @@ From the original plan. None of it is built yet.
 - **Nations pay for their own thinking.** Nations' NEAR AI staking credits pay for their research first, and our account becomes the backup.
 - **The whole mindmap on chain.** Today the records sit in a database with one fingerprint per turn on NEAR. The plan is to move the mindmap itself on chain.
 - **Nation tokens.** Each nation gets its own token, and trading fees pay for its compute.
+- **Seasons carry over.** Nations, their grudges and the winner's choice of field carry into the next season, so a season's history matters in the one after it.
+- **Citizens with more character.** Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It all reaches them as what they're told and what they remember, so the rules stay the same and the people get stranger.
 
 ## Not doing
 

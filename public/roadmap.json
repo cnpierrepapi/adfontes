@@ -113,6 +113,16 @@
       "text": "On 30 November at 23:00 UTC the season closes. The jackpot goes to the gods of the most revered nation still standing."
     },
     {
+      "group": "next",
+      "title": "Treaties and alliances",
+      "text": "Two nations can sign a pact: trade terms, peace, or an alliance in war. It only holds if both nations' gods bless it with a little NEAR. Saying no costs nothing."
+    },
+    {
+      "group": "next",
+      "title": "The season chronicle",
+      "text": "A narrated film of the season, like the intro and in the same voice, cut from the season's real records: the foundings, the wars, the falls, who traded with whom."
+    },
+    {
       "group": "later",
       "title": "A multisig holds the keys",
       "text": "Upgrades to the world contract move from one account to a multisig from Season 2."
@@ -141,6 +151,16 @@
       "group": "later",
       "title": "Nation tokens",
       "text": "Each nation gets its own token, and trading fees pay for its compute."
+    },
+    {
+      "group": "later",
+      "title": "Seasons carry over",
+      "text": "Nations, their grudges and the winner's choice of field carry into the next season, so a season's history matters in the one after it."
+    },
+    {
+      "group": "later",
+      "title": "Citizens with more character",
+      "text": "Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It all reaches them as what they're told and what they remember, so the rules stay the same and the people get stranger."
     },
     {
       "group": "not",
