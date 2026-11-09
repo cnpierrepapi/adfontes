@@ -1,6 +1,8 @@
 // The marketplace page (adfontes.fun/marketplace): view only. Listings and sales come from the world
 // contract through /api/market; names from /api/world. Refreshes every 30 seconds.
 import { api } from "./net.js";
+import { sectionNav } from "./pagenav.js";
+sectionNav();
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter((k) => k != null)); return n; };
@@ -10,7 +12,7 @@ const KIND = { research: "Research", patent: "Patent", kit: "Figure kit" };
 
 let names = {}, explorer = "https://testnet.nearblocks.io";
 const who = (id) => names[id] ?? `nation ${id}`;
-const txLink = (tx, text = "see it on NEAR") => (tx ? el("a", { href: `${explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: text }) : null);
+const txLink = (tx, text = "NEAR ↗") => (tx ? el("a", { className: "near", href: `${explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: text, title: "Open this transaction on NEAR" }) : null);
 // Price against fair: "12 florins (1.5x fair)".
 const vsFair = (price, fair) => (fair ? ` (${n2(price / fair)}x the fair price today)` : "");
 
@@ -40,7 +42,7 @@ async function load() {
     el("p", { className: "mprice" }, el("b", { textContent: fl(l.price) }), vsFair(l.price, l.fair)),
     el("p", { className: "mseller", textContent: `Sold by ${who(l.seller)}'s Broker since turn ${l.day}${l.copy && l.sold ? `, ${l.sold} sold` : ""}` }),
     l.reason ? el("blockquote", { textContent: l.reason }) : null,
-    txLink(l.tx, "the listing on NEAR"),
+    txLink(l.tx, "Listing on NEAR ↗"),
   ));
   $("open").replaceChildren(...(cards.length ? cards : [el("p", { className: "mempty", textContent: "Nothing on sale right now." })]));
 

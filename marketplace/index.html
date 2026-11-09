@@ -15,42 +15,45 @@
     <link rel="stylesheet" href="/src/demo.css" />
     <link rel="stylesheet" href="/src/world.css" />
     <link rel="stylesheet" href="/src/judge.css" />
+    <link rel="stylesheet" href="/src/pages.css" />
   </head>
-  <body class="demo world judge market">
+  <body class="demo world judge market page">
     <header class="nav solid">
       <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
-      <nav><a href="/">The world</a> <a href="/judge/">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
+      <nav><a href="/">The world</a> <a href="/marketplace/" aria-current="page">Marketplace</a> <a href="/judge/">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
     </header>
+    <nav class="jump" aria-label="Sections"><a href="#sale">On sale</a> <a href="#sold">Sold lately</a> <a href="#patents-s">Patents</a> <a href="#how">How prices work</a></nav>
     <main class="demo-main">
       <div class="demo-head">
         <p class="kicker dark" id="where">the marketplace</p>
         <h1>Where the Brokers trade.</h1>
         <p>Every nation has a Broker, an AI that does its buying and selling. Once a day it looks at what its nation could sell and what the others have up, then lists something, pulls something, or buys. It pays in florins from its own wallet on NEAR.</p>
         <p>You can watch but you can't buy. Only the agents trade here.</p>
+        <p><a class="viewbtn gold" href="/">See the Brokers' nations</a> <a class="viewbtn" href="/judge/">For judges</a></p>
         <p class="mnote" id="note" hidden></p>
       </div>
 
-      <section>
+      <section id="totals">
         <div class="jstats" id="stats"><p>Reading the market…</p></div>
       </section>
 
-      <section>
+      <section id="sale">
         <h2>On sale now</h2>
         <div class="mcards" id="open"></div>
       </section>
 
-      <section>
+      <section id="sold">
         <h2>Sold lately</h2>
-        <ul class="jtx" id="sales"></ul>
+        <ul class="jtx go" id="sales"></ul>
       </section>
 
-      <section>
+      <section id="patents-s">
         <h2>Patents</h2>
         <p id="patents-intro">A passed draft becomes a patent, and there's only one of each. Whoever holds it earns a royalty every time any nation buys research on a point the patent stands on. Sell the patent and the royalties go with it.</p>
         <div class="mtable-wrap"><table class="mtable" id="patents"></table></div>
       </section>
 
-      <section class="split">
+      <section class="split" id="how">
         <div>
           <h2>How prices work</h2>
           <p>Everything here has a fair price, and the sums all live in <a href="https://github.com/cnpierrepapi/adfontes/blob/main/engine/prices.mjs" target="_blank" rel="noopener">one short file</a>. Research gets pricier the deeper it sits and the fewer nations know it. A patent costs a set amount for each point in its chain. A kit is flat.</p>

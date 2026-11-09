@@ -15,12 +15,14 @@
     <link rel="stylesheet" href="/src/demo.css" />
     <link rel="stylesheet" href="/src/world.css" />
     <link rel="stylesheet" href="/src/judge.css" />
+    <link rel="stylesheet" href="/src/pages.css" />
   </head>
-  <body class="demo world judge">
+  <body class="demo world judge page">
     <header class="nav solid">
       <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
-      <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="/marketplace/">Marketplace</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
+      <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="/marketplace/">Marketplace</a> <a href="/judge/" aria-current="page">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
     </header>
+    <nav class="jump" aria-label="Sections"><a href="#start">Start here</a> <a href="#now">Right now</a> <a href="#check-it">Check it yourself</a> <a href="#chain">This turn on NEAR</a> <a href="#nations">Accounts</a> <a href="#tok">Tokens</a> <a href="#run">Run it</a></nav>
     <main class="demo-main">
       <div class="demo-head">
         <p class="kicker dark" id="where">for judges</p>
@@ -30,58 +32,58 @@
         <p><a class="viewbtn gold" href="/?timelapse">Watch the season in 90 seconds</a> <a class="viewbtn" href="/">Open the live world</a></p>
       </div>
 
-      <section>
-        <h2>The world right now</h2>
-        <div class="jstats" id="stats"><p>Reading the world…</p></div>
-      </section>
-
-      <section>
-        <h2>Check it yourself</h2>
-        <p>One click picks a random record from the last sealed turn. Your browser hashes it, climbs the proof to the turn's fingerprint, then asks NEAR directly what fingerprint it holds. If the two match, that record is exactly what happened.</p>
-        <p><button class="viewbtn" id="check" type="button">Check a random record</button></p>
-        <div class="proof-out" id="check-out"></div>
-      </section>
-
-      <section>
-        <h2>On chain, this turn</h2>
-        <p id="chain-intro">The world contract, and the transactions from the last sealed turn.</p>
-        <ul class="jtx" id="txs"></ul>
-      </section>
-
-      <section>
-        <h2>Every nation's accounts</h2>
-        <p>Each nation has a name you can send NEAR to. Think of it as a mailbox at the front gate: whatever lands there gets carried to the treasury, the nation's DAO, on the next turn. Its Broker and Patron have wallets of their own and sign their own trades.</p>
-        <ul class="jtx" id="accounts"></ul>
-      </section>
-
-      <section>
-        <h2>Research as tokens</h2>
-        <p>Everything a nation learns is a token on NEAR, and its Broker keeps them in its own wallet to trade. The gods never touch them. Research copies: a nation that buys some gets its own copy and the seller keeps theirs. A passed patent is one of a kind. Figure kits are tokens too. It's the NEP-245 multi-token standard, so any wallet or explorer that reads NEP-245 sees them.</p>
-        <ul class="jtx" id="tokens"></ul>
-        <p><button class="viewbtn" id="tokcheck" type="button">Ask NEAR about one</button></p>
-        <div class="proof-out" id="tokcheck-out"></div>
-        <p>The Brokers trade these tokens with each other on <a href="/marketplace/">the marketplace</a>. You can watch every listing, sale and patent royalty there.</p>
-      </section>
-
-      <section class="split">
-        <div>
-          <h2>Five minutes, start here</h2>
+      <section id="start">
+        <h2>Five minutes, start here</h2>
           <ol class="jsteps">
             <li>Start with <a href="/?timelapse">the season in 90 seconds</a>. The first turns are the real ones, sealed on NEAR. After that it is a simulation: we ran the live world forward on its own, AI gods and all, so you can see the wars, the odd weapons and a nation falling without waiting a week. Every caption says which part you are watching. Then open <a href="/">the world</a> and watch it live. The dial at the top is the clock: it's day while NEAR's price is climbing, night while it falls.</li>
             <li>Click an island. The panel shows what that nation knows, its florins, and its gods.</li>
             <li>Under the season standings there's an event list. Click a line and the camera flies there.</li>
             <li>Want to play? Connect a testnet wallet and found a nation from the wallet menu. Short on testnet NEAR? The found card tops you up once.</li>
           </ol>
-        </div>
-        <div>
-          <h2>Run it yourself</h2>
+      </section>
+
+      <section id="now">
+        <h2>The world right now</h2>
+        <div class="jstats" id="stats"><p>Reading the world…</p></div>
+      </section>
+
+      <section id="check-it">
+        <h2>Check it yourself</h2>
+        <p>One click picks a random record from the last sealed turn. Your browser hashes it, climbs the proof to the turn's fingerprint, then asks NEAR directly what fingerprint it holds. If the two match, that record is exactly what happened.</p>
+        <p><button class="viewbtn" id="check" type="button">Check a random record</button></p>
+        <div class="proof-out" id="check-out"></div>
+      </section>
+
+      <section id="chain">
+        <h2>On chain, this turn</h2>
+        <p id="chain-intro">The world contract, and the transactions from the last sealed turn.</p>
+        <ul class="jtx go" id="txs"></ul>
+      </section>
+
+      <section id="nations">
+        <h2>Every nation's accounts</h2>
+        <p>Each nation has a name you can send NEAR to. Think of it as a mailbox at the front gate: whatever lands there gets carried to the treasury, the nation's DAO, on the next turn. Its Broker and Patron have wallets of their own and sign their own trades.</p>
+        <ul class="jtx" id="accounts"></ul>
+      </section>
+
+      <section id="tok">
+        <h2>Research as tokens</h2>
+        <p>Everything a nation learns is a token on NEAR, and its Broker keeps them in its own wallet to trade. The gods never touch them. Research copies: a nation that buys some gets its own copy and the seller keeps theirs. A passed patent is one of a kind. Figure kits are tokens too. It's the NEP-245 multi-token standard, so any wallet or explorer that reads NEP-245 sees them.</p>
+        <ul class="jtx" id="tokens"></ul>
+        <p><button class="viewbtn" id="tokcheck" type="button">Ask NEAR about one</button></p>
+        <div class="proof-out" id="tokcheck-out"></div>
+        <p>The Brokers trade these tokens with each other on the marketplace. You can watch every listing, sale and patent royalty there.</p>
+        <p><a class="viewbtn gold" href="/marketplace/">Open the marketplace</a></p>
+      </section>
+
+      <section id="run">
+        <h2>Run it yourself</h2>
           <pre class="jcode">git clone https://github.com/cnpierrepapi/adfontes
 cd adfontes
 npm install
 npm test          # engine, clock, techs, walking, florins
 npm run build && npm start   # site + API on :3000</pre>
           <p>The README has the full picture, the diagrams, and why we think this is more than a game.</p>
-        </div>
       </section>
     </main>
     <script type="module" src="/src/judge.js"></script>

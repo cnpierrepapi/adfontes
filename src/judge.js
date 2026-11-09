@@ -1,6 +1,8 @@
 // The judges' page: live numbers, a proof you check in your own browser, the last turn on chain.
 import { api } from "./net.js";
 import { says as saysWith, tipOf } from "./says.js";
+import { sectionNav } from "./pagenav.js";
+sectionNav();
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter((k) => k != null)); return n; };
@@ -56,7 +58,7 @@ async function load() {
   sealed = await lastSealed();
   const txs = (sealed?.records || []).filter((r) => r.tx).slice(-12).reverse();
   $("chain-intro").replaceChildren("The world contract is ", el("a", { href: `${W.explorer}/address/${W.world}`, target: "_blank", rel: "noopener", textContent: W.world }), sealed ? `. Below: transactions from turn ${sealed.day}, the last one sealed on NEAR.` : ". No turn is sealed yet.");
-  $("txs").replaceChildren(...txs.map((r) => el("li", {}, el("span", { textContent: saysWith(r, clanName) }), ...(tipOf(r) ? [el("span", { className: "tip", textContent: tipOf(r) })] : []), " ", el("a", { href: `${W.explorer}/txns/${r.tx}`, target: "_blank", rel: "noopener", textContent: "see it on NEAR" }))));
+  $("txs").replaceChildren(...txs.map((r) => el("li", {}, el("span", { textContent: saysWith(r, clanName) }), ...(tipOf(r) ? [el("span", { className: "tip", textContent: tipOf(r) })] : []), " ", el("a", { className: "near", href: `${W.explorer}/txns/${r.tx}`, target: "_blank", rel: "noopener", textContent: "NEAR ↗", title: "Open this transaction on NEAR" }))));
   if (!txs.length) $("txs").append(el("li", { textContent: "No transactions in the last sealed turn yet." }));
 }
 
