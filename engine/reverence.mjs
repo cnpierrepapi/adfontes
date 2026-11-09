@@ -311,7 +311,7 @@ export async function godActions({ chain, s, oc, rv, day, changes, hear = null }
       // The citizens hear it (9 Nov): judged against the nation's situation; on any failure the old
       // whisper rule applies.
       let heard = null;
-      if (hear && !OLD) { try { heard = await hear(String(args.text || "")); } catch { heard = null; } }
+      if (hear && !OLD) { try { heard = await hear(String(args.text || "")); if (!heard?.says || !heard?.verdict) throw new Error("empty answer"); } catch (e) { heard = null; console.log(`  whisper to nation ${oc.id} not heard (old rule used): ${String(e.message || e).slice(0, 160)}`); } }
       act(rv, god, "whisper", day, changes, { text: args.text, heard });
       if (heard?.says) out.push({ kind: "heard", clan: oc.id, god, text: String(args.text || "").slice(0, 200), delta: Math.max(REV.heardMin, Math.min(REV.heardMax, Number(heard.delta) || 0)), verdict: heard.verdict ?? null, citizen: heard.citizen ?? null, says: String(heard.says).slice(0, 220) });
     }

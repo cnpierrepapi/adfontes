@@ -13,6 +13,8 @@ import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
 import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhisper, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
+// Whispers to re-hear once (9 Nov, see the per-nation reverence step): nation id -> DAO proposal id.
+const REHEAR_9NOV = { 2: 17, 3: 4, 6: 4 };
 import { overpaid } from "./revfix.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
@@ -426,6 +428,40 @@ for (let n = 0; n < days; n++) {
           const keywords = [foe != null ? nameOfClan(foe) : null, war ? "war" : null, war ? "walls" : null, c.mood === "hungry" ? "hungry" : null, (c.tricksters || 0) ? "trickster" : null, ...frontier.slice(0, 3)];
           return hearWhisper({ name: oc.name, field: c.field, temperament: c.mbti, situation, keywords, citizens: living.map((a) => a.name), text });
         };
+        // One-time (his go 9 Nov): the whispers that passed between ~18:10 and 18:30 UTC on 9 Nov were
+        // never heard (the model's thinking used up the 250-token answer, so the old rule ran instead).
+        // Take back what the old rule paid and let the citizens hear them now.
+        const reId = REHEAR_9NOV[oc.id];
+        if (reId != null && net === "testnet" && !process.env.ADF_SIM_CHAIN && !s.fixes?.reHear9Nov?.[oc.id]) {
+          try {
+            const p = (await chain.dao(oc.dao, "get_proposals", { from_index: reId, limit: 1 }))?.[0];
+            const a = p?.kind?.FunctionCall?.actions?.[0];
+            const args = a ? JSON.parse(Buffer.from(a.args, "base64").toString()) : {};
+            const god = p?.proposer, g = rv.gods[god];
+            if (p?.status === "Approved" && a?.method_name === "whisper" && g) {
+              let old = null;
+              for (let d = Math.max(1, day - 2); d <= day; d++) {
+                const rs = d === day ? rec : (await store.getDay(net, d))?.records || [];
+                for (const r of rs) if (r.kind === "reverence" && r.clan === oc.id) for (const ch of r.changes || []) if (ch.god === god && /^whisper( \(|$| heard as words)/.test(ch.why || "")) old = ch;
+              }
+              if (old) {
+                const heard = await hear(String(args.text || ""));
+                if (heard?.says) {
+                  const bonus = Number(/\(\+([\d.]+) for how/.exec(old.why)?.[1] || 0);
+                  const fix = [];
+                  g.r = Math.max(0, g.r - old.d);
+                  fix.push({ god, d: -old.d, why: "whisper taken back: it was scored by the old rule because the citizens' answer was cut off" });
+                  g.whispers.pop();
+                  g.flourish = bonus / RV.REV.flourishPerPoint;
+                  RV.act(rv, god, "whisper", day, fix, { text: args.text, heard });
+                  log({ kind: "correction", clan: oc.id, changes: fix, why: "A whisper on 9 Nov was scored by the old rule because the citizens' answer was cut off. They have heard it now." });
+                  log({ kind: "heard", clan: oc.id, god, text: String(args.text || "").slice(0, 200), delta: Math.max(RV.REV.heardMin, Math.min(RV.REV.heardMax, Number(heard.delta) || 0)), verdict: heard.verdict ?? null, citizen: heard.citizen ?? null, says: String(heard.says).slice(0, 220) });
+                }
+              }
+            }
+          } catch (e) { console.log(`  re-hearing nation ${oc.id}'s whisper failed: ${String(e.message || e).slice(0, 160)}`); }
+          s.fixes = { ...(s.fixes || {}), reHear9Nov: { ...(s.fixes?.reHear9Nov || {}), [oc.id]: Date.now() } };
+        }
         const acts = await RV.godActions({ chain, s, oc, rv, day, changes: revCh, hear });
         for (const r of acts) log(r);
         if (acts.length) c.lastActAt = Date.now(); // a god acted: no Trickster for 24 hours

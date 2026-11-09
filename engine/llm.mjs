@@ -55,7 +55,10 @@ function fakeDraft({ chain }) {
   };
 }
 
-async function json(model, system, user, schema, maxTokens) {
+// The models think before they answer, and the thinking counts against max_tokens: with a short limit
+// a long prompt used it all up and the JSON came back cut off (9 Nov: every live whisper failed to be
+// heard this way). A cut-off answer is asked again once with four times the room.
+async function json(model, system, user, schema, maxTokens, retried = false) {
   const kind = model === CFG.draftModel ? "draft" : model === CFG.councilModel ? "council" : "agent";
   if (!canSpend(kind)) throw new BudgetError(`daily cap $${CFG.dailyCapUsd} reached ($${spentToday().toFixed(4)} spent today)`);
   const msg = await client.messages.create({
@@ -70,6 +73,7 @@ async function json(model, system, user, schema, maxTokens) {
   const usd = (msg.usage.input_tokens * pin + msg.usage.output_tokens * pout) / 1e6;
   meter.usd += usd;
   if (spendHook) await spendHook(usd).catch((e) => console.log("  spend ledger write failed:", String(e.message || e).slice(0, 120)));
+  if (msg.stop_reason === "max_tokens" && !retried) return json(model, system, user, schema, maxTokens * 4, true);
   const text = msg.content.find((b) => b.type === "text")?.text ?? "{}";
   return JSON.parse(text);
 }
@@ -231,7 +235,7 @@ export function hearWhisper({ name, field, temperament, situation, keywords = []
       `The nation's temperament: ${temperament}.`,
     `Right now:\n${situation}\n\nCitizens: ${citizens.slice(0, 12).join(", ") || "(unknown)"}\n\nYour god whispered: "${text}"`,
     HEARD,
-    250,
+    1000,
   );
 }
 
@@ -256,7 +260,7 @@ export function sellerAsk({ field, temperament, florins, item, buyer, fair, fair
     `Your field: ${field}. Your nation holds ${fmt(florins)} florins.\nThe buyer: ${buyer}.\nFor sale: ${item}.\n` +
       `Fair price: ${fmt(fair)} florins (${fairWhy}).${holders != null ? ` ${holders} nation(s) already know it.` : ""}`,
     ASK,
-    200,
+    800,
   );
 }
 
