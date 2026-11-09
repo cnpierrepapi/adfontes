@@ -96,9 +96,15 @@ async function work() {
       await look(W).catch((e) => say(`${W.net}: look failed: ${String(e.message || e).slice(0, 120)}`));
       if (W.dayQueued) {
         W.dayQueued = false; W.dayDueAt = null;
-        await run(W.net, ["--force"]);
-        W.lastDay = Date.now();
-        W.queue.clear(); // the day gave everyone a turn
+        const code = await run(W.net, ["--force"]);
+        if (code !== 0) {
+          // A turn that crashed (9 Nov: an RPC rate limit) is tried again in 5 minutes, not 2 hours.
+          W.dayDueAt = Date.now() + 5 * 60e3;
+          say(`${W.net}: the turn failed; trying again at ${new Date(W.dayDueAt).toISOString().slice(11, 16)} UTC`);
+        } else {
+          W.lastDay = Date.now();
+          W.queue.clear(); // the day gave everyone a turn
+        }
       } else if (W.queue.size) {
         const ids = [...W.queue.keys()], fresh = [...W.queue.values()].some(Boolean);
         W.queue.clear();

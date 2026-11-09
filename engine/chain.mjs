@@ -29,6 +29,35 @@ function operatorKey(net) {
   const get = (k) => lines.find((x) => x.startsWith(k + "="))?.slice(k.length + 1).trim();
   return [get(`${n.operatorEnv}_ACCOUNT_ID`), get(`${n.operatorEnv}_PRIVATE_KEY`)];
 }
+// NEAR RPC that rides out rate limits (9 Nov: a FastNEAR 429 crashed the 00:02 UTC turn). Every
+// call goes to the network's main RPC; on a 429 it waits and tries again, then falls back to NEAR's
+// own RPC. A 429 means the request was refused, not run, so sending it again is safe. Any other
+// error (a contract refusing, a missing account) comes straight back.
+const FALLBACK_RPC = { testnet: "https://rpc.testnet.near.org", mainnet: "https://rpc.mainnet.near.org" };
+const is429 = (e) => e?.cause === 429 || /\b429\b|Rate limits exceeded|Too Many Requests/i.test(String(e?.message || e));
+export function resilientProvider(net, url) {
+  const all = [new JsonRpcProvider({ url }), new JsonRpcProvider({ url: FALLBACK_RPC[net] })];
+  return new Proxy(all[0], {
+    get(target, key) {
+      const v = target[key];
+      if (typeof v !== "function") return v;
+      return (...args) => {
+        const first = v.apply(target, args);
+        if (!(first instanceof Promise)) return first;
+        return first.catch(async (e) => {
+          if (!is429(e)) throw e;
+          let last = e;
+          for (const [i, p] of [[0, all[0]], [1, all[0]], [0, all[1]], [1, all[1]], [2, all[1]]]) {
+            await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
+            try { return await p[key](...args); } catch (e2) { if (!is429(e2)) throw e2; last = e2; }
+          }
+          throw last;
+        });
+      };
+    },
+  });
+}
+
 function operatorAccount(net, provider) {
   const [id, key] = operatorKey(net);
   return new Account(id, provider, key);
@@ -53,7 +82,7 @@ export function connect(net) {
   // The fast-forward simulation (scripts/sim-week.mjs): a stand-in chain in a local file, never testnet.
   if (process.env.ADF_SIM_CHAIN) return connectSim(process.env.ADF_SIM_CHAIN);
   const n = NETWORKS[net];
-  const provider = new JsonRpcProvider({ url: n.rpc });
+  const provider = resilientProvider(net, n.rpc);
   const op = operatorAccount(net, provider);
   const opKey = operatorKey(net)[1];
   const world = n.world;
