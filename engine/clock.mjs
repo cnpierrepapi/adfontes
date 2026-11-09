@@ -21,10 +21,10 @@ export const realTimeAt = (nearMs, c = CLOCK) => c.seasonEnd - (c.seasonEnd - ne
  * starting at the season's first NEAR hour. Causal: a flip at hour i uses only prices up to i.
  * Returns phases [{ day, start, end, startPrice, endPrice, hours }] (end = null for the open one).
  */
-export function phases(rows, flip = CLOCK.flip) {
+export function phases(rows, flip = CLOCK.flip, startDay = true) {
   if (!rows.length) return [];
   const out = [];
-  let day = true, ext = rows[0][1], start = 0;
+  let day = startDay, ext = rows[0][1], start = 0;
   for (let i = 1; i < rows.length; i++) {
     const p = rows[i][1];
     if (day ? p > ext : p < ext) ext = p;

@@ -116,7 +116,8 @@ for (let t = c.phaseStartedNear; t < c.nearTime; t += 300 * 3600e3) {
 }
 hrs.sort((a, b) => a[0] - b[0]);
 const done = hrs.filter((h) => h[0] * 1000 + 3600e3 <= c.nearTime);
-const ph = phases(done.length ? done : [[c.phaseStartedNear / 1000, c.startPrice]]);
+// Start from the phase the world is in (a slide during a night is more night, not a reversal).
+const ph = phases(done.length ? done : [[c.phaseStartedNear / 1000, c.startPrice]], undefined, c.phase === "day");
 ok(ph.length === 1, `since the phase began, NEAR hasn't reversed 3% (so it's still ${c.phase})`, `${done.length} hours checked, start $${c.startPrice}`);
 
 // ---------- G. the engine is alive ----------
