@@ -21,8 +21,9 @@ Running on NEAR testnet now. Where the page can check one against the chain, it 
 What we said we'd do before the season ends.
 
 - **Hackathon submission.** The NEAR hackathon entry goes in on Tuesday 10 November.
-- **Mainnet gets the current contract.** Mainnet still runs the first version. The current contract goes on mainnet, and the old one retires once its god has taken their NEAR out.
-- **The world runs on mainnet too.** The engine only runs testnet today. On mainnet every cost is real NEAR, so it starts once the contract is there and funded.
+- **Mainnet gets the current contract.** Mainnet still runs the first version. After the hackathon winners are announced, the current contract goes on mainnet as a fresh world, and the old one retires once its god has taken their NEAR out.
+- **Founders keep every NEAR they put in.** On mainnet the world pays for a new nation's DAO and its share of the jackpot, so a founder who puts in 5 NEAR gets 5 NEAR of florins.
+- **The world runs on mainnet too.** The engine only runs testnet today. It starts on mainnet the day the new world is funded, with testnet still running alongside for free play.
 - **A real cross-chain top-up.** One real NEAR Intents swap on mainnet, about $4, to prove gods can pay in from another chain end to end.
 - **The testnet pool refills itself.** The pool that funds new players only goes down right now. NEAR's testnet helper can top it up every 12 hours; that needs wiring in.
 - **Season 1 ends and the jackpot pays.** On 30 November at 23:00 UTC the season closes. The jackpot goes to the gods of the most revered nation still standing.

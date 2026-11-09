@@ -1,35 +1,167 @@
 {
   "updated": "2026-11-09",
   "groups": [
-    { "id": "done", "title": "Done in Season 1", "intro": "Running on NEAR testnet now. Where the page can check one against the chain, it does, every time you load it." },
-    { "id": "next", "title": "Next", "intro": "What we said we'd do before the season ends." },
-    { "id": "later", "title": "After Season 1", "intro": "From the original plan. None of it is built yet." },
-    { "id": "not", "title": "Not doing", "intro": "Ideas we dropped, and why." }
+    {
+      "id": "done",
+      "title": "Done in Season 1",
+      "intro": "Running on NEAR testnet now. Where the page can check one against the chain, it does, every time you load it."
+    },
+    {
+      "id": "next",
+      "title": "Next",
+      "intro": "What we said we'd do before the season ends."
+    },
+    {
+      "id": "later",
+      "title": "After Season 1",
+      "intro": "From the original plan. None of it is built yet."
+    },
+    {
+      "id": "not",
+      "title": "Not doing",
+      "intro": "Ideas we dropped, and why."
+    }
   ],
   "items": [
-    { "group": "done", "check": "world", "title": "The world lives on NEAR", "text": "One contract holds every nation, florin, god and jackpot share. Each nation is also a Sputnik DAO its gods vote in." },
-    { "group": "done", "check": "sealed", "title": "Every turn is sealed on NEAR", "text": "Each turn's records get one fingerprint on chain. The judge page lets you check a random record against it from your own browser." },
-    { "group": "done", "check": "wallets", "title": "The agents hold their own wallets", "text": "Each nation's Broker trades and its Patron pays for war, from wallets with one key that can only call their own methods." },
-    { "group": "done", "check": "aliases", "title": "Every nation has a name", "text": "Send NEAR to helios.w6… and it goes on to that nation's treasury. The account has no keys at all." },
-    { "group": "done", "check": "tokens", "title": "Research is a token", "text": "Research, figure kits and patents are NEP-245 tokens, minted the moment they're made and kept in the Broker's wallet." },
-    { "group": "done", "check": "market", "title": "Every trade goes through the market", "text": "The seller's Broker names a price, the buyer takes it or walks away, and the deal is a real listing and sale on chain." },
-    { "group": "done", "check": "royalties", "title": "Patents earn royalties", "text": "Whenever anyone buys research a patent stands on, its holder gets paid. Sell the patent and the royalties go with it." },
-    { "group": "done", "check": "founding", "title": "Founding costs nothing extra", "text": "The first founders got back the 5.5 NEAR their DAOs cost. Now a founding fund pays for new nations' DAOs, so all a founder puts in becomes florins." },
-    { "group": "done", "check": "season", "title": "The season, fast-forwarded", "text": "The whole season in its own 3D world: the real turns, then a simulation run forward with AI gods. Pause on any turn to see every nation as it stood." },
-    { "group": "next", "check": "submission", "title": "Hackathon submission", "text": "The NEAR hackathon entry goes in on Tuesday 10 November." },
-    { "group": "next", "check": "mainnetContract", "title": "Mainnet gets the current contract", "text": "Mainnet still runs the first version. The current contract goes on mainnet, and the old one retires once its god has taken their NEAR out." },
-    { "group": "next", "check": "mainnetEngine", "title": "The world runs on mainnet too", "text": "The engine only runs testnet today. On mainnet every cost is real NEAR, so it starts once the contract is there and funded." },
-    { "group": "next", "check": "intents", "title": "A real cross-chain top-up", "text": "One real NEAR Intents swap on mainnet, about $4, to prove gods can pay in from another chain end to end." },
-    { "group": "next", "check": "refill", "title": "The testnet pool refills itself", "text": "The pool that funds new players only goes down right now. NEAR's testnet helper can top it up every 12 hours; that needs wiring in." },
-    { "group": "next", "check": "jackpot", "title": "Season 1 ends and the jackpot pays", "text": "On 30 November at 23:00 UTC the season closes. The jackpot goes to the gods of the most revered nation still standing." },
-    { "group": "later", "title": "A multisig holds the keys", "text": "Upgrades to the world contract move from one account to a multisig from Season 2." },
-    { "group": "later", "title": "The winner picks the next field", "text": "Season 1 is energy. The winning nation chooses what Season 2 is about." },
-    { "group": "later", "title": "More places to learn from", "text": "Today the Scholars read open papers. More knowledge banks come next." },
-    { "group": "later", "title": "Nations pay for their own thinking", "text": "Nations' NEAR AI staking credits pay for their research first, and our account becomes the backup." },
-    { "group": "later", "title": "The whole mindmap on chain", "text": "Today the records sit in a database with one fingerprint per turn on NEAR. The plan is to move the mindmap itself on chain." },
-    { "group": "later", "title": "Nation tokens", "text": "Each nation gets its own token, and trading fees pay for its compute." },
-    { "group": "not", "title": "Player-owned stake markets", "text": "Letting gods trade their stakes with each other. Dropped: not enough time to do it right." },
-    { "group": "not", "title": "Social login", "text": "Signing in with Google and the like needs NEAR Auth approval we couldn't get in time. Play without a wallet covers the same need." },
-    { "group": "not", "title": "Trezu treasury dashboard", "text": "It doesn't support testnet, where the season runs." }
+    {
+      "group": "done",
+      "check": "world",
+      "title": "The world lives on NEAR",
+      "text": "One contract holds every nation, florin, god and jackpot share. Each nation is also a Sputnik DAO its gods vote in."
+    },
+    {
+      "group": "done",
+      "check": "sealed",
+      "title": "Every turn is sealed on NEAR",
+      "text": "Each turn's records get one fingerprint on chain. The judge page lets you check a random record against it from your own browser."
+    },
+    {
+      "group": "done",
+      "check": "wallets",
+      "title": "The agents hold their own wallets",
+      "text": "Each nation's Broker trades and its Patron pays for war, from wallets with one key that can only call their own methods."
+    },
+    {
+      "group": "done",
+      "check": "aliases",
+      "title": "Every nation has a name",
+      "text": "Send NEAR to helios.w6… and it goes on to that nation's treasury. The account has no keys at all."
+    },
+    {
+      "group": "done",
+      "check": "tokens",
+      "title": "Research is a token",
+      "text": "Research, figure kits and patents are NEP-245 tokens, minted the moment they're made and kept in the Broker's wallet."
+    },
+    {
+      "group": "done",
+      "check": "market",
+      "title": "Every trade goes through the market",
+      "text": "The seller's Broker names a price, the buyer takes it or walks away, and the deal is a real listing and sale on chain."
+    },
+    {
+      "group": "done",
+      "check": "royalties",
+      "title": "Patents earn royalties",
+      "text": "Whenever anyone buys research a patent stands on, its holder gets paid. Sell the patent and the royalties go with it."
+    },
+    {
+      "group": "done",
+      "check": "founding",
+      "title": "Founding costs nothing extra",
+      "text": "The first founders got back the 5.5 NEAR their DAOs cost. Now a founding fund pays for new nations' DAOs, so all a founder puts in becomes florins."
+    },
+    {
+      "group": "done",
+      "check": "season",
+      "title": "The season, fast-forwarded",
+      "text": "The whole season in its own 3D world: the real turns, then a simulation run forward with AI gods. Pause on any turn to see every nation as it stood."
+    },
+    {
+      "group": "next",
+      "check": "submission",
+      "title": "Hackathon submission",
+      "text": "The NEAR hackathon entry goes in on Tuesday 10 November."
+    },
+    {
+      "group": "next",
+      "check": "mainnetContract",
+      "title": "Mainnet gets the current contract",
+      "text": "Mainnet still runs the first version. After the hackathon winners are announced, the current contract goes on mainnet as a fresh world, and the old one retires once its god has taken their NEAR out."
+    },
+    {
+      "group": "next",
+      "title": "Founders keep every NEAR they put in",
+      "text": "On mainnet the world pays for a new nation's DAO and its share of the jackpot, so a founder who puts in 5 NEAR gets 5 NEAR of florins."
+    },
+    {
+      "group": "next",
+      "check": "mainnetEngine",
+      "title": "The world runs on mainnet too",
+      "text": "The engine only runs testnet today. It starts on mainnet the day the new world is funded, with testnet still running alongside for free play."
+    },
+    {
+      "group": "next",
+      "check": "intents",
+      "title": "A real cross-chain top-up",
+      "text": "One real NEAR Intents swap on mainnet, about $4, to prove gods can pay in from another chain end to end."
+    },
+    {
+      "group": "next",
+      "check": "refill",
+      "title": "The testnet pool refills itself",
+      "text": "The pool that funds new players only goes down right now. NEAR's testnet helper can top it up every 12 hours; that needs wiring in."
+    },
+    {
+      "group": "next",
+      "check": "jackpot",
+      "title": "Season 1 ends and the jackpot pays",
+      "text": "On 30 November at 23:00 UTC the season closes. The jackpot goes to the gods of the most revered nation still standing."
+    },
+    {
+      "group": "later",
+      "title": "A multisig holds the keys",
+      "text": "Upgrades to the world contract move from one account to a multisig from Season 2."
+    },
+    {
+      "group": "later",
+      "title": "The winner picks the next field",
+      "text": "Season 1 is energy. The winning nation chooses what Season 2 is about."
+    },
+    {
+      "group": "later",
+      "title": "More places to learn from",
+      "text": "Today the Scholars read open papers. More knowledge banks come next."
+    },
+    {
+      "group": "later",
+      "title": "Nations pay for their own thinking",
+      "text": "Nations' NEAR AI staking credits pay for their research first, and our account becomes the backup."
+    },
+    {
+      "group": "later",
+      "title": "The whole mindmap on chain",
+      "text": "Today the records sit in a database with one fingerprint per turn on NEAR. The plan is to move the mindmap itself on chain."
+    },
+    {
+      "group": "later",
+      "title": "Nation tokens",
+      "text": "Each nation gets its own token, and trading fees pay for its compute."
+    },
+    {
+      "group": "not",
+      "title": "Player-owned stake markets",
+      "text": "Letting gods trade their stakes with each other. Dropped: not enough time to do it right."
+    },
+    {
+      "group": "not",
+      "title": "Social login",
+      "text": "Signing in with Google and the like needs NEAR Auth approval we couldn't get in time. Play without a wallet covers the same need."
+    },
+    {
+      "group": "not",
+      "title": "Trezu treasury dashboard",
+      "text": "It doesn't support testnet, where the season runs."
+    }
   ]
 }
