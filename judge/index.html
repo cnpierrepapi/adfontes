@@ -22,7 +22,7 @@
       <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
       <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="/marketplace/">Marketplace</a> <a href="/judge/" aria-current="page">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
     </header>
-    <nav class="jump" aria-label="Sections"><a href="#start">Start here</a> <a href="#now">Right now</a> <a href="#check-it">Check it yourself</a> <a href="#chain">This turn on NEAR</a> <a href="#nations">Accounts</a> <a href="#tok">Tokens</a> <a href="#run">Run it</a></nav>
+    <nav class="jump" aria-label="Sections"><a href="#start">Start here</a> <a href="#now">Right now</a> <a href="#stakes">Gods' stakes</a> <a href="#check-it">Check it yourself</a> <a href="#chain">This turn on NEAR</a> <a href="#nations">Accounts</a> <a href="#tok">Tokens</a> <a href="#run">Run it</a></nav>
     <main class="demo-main">
       <div class="demo-head">
         <p class="kicker dark" id="where">for judges</p>
@@ -37,14 +37,22 @@
           <ol class="jsteps">
             <li>Start with <a href="/timelapse/">the season, fast-forwarded</a>. It plays in its own copy of the world, from the first nation. Turns 1 to 15 are the real ones, sealed on NEAR. After that it is a simulation: we ran the world forward on its own, AI gods and all, so you can watch the wars, the odd weapons and a nation falling without waiting a week. Pause on any turn and every nation shows where it stood. Then open <a href="/">the world</a> and watch it live. The dial at the top is the clock: it's day while NEAR's price is climbing, night while it falls.</li>
             <li>Click an island. The panel shows what that nation knows, its florins, and its gods.</li>
-            <li>Under the season standings there's an event list. Click a line and the camera flies there.</li>
-            <li>Want to play? Connect a testnet wallet and found a nation from the wallet menu. Short on testnet NEAR? The found card tops you up once.</li>
+            <li>Under the season standings there's an event list. Click a line and the camera flies there. Hover a trade and you see the sum behind the price, what the seller asked and why, and why the buyer took it.</li>
+            <li>Open <a href="/marketplace/">the marketplace</a>. Every trade between nations is a listing and a sale there, priced by the seller's Broker and signed from its own wallet, each with a link to NEAR. Patent holders earn a royalty when research in their patent's chain gets bought.</li>
+            <li>Want to play? Connect a testnet wallet, or press "Play without a wallet" and the pool makes you a named testnet account with enough NEAR to found a nation. The key stays in your browser.</li>
           </ol>
       </section>
 
       <section id="now">
         <h2>The world right now</h2>
         <div class="jstats" id="stats"><p>Reading the world…</p></div>
+      </section>
+
+      <section id="stakes">
+        <h2>Gods' stakes right now</h2>
+        <p>What every god put in, and what their florins would pay out if they claimed today. Straight from the contract's <code>get_stake</code>, nothing cached for long. Everyone starts 14% down, because 14% of every NEAR goes to the season jackpot. Climb back past that and you're ahead.</p>
+        <div class="mtable-wrap"><table class="mtable" id="stakes-table"></table></div>
+        <p id="jackpot-line"></p>
       </section>
 
       <section id="check-it">
@@ -57,12 +65,14 @@
       <section id="chain">
         <h2>On chain, this turn</h2>
         <p id="chain-intro">The world contract, and the transactions from the last sealed turn.</p>
+        <p>Each one says who signed it. A nation's Broker or Patron signs from its own wallet. Everything else, like minting florins for good work or sealing the turn, is the world's own rules, signed by the world's operator.</p>
         <ul class="jtx go" id="txs"></ul>
       </section>
 
       <section id="nations">
         <h2>Every nation's accounts</h2>
-        <p>Each nation has a name you can send NEAR to. Think of it as a mailbox at the front gate: whatever lands there gets carried to the treasury, the nation's DAO, on the next turn. Its Broker and Patron have wallets of their own and sign their own trades.</p>
+        <p>Each nation has a name you can send NEAR to. Think of it as a mailbox at the front gate: whatever lands there gets carried to the treasury, the nation's DAO, on the next turn.</p>
+        <p>Its two agents have wallets of their own. The Broker buys and sells knowledge, the Patron pays for war and walls. Each wallet has one key, and that key can only call its own agent's methods on the world contract. It can't send NEAR anywhere.</p>
         <ul class="jtx" id="accounts"></ul>
       </section>
 

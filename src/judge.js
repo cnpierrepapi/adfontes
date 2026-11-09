@@ -50,7 +50,10 @@ async function load() {
   );
   // Every nation's accounts: its named account (forwards to the DAO) and the DAO itself.
   const link = (a) => el("a", { href: `${W.explorer}/address/${a}`, target: "_blank", rel: "noopener", textContent: a });
-  $("accounts").replaceChildren(...live.map((x) => el("li", {}, el("b", { textContent: x.name }), " · ", x.alias ? link(x.alias) : "named account coming on its next turn", " → treasury ", link(x.dao))));
+  $("accounts").replaceChildren(...live.map((x) => el("li", {},
+    el("div", {}, el("b", { textContent: x.name }), " · ", x.alias ? link(x.alias) : "named account coming on its next turn", " → treasury ", link(x.dao)),
+    x.wallets?.broker || x.wallets?.patron ? el("div", { className: "jsub" }, "Broker ", x.wallets.broker ? link(x.wallets.broker) : "–", " · Patron ", x.wallets.patron ? link(x.wallets.patron) : "–") : null)));
+  showStakes().catch(() => ($("stakes-table").replaceChildren(el("tr", {}, el("td", { textContent: "The stakes didn't load. Try again in a minute." })))));
   // Research as NEP-245 tokens: what each nation's DAO holds, and a live check against NEAR.
   const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   $("tokens").replaceChildren(...live.filter((x) => x.tokens).map((x) => el("li", {}, el("b", { textContent: x.name }), ` · ${pl(x.tokens.research, "research token")}, ${pl(x.tokens.patents, "patent")}, ${pl(x.tokens.kits, "kit")}`)));
@@ -58,8 +61,40 @@ async function load() {
   sealed = await lastSealed();
   const txs = (sealed?.records || []).filter((r) => r.tx).slice(-12).reverse();
   $("chain-intro").replaceChildren("The world contract is ", el("a", { href: `${W.explorer}/address/${W.world}`, target: "_blank", rel: "noopener", textContent: W.world }), sealed ? `. Below: transactions from turn ${sealed.day}, the last one sealed on NEAR.` : ". No turn is sealed yet.");
-  $("txs").replaceChildren(...txs.map((r) => el("li", {}, el("span", { textContent: saysWith(r, clanName) }), ...(tipOf(r) ? [el("span", { className: "tip", textContent: tipOf(r) })] : []), " ", el("a", { className: "near", href: `${W.explorer}/txns/${r.tx}`, target: "_blank", rel: "noopener", textContent: "NEAR ↗", title: "Open this transaction on NEAR" }))));
+  $("txs").replaceChildren(...txs.map((r) => el("li", {}, el("span", { textContent: saysWith(r, clanName) }), el("span", { className: "signer", textContent: `Signed by ${signerOf(r)}` }), ...(tipOf(r) ? [el("span", { className: "tip", textContent: tipOf(r) })] : []), " ", el("a", { className: "near", href: `${W.explorer}/txns/${r.tx}`, target: "_blank", rel: "noopener", textContent: "NEAR ↗", title: "Open this transaction on NEAR" }))));
   if (!txs.length) $("txs").append(el("li", { textContent: "No transactions in the last sealed turn yet." }));
+}
+
+// Who signed a transaction: a nation's own agent (from its wallet) or the world's operator.
+function signerOf(r) {
+  const s = r.signer;
+  if (s && s !== "operator") {
+    for (const c of W.clans) {
+      if (c.wallets?.broker === s) return `${c.name}'s Broker, from its own wallet`;
+      if (c.wallets?.patron === s) return `${c.name}'s Patron, from its own wallet`;
+    }
+    return s;
+  }
+  return "the world's operator (the rules, not an agent)";
+}
+
+// Every god's stake now (/api/stakes reads get_stake on the contract).
+async function showStakes() {
+  const S = await api("stakes");
+  const short = (a) => (a.length > 24 ? `${a.slice(0, 8)}…` : a);
+  const pct = (p) => (p == null ? "–" : `${p > 0 ? "+" : ""}${p}%`);
+  const head = el("tr", {}, ...["Nation", "God", "Put in", "Florins", "Claim now", "Result"].map((h) => el("th", { textContent: h })));
+  const rows = S.stakes.map((x) => el("tr", { className: x.pct > 0 ? "up" : x.pct > -14 ? "even" : "" },
+    el("td", {}, el("b", { textContent: x.nation }), x.alive ? null : el("span", { className: "mtag", textContent: "fallen" })),
+    el("td", {}, el("a", { href: `${S.explorer}/address/${x.god}`, target: "_blank", rel: "noopener", textContent: short(x.god) })),
+    el("td", { textContent: `${n(x.put_in)} NEAR` }),
+    el("td", { textContent: n(x.florins, 1) }),
+    el("td", { textContent: `${n(x.claim_now)} NEAR` }),
+    el("td", { className: "res", textContent: pct(x.pct) }),
+  ));
+  $("stakes-table").replaceChildren(el("thead", {}, head), el("tbody", {}, ...rows));
+  const ahead = S.stakes.filter((x) => x.pct > 0).length;
+  $("jackpot-line").textContent = `${ahead ? `${ahead} god${ahead === 1 ? " is" : "s are"} in profit right now.` : "No god is in profit right now."} The jackpot holds ${n(S.jackpot)} NEAR${S.leader ? `. If the season ended today it would go to the gods of ${S.leader.name}, top of the standings at ${S.leader.standing} reverence` : ""}. It pays out after 30 November.`;
 }
 
 $("check").addEventListener("click", async () => {

@@ -13,6 +13,7 @@ import * as store from "./engine/store.mjs";
 import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, PUBLIC_KEY } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
+import { standings } from "./engine/reverence.mjs";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
 // each network has its own chain connection, world contract and cache. SITE_NET is the default.
@@ -144,6 +145,11 @@ function makeApi(NET) {
           const n = (p) => list.filter((t) => t.token_id.startsWith(p)).length;
           return [c.id, { holder, research: n("r:"), patents: n("p:"), kits: n("k:"), sample: list.find((t) => t.token_id.startsWith("p:"))?.token_id ?? list[0]?.token_id ?? null }];
         }))));
+        // Each nation's two agent wallets (8-9 Nov): its Broker trades, its Patron pays for war and walls.
+        const wallets = await cachedN("wallets", 300_000, async () => Object.fromEntries(await Promise.all(clans.map(async (c) => [c.id, {
+          broker: await view("get_agent_wallet", { clan_id: c.id, role: "Broker" }).catch(() => null),
+          patron: await view("get_agent_wallet", { clan_id: c.id, role: "Patron" }).catch(() => null),
+        }]))));
         const weather = last.records.find((r) => r.kind === "weather") ?? null;
         // The world clock now (SPEC §14), not as of the last engine turn: the sky turns on time.
         let clock = null;
@@ -186,6 +192,7 @@ function makeApi(NET) {
               // Its named account (9 Nov): <name>.<world>, forwards to the DAO. Set by the engine once made.
               alias: st.alias ?? null,
               tokens: held[c.id] ?? null,
+              wallets: wallets[c.id] ?? null,
             };
           }),
           ruins: Object.keys(s.ruins || {}).length,
@@ -319,6 +326,27 @@ function makeApi(NET) {
         counts: { listings: listings.length, open: open.length, sales: sales.length, royalties: +royalties.reduce((a, r) => a + r.florins, 0).toFixed(4), royalty_payments: royalties.length },
         open, sales: recent, patents, royalties: royalties.slice(-40).reverse(),
       };
+    });
+  },
+
+  // Every god's stake right now, straight from the contract (get_stake): what they put in, the
+  // florins they hold in the nation, and what claiming them would pay today. Plus who'd take the
+  // season jackpot if it ended now (the standings: engine/reverence.mjs).
+  async stakes() {
+    return cachedN("stakes", 30_000, async () => {
+      const [clans, totals, s] = await Promise.all([view("list_clans", { limit: 100 }), view("get_totals"), stateNow()]);
+      const rows = [];
+      await Promise.all(clans.map(async (c) => {
+        for (const g of c.gods || []) {
+          const st = await view("get_stake", { clan_id: c.id, account: g.account }).catch(() => null);
+          if (!st) continue;
+          const put = near(st.put_in), now = near(st.near);
+          rows.push({ clan: c.id, nation: c.name, alive: c.alive && !s.clans[c.id]?.fallen, god: g.account, put_in: put, florins: florins(st.florins), claim_now: now, gain: +(now - put).toFixed(6), pct: put > 0 ? +((now / put - 1) * 100).toFixed(1) : null });
+        }
+      }));
+      rows.sort((a, b) => (b.pct ?? -1e9) - (a.pct ?? -1e9));
+      const top = standings(s, clans)[0] ?? null;
+      return { day: s.day, net: NET, explorer: EXPLORER, florin_value: near(totals.florin_value), jackpot: near(totals.jackpot), jackpot_share: 14, leader: top ? { id: top.id, name: top.name, standing: Math.round(top.standing * 10) / 10 } : null, stakes: rows };
     });
   },
 
