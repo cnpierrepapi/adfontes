@@ -64,10 +64,14 @@ function operatorAccount(net, provider) {
 }
 
 // Agent wallets (8 Nov): each nation's Broker and Patron sign their own moves from their own NEAR
-// accounts, broker<id>.<operator> and patron<id>.<operator>. Their keys are derived from the
-// operator key (no new secret anywhere), and each account's only key is a function-call key that
-// can call just its one method on the world contract: agent_buy (Broker) or agent_spend (Patron).
-const ROLE_METHOD = { Broker: "agent_buy", Patron: "agent_spend" };
+// accounts. Their keys are derived from the operator key (no new secret anywhere), and each
+// account's only key is a function-call key for its own methods on the world contract; it can't send
+// NEAR. Since the marketplace (9 Nov) the Broker trades from trader<id>.<operator>, whose key also
+// lists, delists and buys on the market (a function-call key can never gain methods, so the first
+// Broker wallets, broker<id>.<operator>, were retired and their tokens moved over).
+const ROLE_METHOD = { Broker: ["agent_buy", "market_list", "market_delist", "market_buy"], Patron: ["agent_spend"] };
+const walletOf = (clanId, role, opId) => `${role === "Broker" ? "trader" : "patron"}${clanId}.${opId}`;
+const keyLabel = (role) => (role === "Broker" ? "Trader" : role); // the Broker's new key, not the retired one
 const AGENT_FUND = 10n ** 23n; // 0.1 NEAR: storage plus a few hundred calls of gas
 // Named nation accounts (9 Nov): <name>.<world>, made by the world contract, paid by the operator.
 const ALIAS_DEPOSIT = 3n * 10n ** 22n; // 0.03 NEAR (the contract's ALIAS_DEPOSIT)
@@ -119,20 +123,20 @@ export function connect(net) {
     setRoot: (day, root) => call("set_root", { day, root }),
     getRoot: (day) => view("get_root", { day }),
     // ---- agent wallets ----
-    agentId: (clanId, role) => `${role === "Broker" ? "broker" : "patron"}${clanId}.${op.accountId}`,
+    agentId: (clanId, role) => walletOf(clanId, role, op.accountId),
     /** Make sure this nation's Broker and Patron have their wallets: create, fund, register. */
     async ensureAgents(clanId) {
       const made = [];
       for (const role of ["Broker", "Patron"]) {
-        const id = `${role === "Broker" ? "broker" : "patron"}${clanId}.${op.accountId}`;
+        const id = walletOf(clanId, role, op.accountId);
         const have = await view("get_agent_wallet", { clan_id: clanId, role }).catch(() => null);
         if (have === id) continue;
-        const kp = agentKeyPair(opKey, world, clanId, role);
+        const kp = agentKeyPair(opKey, world, clanId, keyLabel(role));
         const exists = await provider.query({ request_type: "view_account", finality: "final", account_id: id }).then(() => true, () => false);
         if (!exists) {
           await op.signAndSendTransaction({ receiverId: id, actions: [
             actions.createAccount(), actions.transfer(AGENT_FUND),
-            actions.addFunctionCallAccessKey(kp.getPublicKey(), world, [ROLE_METHOD[role]]), // its only key: one method on the world
+            actions.addFunctionCallAccessKey(kp.getPublicKey(), world, ROLE_METHOD[role]), // its only key: its own methods on the world
           ] });
         }
         await call("set_agent_wallet", { clan_id: clanId, role, account: id });
@@ -194,8 +198,8 @@ export function connect(net) {
     agentSpend: (clanId, florins, memo) => agentCall(clanId, "Patron", "agent_spend", { amount: toUnits(florins), memo }),
   };
   async function agentCall(clanId, role, methodName, args) {
-    const id = `${role === "Broker" ? "broker" : "patron"}${clanId}.${op.accountId}`;
-    const agent = new Account(id, provider, agentKeyPair(opKey, world, clanId, role).toString());
+    const id = walletOf(clanId, role, op.accountId);
+    const agent = new Account(id, provider, agentKeyPair(opKey, world, clanId, keyLabel(role)).toString());
     const r = await agent.callFunctionRaw({ contractId: world, methodName, args, gas: T(30) });
     const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
     if (fail) throw new Error(`${methodName} failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);

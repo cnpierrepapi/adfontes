@@ -174,8 +174,9 @@ for (let n = 0; n < days; n++) {
       }
       const able = (role) => agents.filter((a) => a.role === role && a.alive && a.stunted_until <= day);
       // Their Broker and Patron get their own NEAR wallets on first sight (once per nation).
-      if (!c.agentWallets) {
-        try { const made = await chain.ensureAgents(oc.id); c.agentWallets = true; if (made.length) log({ kind: "wallets", clan: oc.id, accounts: made }); }
+      // Version 2 (9 Nov): the Broker's market wallet, trader<id>; a nation set up before it gets one now.
+      if (c.agentWallets !== 2) {
+        try { const made = await chain.ensureAgents(oc.id); c.agentWallets = 2; if (made.length) log({ kind: "wallets", clan: oc.id, accounts: made }); }
         catch (e) { log({ kind: "error", clan: oc.id, error: `agent wallets: ${String(e.message || e).slice(0, 160)}` }); }
       }
       // Its named account (<name>.<world>, his call 9 Nov), once; then each scheduled turn anything
@@ -588,12 +589,15 @@ for (let n = 0; n < days; n++) {
     const chainNow = await chain.clans();
     // Held by each nation's Broker, in its own wallet (his call 9 Nov), once the wallet exists.
     const holderOf = (id) => (s.clans[id]?.agentWallets ? chain.agentId(id, "Broker") : null);
-    // Anything still in a nation's DAO (the first mints of 9 Nov) moves to its Broker first.
+    // Anything still in a nation's DAO (the first mints of 9 Nov) or its retired Broker wallet moves
+    // to its current Broker first. Checked until a nation's move comes back empty, then never again.
     for (const x of chainNow) {
-      if (!holderOf(x.id) || !(await chain.mtHoldsAny(x.dao))) continue;
+      const c = s.clans[x.id];
+      if (!holderOf(x.id) || c.tokensSettled === 2) continue;
       let moved = 0, r;
-      do { r = await chain.mtMoveToBroker(x.id); moved += r.moved; } while (r.moved >= 100);
-      if (moved) log({ kind: "tokens-moved", clan: x.id, from: x.dao, to: holderOf(x.id), kinds: moved, tx: r.hash });
+      do { r = await chain.mtMoveToBroker(x.id); moved += r.moved; } while (r.moved > 0);
+      c.tokensSettled = 2;
+      if (moved) log({ kind: "tokens-moved", clan: x.id, to: holderOf(x.id), kinds: moved, tx: r.hash });
     }
     const list = TK.toMint(s, holderOf).slice(0, 150);
     if (!list.length) return;
