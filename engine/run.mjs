@@ -102,6 +102,10 @@ for (let n = 0; n < days; n++) {
   // A new day starts with the instant turns' records since the last day (they belong to it).
   const rec = INSTANT ? (s.pending ||= []) : resuming ? (await store.getDay(net, day)).records : (s.pending || []); // the day's records -> Merkle root on chain
   if (!INSTANT) s.pending = [];
+  // Where this turn's own records start. On an instant turn rec is every record since the last full
+  // day, so reverence must only score what THIS turn added (9 Nov: re-scanning the whole list paid
+  // the same passed gift's +3 again on every instant turn).
+  const turnStart = rec.length;
   if (!INSTANT && !resuming) { s.inProgress = { day, done: [] }; s.lastRunAt = Date.now(); }
   let seq = 0;
   logAgentError = (clan, error) => log({ kind: "error", clan, error });
@@ -687,7 +691,7 @@ for (let n = 0; n < days; n++) {
       }
       // Reverence at the end of the turn: how the nation did, the fade, reports, who they follow.
       if (rv) try {
-      const mine = rec.filter((r) => r.clan === oc.id || r.buyer === oc.id);
+      const mine = rec.slice(turnStart).filter((r) => r.clan === oc.id || r.buyer === oc.id);
       const cleanCorpora = mine.filter((r) => r.kind === "corpus" && !r.fake).length;
       const gifts = mine.filter((r) => r.kind === "gift");
       const catches = mine.filter((r) => r.kind === "warden").length;
