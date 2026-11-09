@@ -38,7 +38,7 @@ async function lastSealed() {
 async function load() {
   W = await api("world");
   const c = W.clock, live = W.clans.filter((x) => x.alive);
-  $("where").textContent = `${W.season} · ${W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${W.day}`;
+  $("where").textContent = `${W.season} · ${W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${W.day} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   const stat = (v, l) => el("div", {}, el("b", { textContent: v }), el("small", { textContent: l }));
   $("stats").replaceChildren(
     stat(c ? `Turn ${W.day}, ${c.phase === "day" ? "day" : "night"}` : `Turn ${W.day}`, c ? `NEAR $${c.price.toFixed(2)}, ${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}% since ${c.phase === "day" ? "dawn" : "dusk"}` : "the world clock"),
@@ -121,6 +121,9 @@ $("check").addEventListener("click", async () => {
 });
 
 load().catch(() => ($("where").textContent = "The world didn't answer. Try again in a minute."));
+// Live (his call 9 Nov: the page follows the world turn by turn): everything reloads every 30 seconds.
+// A failed refresh keeps what's on screen.
+setInterval(() => { if (!document.hidden) load().catch(() => {}); }, 30_000);
 
 // Pick a nation and one of its tokens, then ask NEAR directly what it is and who holds it.
 $("tokcheck")?.addEventListener("click", async () => {

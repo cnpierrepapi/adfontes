@@ -778,11 +778,10 @@ for (let n = 0; n < days; n++) {
   }
 
   // Research, patents and kits as NEP-245 tokens held by each nation's DAO (engine/tokens.mjs):
-  // mint whatever the records say a nation holds and the chain doesn't have yet. Scheduled turns only;
-  // at most 150 a turn, so the first backfill spreads over a couple of turns.
-  if (!INSTANT) {
-    try { await mtSync(); } catch (e) { log({ kind: "error", error: `tokens: ${String(e.message || e).slice(0, 200)}` }); }
-  }
+  // mint whatever the records say a nation holds and the chain doesn't have yet. Every turn, the
+  // instant ones too (his call 9 Nov: research becomes a token in the same turn it's written; it used
+  // to wait for the next scheduled turn). At most 150 a turn.
+  try { await mtSync(); } catch (e) { log({ kind: "error", error: `tokens: ${String(e.message || e).slice(0, 200)}` }); }
   async function mtSync() {
     const chainNow = await chain.clans();
     // Held by each nation's Broker, in its own wallet (his call 9 Nov), once the wallet exists.
