@@ -41,8 +41,5 @@ export async function papersFor(query, n = 10) {
   return papers;
 }
 
-/** Does this OpenAlex work id exist? (the Warden's citation check). */
-export async function paperExists(id) {
-  const res = await fetch(`https://api.openalex.org/works/${id}?select=id`, { headers: { "User-Agent": "adfontes-engine", ...AUTH } });
-  return res.ok;
-}
+// The Warden checks citations against the papers a Scholar was given (engine/world.mjs wardenCorpus),
+// not by asking OpenAlex again: if OpenAlex is down, the Scholar's turn fails and nobody is fined.
