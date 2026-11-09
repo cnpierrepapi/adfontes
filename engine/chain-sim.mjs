@@ -91,6 +91,7 @@ export function connectSim(file) {
       const sale = { id: S.market.sales.length, listing: l.id, buyer: id, seller: l.seller, token_id: l.token_id, price: l.price, day: S.config.day, reason };
       S.market.sales.push(sale); save(); return { ...tx(sale.id), signer: `trader${id}.sim-operator` };
     },
+    ensureGas: async () => 0, // the stand-in charges no gas
     marketListings: async (from = 0) => (S.market?.listings || []).slice(from),
     marketSales: async (from = 0) => (S.market?.sales || []).slice(from),
     agentBuy: async function (buyer, seller, florins, memo) { const r = await this.trade(buyer, seller, florins, memo); return { ...r, signer: `trader${buyer}.sim-operator` }; },

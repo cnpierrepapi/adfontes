@@ -11,7 +11,7 @@ import { CFG, florinRates } from "./config.mjs";
 import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor } from "./papers.mjs";
-import { scholarTurn, draftTurn, brokerPick, brokerMarket, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
+import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
@@ -109,10 +109,102 @@ for (let n = 0; n < days; n++) {
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
   // Patent royalties owed this turn: { [clan]: { florins, patents: [], n } }, paid in settleMarket.
-  const owe = (list) => { for (const r of list) { const d = ((s.royaltyDue ||= {})[r.clan] ||= { florins: 0, patents: [], n: 0 }); d.florins += FL.royalty; d.patents.push(r.draft); d.n++; } };
+  // Patent royalties, paid the moment a research buy lands in a patent's chain (his call 9 Nov: nothing
+  // waits for the turn). One mint per holder; anything that fails is kept and paid at the turn's end.
+  async function owe(list) {
+    const by = {};
+    for (const x of list) (by[x.clan] ||= []).push(x.draft);
+    for (const [clan, patents] of Object.entries(by)) {
+      const florins = +(FL.royalty * patents.length).toFixed(4), per = {};
+      for (const p of patents) per[p] = +((per[p] || 0) + FL.royalty).toFixed(4);
+      try {
+        const m = await chain.mint(Number(clan), florins, `patent royalties: ${[...new Set(patents)].join(",")}`.slice(0, 200));
+        log({ kind: "royalty", clan: Number(clan), florins, patents: [...new Set(patents)], per, sales: 1, tx: m?.hash ?? null });
+      } catch (e) {
+        const d = ((s.royaltyDue ||= {})[clan] ||= { florins: 0, patents: [], n: 0 });
+        d.florins += florins; d.patents.push(...patents); d.n++;
+        log({ kind: "error", clan: Number(clan), error: `royalty (paid at the turn's end instead): ${String(e.message || e).slice(0, 140)}` });
+      }
+    }
+  }
   // The market's listings, read once a run (null: a world contract from before the market).
   let marketNow;
   const listingsNow = async () => (marketNow === undefined ? (marketNow = await chain.marketListings(0)) : marketNow);
+  /** A sale, completed the moment it's made (his call 9 Nov: no waiting for the next turn): the
+   *  buyer's copy of a research token or kit is minted straight to its Broker's wallet, and the sale
+   *  is marked done so the turn's settling never applies it twice. applied: the caller already
+   *  taught the buyer and paid the royalties. */
+  async function settleSale(sale, { applied = false } = {}) {
+    if ((s.salesDone ||= []).includes(sale.id)) return null;
+    let res = { learned: null };
+    if (!applied) {
+      res = MK.applySale(s, sale);
+      if (!res) return null;
+      const f = MK.fairOf(s, sale.token_id, FL);
+      log({ kind: "market-sale", buyer: sale.buyer, seller: sale.seller, token: sale.token_id, title: f?.title ?? sale.token_id, price: sale.price, fair: f?.price ?? null, why: sale.reason, listing: sale.listing, learned: res.learned ?? null });
+      if (sale.token_id[0] === "r") await owe(MK.royaltiesFor(s, [s.corpora[sale.token_id.slice(2)]?.node], sale.buyer));
+    }
+    s.salesDone.push(sale.id);
+    if (s.salesDone.length > 400) s.salesDone = s.salesDone.slice(-200);
+    // Its copy, now (a patent already moved on the contract in the sale itself).
+    if (sale.token_id[0] !== "p" && s.clans[sale.buyer]?.agentWallets) {
+      const key = `${sale.buyer}|${sale.token_id}`;
+      if (!(s.mtDone ||= []).includes(key)) {
+        try {
+          const title = MK.fairOf(s, sale.token_id, FL)?.title ?? sale.token_id;
+          const m = await chain.mtMint([{ token_id: sale.token_id, owner_id: chain.agentId(sale.buyer, "Broker"), amount: "1", title: String(title).slice(0, 120) }], `sale ${sale.id}`);
+          s.mtDone.push(key);
+          log({ kind: "tokens", minted: 1, research: +(sale.token_id[0] === "r"), patents: 0, kits: +(sale.token_id[0] === "k"), for: sale.buyer, tx: m.hash });
+        } catch (e) { log({ kind: "error", clan: sale.buyer, error: `copy mint (the turn's token sync retries): ${String(e.message || e).slice(0, 140)}` }); }
+      }
+    }
+    return res;
+  }
+  // A trade between two nations, the way a market does it (his call 9 Nov): the seller's Broker names
+  // its price (half to three times fair), the buyer's Broker takes it or walks away (more than WALK x
+  // fair, or more than it can pay), and the deal goes through the market contract: the seller lists
+  // (unless it's already on its shelf, where the listed price stands), the buyer buys, and a listing
+  // made only for this deal comes down after. Returns { price, ask, buy, sale } or { walked, ask }, or
+  // null when this world has no market (the caller pays the old way).
+  const WALK = 2;
+  async function marketDeal({ buyer, seller, token, fair, fairWhy, item, holders, wallet, buyerWhy }) {
+    const all = await listingsNow();
+    if (!all) return null; // no market on this world: the caller pays the old way
+    // Every trade goes through the market (his call 9 Nov): a nation whose trader wallet isn't made yet
+    // (its first turn) waits a turn rather than paying outside it.
+    if (s.clans[buyer]?.agentWallets !== 2 || s.clans[seller]?.agentWallets !== 2) return { walked: true, quiet: true, ask: { price: fair } };
+    const shelf = all.find((l) => l.open && l.seller === seller && l.token_id === token);
+    // Walked away from this one already today: no new ask, no new line (a real buyer remembers).
+    const wk = `${buyer}|${seller}|${token}`, prev = s.walked?.[wk];
+    if (!shelf && prev && Date.now() - prev.at < CFG.draftEveryMs) return { walked: true, quiet: true, ask: { price: prev.price } };
+    let ask;
+    if (shelf) ask = { price: shelf.price, why: shelf.reason, listing: shelf.id, standing: true };
+    else {
+      let a;
+      try { a = await sellerAsk({ field: s.clans[seller].field, temperament: s.clans[seller].mbti, florins: florinsOf(seller), item, buyer: nameOfClan(buyer), fair, fairWhy, holders }); }
+      catch { a = { price: fair, why: "the fair price" }; }
+      ask = { price: clampPrice(a.price, fair), why: String(a.why || "").slice(0, 200) };
+    }
+    if (ask.price > fair * WALK || ask.price >= wallet) {
+      s.walked ||= {};
+      for (const [k, v] of Object.entries(s.walked)) if (Date.now() - v.at >= CFG.draftEveryMs) delete s.walked[k];
+      s.walked[wk] = { at: Date.now(), price: ask.price };
+      return { walked: true, ask };
+    }
+    let listTx = null;
+    if (!shelf) {
+      const L = await chain.marketList(seller, token, ask.price, ask.why);
+      ask.listing = L.value; listTx = L.hash;
+      all.push({ id: L.value, seller, token_id: token, price: ask.price, kind: token[0] === "p" ? "sale" : "copy", open: true, reason: ask.why, sold: 0 });
+    }
+    const b = await chain.marketBuy(buyer, ask.listing, buyerWhy);
+    const l = all.find((x) => x.id === ask.listing);
+    if (l) { l.sold = (l.sold || 0) + 1; if (l.kind === "sale") l.open = false; }
+    if (!shelf && token[0] !== "p") {
+      try { await chain.marketDelist(seller, ask.listing); if (l) l.open = false; } catch { /* left on the shelf: another nation may buy it */ }
+    }
+    return { price: ask.price, ask, listTx, buy: b, sale: { id: b.value, listing: ask.listing, buyer, seller, token_id: token, price: ask.price, reason: buyerWhy } };
+  }
   /** One nation's Broker on the market: list, take down, buy. Returns the florins it spent. */
   async function marketDay(oc, c, florins) {
     const all = await listingsNow();
@@ -146,6 +238,7 @@ for (let n = 0; n < days; n++) {
     const l = all.find((y) => y.id === o.id);
     if (l && l.kind === "sale") l.open = false; // a patent is gone for the next nation this run
     log({ kind: "market-buy", clan: oc.id, listing: o.id, seller: o.seller, token: o.token_id, title: o.title, price: o.price, fair: +o.fair.toFixed(4), why: String(m.buy_why).slice(0, 200), tx: r.hash, signer: r.signer });
+    await settleSale({ id: r.value, listing: o.id, buyer: oc.id, seller: o.seller, token_id: o.token_id, price: o.price, reason: String(m.buy_why).slice(0, 200) });
     return o.price;
   }
   const capped = (kind) => {
@@ -166,6 +259,10 @@ for (let n = 0; n < days; n++) {
   }
 
   const onchain = await chain.clans();
+  // For the market's words: a nation's name, its florins as the day began, a short number.
+  const nameOfClan = (id) => onchain.find((x) => x.id === Number(id))?.name ?? `nation ${id}`;
+  const florinsOf = (id) => toFlorins(onchain.find((x) => x.id === Number(id))?.florins || "0");
+  const n4 = (x) => (Math.round(x * 100) / 100).toString();
   const alive = onchain.filter((c) => c.alive);
   const live = INSTANT ? alive.filter((c) => INSTANT.includes(c.id)) : alive;
   // Fair share of the daily Claude cap: a nation at full pace costs about CFG.nationDayUsd a day.
@@ -221,6 +318,13 @@ for (let n = 0; n < days; n++) {
       if (c.agentWallets !== 2) {
         try { const made = await chain.ensureAgents(oc.id); c.agentWallets = 2; if (made.length) log({ kind: "wallets", clan: oc.id, accounts: made }); }
         catch (e) { log({ kind: "error", clan: oc.id, error: `agent wallets: ${String(e.message || e).slice(0, 160)}` }); }
+      }
+      // Gas money: every sale is two or three transactions the traders sign. Scheduled turns only.
+      if (c.agentWallets === 2 && !INSTANT && chain.ensureGas) {
+        for (const role of ["Broker", "Patron"]) {
+          try { const sent = await chain.ensureGas(oc.id, role); if (sent) log({ kind: "gas", clan: oc.id, role, near: sent }); }
+          catch (e) { log({ kind: "error", clan: oc.id, error: `gas for the ${role}: ${String(e.message || e).slice(0, 120)}` }); }
+        }
       }
       // Its named account (<name>.<world>, his call 9 Nov), once; then each scheduled turn anything
       // sent there goes on to the nation's DAO.
@@ -334,17 +438,26 @@ for (let n = 0; n < days; n++) {
           // The price and its sum (engine/prices.mjs). Scarcity counts every nation alive, also on an
           // instant turn (which only runs one nation).
           const { price, why: priceWhy } = researchPrice({ base: FL.corpusBase, depth, nations: alive.length, holders, astrolabe: W.hasTech(c, "astrolabe") });
-          if (wallet <= price && deal.why) log({ kind: "broker", clan: oc.id, bought: false, wanted: deal.point, seller: deal.seller, price, why: `couldn't afford it: ${deal.why}` });
-          if (wallet > price) {
-            // The merchant's reason: the Broker's own words when it chose, or the rule that made the match.
-            deal.why ||= `it's the exact point our Scholars were stuck on ("${deal.point}")`;
-            const r = await agentBuy(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
-            wallet -= price;
+          // The merchant's reason: the Broker's own words when it chose, or the rule that made the match.
+          deal.why ||= `it's the exact point our Scholars were stuck on ("${deal.point}")`;
+          // Through the market (his call 9 Nov): the seller names its price, the buyer takes it or walks.
+          let md = null;
+          if (wallet > price * 0.5) {
+            try { md = await marketDeal({ buyer: oc.id, seller: deal.seller, token: `r:${deal.sc.id}`, fair: price, fairWhy: priceWhy, item: `research on "${deal.sc.title || deal.sellerPoint}"`, holders, wallet, buyerWhy: deal.why }); }
+            catch (e) { md = { failed: true }; log({ kind: "error", clan: oc.id, error: `market deal: ${String(e.message || e).slice(0, 160)}` }); }
+          }
+          if (md?.walked && !md.quiet) log({ kind: "broker", clan: oc.id, bought: false, wanted: deal.point, seller: deal.seller, price: md.ask.price, fair: price, why: md.ask.price >= wallet ? `couldn't afford the ${n4(md.ask.price)} florins ${nameOfClan(deal.seller)} asked` : `walked away: ${nameOfClan(deal.seller)} asked ${n4(md.ask.price)} florins, more than twice the fair ${n4(price)}` });
+          else if (!md && wallet <= price) log({ kind: "broker", clan: oc.id, bought: false, wanted: deal.point, seller: deal.seller, price, why: `couldn't afford it: ${deal.why}` });
+          const paid = md?.price ?? (md === null && wallet > price ? price : null);
+          if (paid != null) {
+            const r = md ? { hash: md.buy.hash, signer: md.buy.signer } : await agentBuy(oc.id, deal.seller, price, `corpus:${deal.sc.id}`);
+            wallet -= paid;
             c.owned[deal.point] = { depth, parent: c.frontier[deal.point].parent, corpus: deal.sc.id, how: `bought from clan ${deal.seller}` };
             delete c.frontier[deal.point];
             W.grow(c, deal.point, deal.sc.children);
-            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price, priceWhy, tx: r.hash, signer: r.signer ?? "operator", why: deal.why });
-            owe(MK.royaltiesFor(s, [deal.point, deal.sc.node], oc.id)); // patent royalties (paid at the end of the turn)
+            log({ kind: "trade", buyer: oc.id, seller: deal.seller, point: deal.point, corpus: deal.sc.id, about: deal.sellerPoint, price: paid, fair: price, priceWhy, ...(md ? { listing: md.ask.listing, sale: md.sale.id, standing: !!md.ask.standing, sellerWhy: md.ask.why, listTx: md.listTx } : {}), tx: r.hash, signer: r.signer ?? "operator", why: deal.why });
+            if (md) await settleSale(md.sale, { applied: true }); // its token copy, now
+            await owe(MK.royaltiesFor(s, [deal.point, deal.sc.node], oc.id)); // patent royalties, now
             // The seller's Printing Press: copies are cheap, so each sale earns it a little more.
             if (W.hasTech(s.clans[deal.seller], "press")) {
               try { await chain.mint(deal.seller, FL.pressSale, `printing press: sale to ${oc.id}`); }
@@ -427,12 +540,21 @@ for (let n = 0; n < days; n++) {
         if (!c.hasKit) {
           const kit = Object.values(s.tools).find((t) => t.clan !== oc.id && s.clans[t.clan]?.alive);
           const { price: kp, why: priceWhy } = kitPrice({ base: FL.kit });
-          if (kit && wallet > kp) {
-            const r = await agentBuy(oc.id, kit.clan, kp, `tool:${kit.id}`);
-            wallet -= kp;
+          const kitWhy = "our Drafter wants figures before the next patent draft: a kit halves its mistakes";
+          let md = null;
+          if (kit && wallet > kp * 0.5) {
+            try { md = await marketDeal({ buyer: oc.id, seller: kit.clan, token: `k:${kit.id}`, fair: kp, fairWhy: priceWhy, item: `a figure kit from ${nameOfClan(kit.clan)}`, holders: null, wallet, buyerWhy: kitWhy }); }
+            catch (e) { md = { failed: true }; log({ kind: "error", clan: oc.id, error: `market deal (kit): ${String(e.message || e).slice(0, 160)}` }); }
+          }
+          if (md?.walked && !md.quiet) log({ kind: "broker", clan: oc.id, bought: false, wanted: "a figure kit", seller: kit.clan, price: md.ask.price, fair: kp, why: `walked away: ${nameOfClan(kit.clan)} asked ${n4(md.ask.price)} florins for its kit` });
+          const kpaid = md?.price ?? (kit && md === null && wallet > kp ? kp : null);
+          if (kit && kpaid != null) {
+            const r = md ? { hash: md.buy.hash, signer: md.buy.signer } : await agentBuy(oc.id, kit.clan, kp, `tool:${kit.id}`);
+            wallet -= kpaid;
             c.hasKit = true;
             (c.kits ||= []).push(kit.id); // its copy of the kit token (engine/tokens.mjs)
-            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: kp, priceWhy, tx: r.hash, signer: r.signer ?? "operator", why: "our Drafter wants figures before the next patent draft: a kit halves its mistakes" });
+            log({ kind: "trade", buyer: oc.id, seller: kit.clan, tool: kit.id, price: kpaid, fair: kp, priceWhy, ...(md ? { listing: md.ask.listing, sale: md.sale.id, sellerWhy: md.ask.why, listTx: md.listTx } : {}), tx: r.hash, signer: r.signer ?? "operator", why: kitWhy });
+            if (md) await settleSale(md.sale, { applied: true });
           }
         }
         const nodes = W.deepestChain(c).filter((k) => c.owned[k].corpus);
@@ -638,13 +760,10 @@ for (let n = 0; n < days; n++) {
   }
   async function settleMarket() {
     const sales = await chain.marketSales(s.marketSeen || 0);
+    // Sales made this turn were completed on the spot (settleSale); this picks up anything else.
     for (const sale of sales || []) {
       s.marketSeen = sale.id + 1;
-      const res = MK.applySale(s, sale);
-      if (!res) continue;
-      const f = MK.fairOf(s, sale.token_id, FL);
-      log({ kind: "market-sale", buyer: sale.buyer, seller: sale.seller, token: sale.token_id, title: f?.title ?? sale.token_id, price: sale.price, fair: f?.price ?? null, why: sale.reason, listing: sale.listing, learned: res.learned ?? null });
-      if (sale.token_id[0] === "r") owe(MK.royaltiesFor(s, [s.corpora[sale.token_id.slice(2)]?.node], sale.buyer));
+      await settleSale(sale);
     }
     for (const [clan, due] of Object.entries(s.royaltyDue || {})) {
       try {

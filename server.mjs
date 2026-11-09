@@ -291,6 +291,8 @@ function makeApi(NET) {
       const note = (r) => {
         if (r.kind === "listed" && r.listing != null) listTx[r.listing] = r.tx;
         if (r.kind === "market-buy") buyTx[`${r.listing}|${r.clan}`] = r.tx;
+        // A trade between Brokers goes through the market too (9 Nov): the seller lists, the buyer buys.
+        if (r.kind === "trade" && r.listing != null) { buyTx[`${r.listing}|${r.buyer}`] = r.tx; if (r.listTx) listTx[r.listing] = r.listTx; }
       };
       const days = new Set([...listings.filter((l) => l.open), ...sales.slice(-40)].flatMap((x) => [x.day, x.day + 1]).filter((d) => d >= 1 && d <= s.day));
       for (const d of days) (await dayOf(d)).records.forEach(note);

@@ -15,7 +15,7 @@ const TECH_LINE = {
 export function tipOf(r) {
   const why = r.why && `The Broker's reason: ${r.why}`;
   switch (r.kind) {
-    case "trade": return [r.priceWhy && `Price: ${r.priceWhy}.`, why].filter(Boolean).join("\n");
+    case "trade": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, r.sellerWhy && `The seller asked ${fl(r.price)}: ${r.sellerWhy}`, why].filter(Boolean).join("\n");
     case "listed": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, `It asks ${fl(r.price)}. A Broker can ask half to three times the fair price.`, why].filter(Boolean).join("\n");
     case "market-buy": return [r.fair != null && `Fair price ${fl(r.fair)}, paid ${fl(r.price)}.`, why].filter(Boolean).join("\n");
     case "royalty": return `Each research buy on a point in a patent's chain pays its holder. Patents: ${(r.patents || []).join(", ")}.`;
@@ -39,7 +39,8 @@ export function says(r, clanName) {
     case "forwarded": return `${n2(r.near)} NEAR came in at ${r.account} and went on to ${c(r.clan)}'s treasury.`;
     case "corpus": return `${r.scholar} of ${c(r.clan)} wrote up "${r.point}" from ${r.cites} citations${r.fake ? `, ${r.fake} of them made up` : ""}.${r.stir === "doubt" ? " It unsettles the citizens." : r.stir === "faith" ? " It lifts their faith." : ""}`;
     case "trade": return r.tool ? `${c(r.buyer)} bought a figure kit from ${c(r.seller)} for ${fl(r.price)}.` : `${c(r.buyer)} bought what ${c(r.seller)} knows about "${r.about ?? r.point}" for ${fl(r.price)}.`;
-    case "broker": return r.wanted ? `${c(r.clan)}'s Broker wanted ${c(r.seller)}'s work on "${r.wanted}" but the nation couldn't afford ${fl(r.price)}.` : `${c(r.clan)}'s Broker looked at what the rivals know and bought nothing. ${r.why ?? ""}`.trim();
+    case "broker": if (r.why?.startsWith("walked away")) return `${c(r.clan)}'s Broker walked away from ${c(r.seller)}'s ${r.wanted === "a figure kit" ? "figure kit" : `work on "${r.wanted}"`}: it asked ${fl(r.price)}, more than twice the fair ${fl(r.fair)}.`;
+      return r.wanted ? `${c(r.clan)}'s Broker wanted ${c(r.seller)}'s work on "${r.wanted}" but the nation couldn't afford ${fl(r.price)}.` : `${c(r.clan)}'s Broker looked at what the rivals know and bought nothing. ${r.why ?? ""}`.trim();
     case "gift": {
       const earned = r.florins ? Object.values(r.florins).reduce((a, b) => a + b, 0) : 0;
       return r.passed ? `${c(r.clan)} drafted "${r.title}". The Warden passed it${earned ? `, and it earned ${fl(earned)}` : ""}.` : `${c(r.clan)} drafted "${r.title}". The Warden found a problem.`;
@@ -98,6 +99,7 @@ export function says(r, clanName) {
     }
     case "royalty": return `${c(r.clan)} earned ${fl(r.florins)} in patent royalties. ${r.sales === 1 ? "Someone bought research" : `${r.sales} buys of research`} in its patents' chains.`;
     case "tokens": return `${r.minted} new tokens on NEAR: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
+    case "gas": return `${c(r.clan)}'s ${r.role} got ${n2(r.near)} NEAR for gas, to keep signing its trades.`;
     case "tokens-moved": return `${c(r.clan)}'s tokens moved into its Broker's own wallet.`;
     case "fallen": return `${r.name} has ${r.surrendered ? "run out of money and surrendered" : "fallen"}. ${r.byName} took ${fl(r.loot)}${r.knowledge ? `, ${r.knowledge} point${r.knowledge === 1 ? "" : "s"} of its knowledge` : ""} and two of its people.`;
     default: return r.kind;

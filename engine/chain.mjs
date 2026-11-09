@@ -195,6 +195,15 @@ export function connect(net) {
       return null; // made but not readable yet: the next turn picks it up
     },
     /** Send whatever is waiting at a nation's named account on to its DAO. Returns { near, hash } or null. */
+    /** Keep an agent wallet in gas money (every sale is 2 or 3 transactions it signs): below `min`
+     *  NEAR, the operator sends `amount`. Returns the NEAR sent, or 0. */
+    async ensureGas(clanId, role, min = 0.03, amount = 0.05) {
+      const id = walletOf(clanId, role, op.accountId);
+      const a = await provider.query({ request_type: "view_account", finality: "final", account_id: id }).catch(() => null);
+      if (!a || BigInt(a.amount) >= BigInt(Math.round(min * 1e6)) * 10n ** 18n) return 0;
+      await op.transfer({ receiverId: id, amount: BigInt(Math.round(amount * 1e6)) * 10n ** 18n });
+      return amount;
+    },
     async forwardAlias(alias) {
       const a = await provider.query({ request_type: "view_account", finality: "final", account_id: alias });
       const waiting = BigInt(a.amount) - BigInt(a.storage_usage) * 10n ** 19n - 5n * 10n ** 21n;

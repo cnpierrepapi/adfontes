@@ -198,6 +198,31 @@ export function brokerMarket({ field, temperament, florins, sellable, mine, offe
   );
 }
 
+// The seller names its price (his call 9 Nov: "the seller prices the sale like a real market, for all
+// types of sales"). When another nation's Broker wants something this nation holds, its own Broker
+// asks a price between half and three times the fair one, with one line on why.
+const ASK = { type: "object", additionalProperties: false, required: ["price", "why"], properties: { price: { type: "number" }, why: { type: "string" } } };
+export function sellerAsk({ field, temperament, florins, item, buyer, fair, fairWhy, holders }) {
+  if (FAKE) {
+    // Stand-in: rarer things cost more, a poor seller asks a bit more.
+    const k = 0.9 + Math.min(1.2, 0.25 * (6 - Math.min(5, holders || 1))) + (florins < 50 ? 0.2 : 0);
+    return Promise.resolve({ price: +(fair * k).toFixed(4), why: `${item} is hard won; this is a fair ask for it.` });
+  }
+  const fmt = (x) => (Math.round(x * 100) / 100).toString();
+  return json(
+    CFG.agentModel,
+    "You are the Broker of a nation in AD FONTES. Another nation wants to buy something your nation holds, paying in florins. " +
+      "Research and figure kits sell as copies (you keep yours); a patent sells once. Name your asking price: anywhere from half to three " +
+      "times the fair price below. Ask more for what is rare or hard won, less if you want the florins or the friendship. Too high and the " +
+      "buyer may walk away. Give one plain sentence a citizen would understand. " +
+      `Your temperament: ${temperament}.`,
+    `Your field: ${field}. Your nation holds ${fmt(florins)} florins.\nThe buyer: ${buyer}.\nFor sale: ${item}.\n` +
+      `Fair price: ${fmt(fair)} florins (${fairWhy}).${holders != null ? ` ${holders} nation(s) already know it.` : ""}`,
+    ASK,
+    200,
+  );
+}
+
 // The war council (his call 8 Nov): once a real day the Patron decides war and peace for the
 // nation. The gods have no say: whispers are not shown to it. The engine checks every move
 // against the rules (engine/war.mjs) before anything happens.
