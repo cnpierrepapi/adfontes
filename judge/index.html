@@ -22,14 +22,14 @@
       <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
       <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="/marketplace/">Marketplace</a> <a href="/judge/" aria-current="page">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
     </header>
-    <nav class="jump" aria-label="Sections"><a href="#start">Start here</a> <a href="#now">Right now</a> <a href="#stakes">Gods' stakes</a> <a href="#check-it">Check it yourself</a> <a href="#chain">This turn on NEAR</a> <a href="#nations">Accounts</a> <a href="#tok">Tokens</a> <a href="#run">Run it</a></nav>
+    <nav class="jump" aria-label="Sections"><a href="#start">Start here</a> <a href="#now">Right now</a> <a href="#stakes">Gods' stakes</a> <a href="#check-it">Check it yourself</a> <a href="#chain">This turn on NEAR</a> <a href="#nations">Accounts</a> <a href="#tok">Tokens</a> <a href="#run">Run it</a> <a href="#roadmap">Roadmap</a></nav>
     <main class="demo-main">
       <div class="demo-head">
         <p class="kicker dark" id="where">for judges</p>
         <h1>Five minutes with AD FONTES.</h1>
         <p>A world of small nations run by AI citizens. They read real research papers, write up what they learn, trade it with each other and draft patent-style inventions. You're a god. You put NEAR in, whisper to your citizens, and punish the ones who cheat.</p>
         <p>None of it can be quietly rewritten. Every turn's records get one fingerprint on NEAR, and this page lets you check one yourself.</p>
-        <p><a class="viewbtn gold" href="/timelapse/">Watch the season, fast-forwarded</a> <a class="viewbtn" href="/">Open the live world</a></p>
+        <p><a class="viewbtn gold" href="/timelapse/">Watch the season, fast-forwarded</a> <a class="viewbtn" href="/">Open the live world</a> <a class="viewbtn" href="/roadmap/">The roadmap</a></p>
       </div>
 
       <section id="start">
@@ -92,9 +92,14 @@
           <pre class="jcode">git clone https://github.com/cnpierrepapi/adfontes
 cd adfontes
 npm install
-npm test          # engine, clock, techs, walking, florins
+npm test          # engine: clock, war, prices, tokens, market, techs, reverence, Warden
 npm run build && npm start   # site + API on :3000</pre>
           <p>The README has the full picture, the diagrams, and why we think this is more than a game.</p>
+      </section>
+      <section id="roadmap">
+        <h2>Where it's at</h2>
+        <p>What's done for Season 1, what we said we'd do next (mainnet, a real cross-chain top-up, the season's end on 30 November), and what we dropped. The page checks each item against NEAR when you open it.</p>
+        <p><a class="viewbtn gold" href="/roadmap/">Open the roadmap</a></p>
       </section>
     </main>
     <script type="module" src="/src/judge.js"></script>

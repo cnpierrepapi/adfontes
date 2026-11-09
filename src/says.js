@@ -99,6 +99,7 @@ export function says(r, clanName) {
     }
     case "royalty": return `${c(r.clan)} earned ${fl(r.florins)} in patent royalties. ${r.sales === 1 ? "Someone bought research" : `${r.sales} buys of research`} in its patents' chains.`;
     case "tokens": if (r.minted === 1 && r.title) return `${c(r.for)}'s ${r.patents ? "patent" : r.kits ? "figure kit" : "research"} "${r.title}" is a token on NEAR now.`;
+      if (r.minted === 1) return `1 new token on NEAR: ${r.patents ? "a patent" : r.kits ? "a figure kit" : "research"}.`;
       return `${r.minted} new tokens on NEAR: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
     case "gas": return `${c(r.clan)}'s ${r.role} got ${n2(r.near)} NEAR for gas, to keep signing its trades.`;
     case "tokens-moved": return `${c(r.clan)}'s tokens moved into its Broker's own wallet.`;

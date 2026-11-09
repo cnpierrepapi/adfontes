@@ -76,3 +76,16 @@ body.page .mtable { box-shadow: none; }
 body.page .mtable tbody tr:hover { background: #faf7ff; }
 body.page .jcode { border-radius: 16px; }
 body.page .proof-out:not(:empty) { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: #f6f3ff; }
+
+/* The roadmap (/roadmap): one row per item, a coloured dot for its group, the live check under it. */
+.rm-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.rm-item { display: grid; grid-template-columns: 14px 1fr; gap: 12px; align-items: start; background: #fff; border-radius: 14px; padding: 12px 14px; box-shadow: 0 2px 8px rgba(29, 20, 48, 0.06); }
+.rm-item p { margin: 3px 0 0; }
+.rm-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: #bbb; }
+.rm-dot.done { background: var(--leaf); } .rm-dot.next { background: var(--gold); } .rm-dot.later { background: var(--sky); } .rm-dot.not { background: #b9b1a6; }
+.rm-item.not b { text-decoration: line-through; text-decoration-color: rgba(29, 20, 48, 0.35); }
+.rm-status { display: inline-block; font-size: 0.82rem; margin-top: 6px !important; padding: 3px 10px; border-radius: 999px; background: #f2eff7; color: #5b5170; }
+.rm-status.ok { background: #e3f7ec; color: #13824a; }
+.rm-status.wait { background: #fff4d6; color: #8a6a00; }
+.rm-status.info { background: #eef2ff; color: #3f4fa8; }
+.rm-key .rm-status { margin-right: 6px; }

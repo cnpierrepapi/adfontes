@@ -400,9 +400,10 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", "
 function serveStatic(req, res, url) {
   let pathname;
   try { pathname = decodeURIComponent(url.pathname); } catch { return send(res, 400, "text/plain", "bad path"); } // a malformed %-escape
-  // The live world is the homepage (his call 8 Nov); the old landing page lives at /about/.
+  // The live world is the homepage (his call 8 Nov). The old landing page (/about) and the 4 Nov
+  // recorded demo (/demo) described an earlier design, so both send you to the judge page (9 Nov).
+  if (/^\/(about|demo)(\/.*)?$/.test(pathname)) { res.writeHead(302, { location: "/judge/" }); return res.end(); }
   if (pathname === "/" || pathname === "/index.html") pathname = "/live/index.html";
-  else if (pathname === "/about" || pathname === "/about/") pathname = "/index.html";
   let p = path.normalize(path.join(DIST, pathname));
   if (p !== DIST && !p.startsWith(DIST + path.sep)) return send(res, 403, "text/plain", "forbidden");
   if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, "index.html");

@@ -150,7 +150,7 @@ sequenceDiagram
     E->>N: mint for good work, burn upkeep and fines
   end
   E->>E: war councils and battles
-  E->>N: mint the turn's new research, patents and kits as tokens
+  E->>N: mint any token whose mint failed earlier (new ones are minted the moment they're made)
   E->>DB: save the turn's records
   E->>N: set_root(turn, merkle root of every record)
 ```

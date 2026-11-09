@@ -9,7 +9,7 @@ const CAPTIONS = [ // [from s, to s, text], timed to the voiceover's words (whis
   [15.7, 20.9, "Every nation has its gods. Put NEAR in, and you're one of them."],
   [21.16, 25.9, "When NEAR climbs, the sun is up. When it falls, night comes."],
   [26.2, 32.6, "Feed your people and they might find something new. Forget them, and they fall to ruin."],
-  [32.86, 40.6, "And sometimes they go to war. Nobody asks the gods. It ends when an island falls from the sky."],
+  [32.86, 40.6, "And sometimes they go to war. Nobody asks the gods. It ends in peace, or with an island falling from the sky."],
   [40.94, 43.4, "Go on. They're waiting."],
 ];
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null)); return e; };

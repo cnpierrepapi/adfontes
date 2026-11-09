@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AD FONTES: the roadmap</title>
+    <meta name="description" content="What's done in Season 1, what comes next, and what we dropped. Each item is checked live against NEAR where it can be." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#1d1430" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/demo.css" />
+    <link rel="stylesheet" href="/src/world.css" />
+    <link rel="stylesheet" href="/src/judge.css" />
+    <link rel="stylesheet" href="/src/pages.css" />
+  </head>
+  <body class="demo world judge page roadmap">
+    <header class="nav solid">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
+      <nav><a href="/">The world</a> <a href="/judge/">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes/blob/main/ROADMAP.md" target="_blank" rel="noopener">As a file</a></nav>
+    </header>
+    <nav class="jump" aria-label="Sections"><a href="#done">Done</a> <a href="#next">Next</a> <a href="#later">After Season 1</a> <a href="#not">Not doing</a></nav>
+    <main class="demo-main">
+      <div class="demo-head">
+        <p class="kicker dark">the roadmap</p>
+        <h1>Where it's at.</h1>
+        <p>What we built for Season 1, what we said we'd do next, and what we dropped. Wherever NEAR can answer for an item, this page asks it when you load it, so the green ones are checked, not claimed.</p>
+        <p class="rm-key"><span class="rm-status ok">checked on chain</span> <span class="rm-status wait">not there yet</span> <span class="rm-status info">needs a person to look</span></p>
+        <p id="updated" class="fine"></p>
+      </div>
+      <div id="groups"><p>Loading…</p></div>
+    </main>
+    <script type="module" src="/src/roadmap.js"></script>
+  </body>
+</html>
