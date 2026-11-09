@@ -145,15 +145,30 @@ export async function createWallet(net) {
   // Now: sign here, hand it over and wait only until it is in a block, then ask for the outcome every second ourselves,
   // FastNEAR first and dRPC as the backup, each call with its own short timeout.
   async function localSigner(lk) {
-    const { Account, JsonRpcProvider } = await import("near-api-js");
-    const { baseEncode } = await import("@near-js/utils");
-    const acct = new Account(lk.account, new JsonRpcProvider({ url: SEND_RPCS[0] }), lk.key);
+    // Built and signed right here from the key (10 Nov): near-api-js's Account here didn't hold the
+    // key as a signer, which is where "Please provide a public key" came from.
+    const { KeyPair } = await import("@near-js/crypto");
+    const { createTransaction, encodeTransaction, SignedTransaction, Signature } = await import("@near-js/transactions");
+    const { baseEncode, baseDecode } = await import("@near-js/utils");
+    const kp = KeyPair.fromString(lk.key), pk = kp.getPublicKey();
     const call = (url, method, params, ms) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }), signal: AbortSignal.timeout(ms) }).then((x) => x.json());
     const b64 = (bytes) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
+    let lastNonce = 0n; // two transactions in a row (a DAO proposal, then the vote) never reuse a nonce
     return {
       async signAndSendTransaction({ receiverId, actions }) {
-        const tx = await acct.createTransaction(receiverId, actions, await acct.signer.getPublicKey());
-        const [h, signed] = await acct.signer.signTransaction(tx);
+        let ak = null;
+        for (const url of SEND_RPCS) {
+          const j = await call(url, "query", { request_type: "view_access_key", finality: "optimistic", account_id: lk.account, public_key: pk.toString() }, 8000).catch(() => null);
+          if (j?.result?.nonce != null) { ak = j.result; break; }
+          // An unknown key comes back as a "result" carrying an error, not as an error.
+          if (j?.error || j?.result?.error) throw new Error(`NEAR doesn't know this browser's key for ${lk.account} yet. If you just made the account, wait a few seconds and try again.`);
+        }
+        if (!ak) throw new Error("Couldn't reach NEAR. Nothing was sent. Try again.");
+        const nonce = (BigInt(ak.nonce) > lastNonce ? BigInt(ak.nonce) : lastNonce) + 1n;
+        lastNonce = nonce;
+        const tx = createTransaction(lk.account, pk, receiverId, nonce, actions, baseDecode(ak.block_hash));
+        const h = new Uint8Array(await crypto.subtle.digest("SHA-256", encodeTransaction(tx)));
+        const signed = new SignedTransaction({ transaction: tx, signature: new Signature({ keyType: pk.keyType, data: kp.sign(h).signature }) });
         const hash = baseEncode(h), body = b64(signed.encode());
         let handed = false, refused = null;
         for (const url of SEND_RPCS) {

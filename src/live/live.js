@@ -189,7 +189,19 @@ export async function startLive(canvas, hud, opts = {}) {
     isl.userData.plateObj = lbl;
     return isl;
   }
-  for (const c of W.clans) addNation(c);
+  // His call 10 Nov: a nation whose last god claimed out leaves the map (no ruins). One that fell in
+  // a war keeps its ruins: that's part of the war's story.
+  const gone = (c) => !c.alive && !c.fallen && !(c.gods > 0 || c.gods?.length > 0);
+  for (const c of W.clans) if (!gone(c)) addNation(c);
+  function takeDown(id) {
+    const isl = islands.get(id);
+    if (!isl) return;
+    isl.visible = false;
+    isl.userData.status = "dead";
+    if (isl.userData.plate) isl.userData.plate.style.display = "none";
+    const m = minds.get(id); if (m?.group) m.group.visible = false;
+    for (const [key, g] of routeGroups) if (key.split("-").map(Number).includes(id)) g.visible = false;
+  }
 
   // Founding: a seed of light falls, the island rises out of the clouds turning, its town builds
   // up, then the plate fades in. Plays once per nation (on its "founded" record or when it appears).
@@ -453,7 +465,7 @@ export async function startLive(canvas, hud, opts = {}) {
   async function poll() {
     try {
       const now = await api("world");
-      for (const c of now.clans) if (!islands.has(c.id)) {
+      for (const c of now.clans) if (!islands.has(c.id) && !gone(c)) {
         W.clans.push(c); addNation(c); fitWorld();
         // Watching the whole world? Glide to the new home view (re-picked for one more island).
         if (focusId == null && !flying) controls.setLookAt(...HOME.pos, ...HOME.target, true);
@@ -475,6 +487,7 @@ export async function startLive(canvas, hud, opts = {}) {
       // A nation a god just left for good: its island goes to ruins now, not on the next game day.
       for (const c of now.clans) {
         const isl = islands.get(c.id);
+        if (isl && gone(c) && isl.visible) { takeDown(c.id); continue; }
         if (isl && !c.alive && isl.userData.status !== "dead") {
           isl.userData.status = "dead"; Object.assign(isl.userData.clan, c); loadMind(c.id);
           const span = isl.userData.plate?.querySelector("span");
