@@ -98,7 +98,8 @@ export function says(r, clanName) {
       return r.learned ? `${c(r.buyer)} learned "${r.learned}" from what it bought off ${c(r.seller)}.` : `${c(r.buyer)} already knew "${r.title}" but keeps the copy it bought.`;
     }
     case "royalty": return `${c(r.clan)} earned ${fl(r.florins)} in patent royalties. ${r.sales === 1 ? "Someone bought research" : `${r.sales} buys of research`} in its patents' chains.`;
-    case "tokens": return `${r.minted} new tokens on NEAR: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
+    case "tokens": if (r.minted === 1 && r.title) return `${c(r.for)}'s ${r.patents ? "patent" : r.kits ? "figure kit" : "research"} "${r.title}" is a token on NEAR now.`;
+      return `${r.minted} new tokens on NEAR: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
     case "gas": return `${c(r.clan)}'s ${r.role} got ${n2(r.near)} NEAR for gas, to keep signing its trades.`;
     case "tokens-moved": return `${c(r.clan)}'s tokens moved into its Broker's own wallet.`;
     case "fallen": return `${r.name} has ${r.surrendered ? "run out of money and surrendered" : "fallen"}. ${r.byName} took ${fl(r.loot)}${r.knowledge ? `, ${r.knowledge} point${r.knowledge === 1 ? "" : "s"} of its knowledge` : ""} and two of its people.`;

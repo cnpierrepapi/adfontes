@@ -134,6 +134,19 @@ for (let n = 0; n < days; n++) {
    *  buyer's copy of a research token or kit is minted straight to its Broker's wallet, and the sale
    *  is marked done so the turn's settling never applies it twice. applied: the caller already
    *  taught the buyer and paid the royalties. */
+  /** A new token, minted the moment the thing it stands for exists (his call 9 Nov: research done =
+   *  token on NEAR, not at the turn's end). Held by the nation's Broker. A mint that fails is left to
+   *  the turn's token sync, which retries it. */
+  async function mintNow(clan, token, title) {
+    if (s.clans[clan]?.agentWallets !== 2) return;
+    const key = `${clan}|${token}`;
+    if ((s.mtDone ||= []).includes(key)) return;
+    try {
+      const m = await chain.mtMint([{ token_id: token, owner_id: chain.agentId(clan, "Broker"), amount: "1", title: String(title || token).slice(0, 120) }], `new ${token}`);
+      s.mtDone.push(key);
+      log({ kind: "tokens", minted: 1, research: +(token[0] === "r"), patents: +(token[0] === "p"), kits: +(token[0] === "k"), for: clan, title: String(title || token).slice(0, 120), tx: m.hash });
+    } catch (e) { log({ kind: "error", clan, error: `token ${token} (the turn's sync retries it): ${String(e.message || e).slice(0, 140)}` }); }
+  }
   async function settleSale(sale, { applied = false } = {}) {
     if ((s.salesDone ||= []).includes(sale.id)) return null;
     let res = { learned: null };
@@ -521,6 +534,7 @@ for (let n = 0; n < days; n++) {
             W.grow(c, topic, children);
             W.learn(c, sch.name, topic);
             earned += FL.corpus; earnedFor.push(id);
+            await mintNow(oc.id, `r:${id}`, corpus.title); // the research is a token on NEAR now
           } else {
             const r = await chain.burn(oc.id, FL.fine, `fake citation in ${id}`);
             wallet = Math.max(0, wallet - FL.fine);
@@ -539,6 +553,7 @@ for (let n = 0; n < days; n++) {
         const id = `t${s.nextId++}`;
         s.tools[id] = { id, clan: oc.id, day, kind: "figure kit", field: c.field };
         log({ kind: "tool", clan: oc.id, tool: id });
+        await mintNow(oc.id, `k:${id}`, `Figure kit from ${nameOfClan(oc.id)}`);
       }
 
       // Drafter
@@ -603,6 +618,7 @@ for (let n = 0; n < days; n++) {
           }
         }
         log({ kind: "gift", clan: oc.id, draft: id, title: draft.title, passed: check.passed, problems: check.problems, florins: shares, gift: r.value, tx: r.hash });
+        if (check.passed) await mintNow(oc.id, `p:${id}`, draft.title); // a passed draft is a patent token now
       }
 
       // Techs (SPEC §14): any the nation is ready for unlock now, each with a florin bonus.
