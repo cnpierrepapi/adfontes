@@ -93,11 +93,11 @@ $("tokcheck")?.addEventListener("click", async () => {
   const x = pool[Math.floor(Math.random() * pool.length)], t = x.tokens.sample, rpc = RPC[W.net] || RPC.testnet;
   out.replaceChildren(el("div", { textContent: `Asking NEAR about ${t}…` }));
   try {
-    const [info, bal] = await Promise.all([viewOnNear(rpc, W.world, "mt_token_info", { token_id: t }), viewOnNear(rpc, W.world, "mt_balance_of", { account_id: x.dao, token_id: t })]);
+    const [info, bal] = await Promise.all([viewOnNear(rpc, W.world, "mt_token_info", { token_id: t }), viewOnNear(rpc, W.world, "mt_balance_of", { account_id: x.tokens.holder || x.dao, token_id: t })]);
     out.replaceChildren(
       el("div", { textContent: `mt_token_info("${t}") → ${info.kind}: "${info.title}", supply ${info.supply}${info.owner_id ? `, owned by ${info.owner_id}` : ""}` }),
-      el("div", { textContent: `mt_balance_of(${x.dao}, "${t}") → ${bal}` }),
-      el("div", { className: "verdict", textContent: `${x.name}'s treasury holds ${bal} of it, straight from NEAR.` }),
+      el("div", { textContent: `mt_balance_of(${x.tokens.holder || x.dao}, "${t}") → ${bal}` }),
+      el("div", { className: "verdict", textContent: `${x.name}'s Broker holds ${bal} of it in its own wallet, straight from NEAR.` }),
     );
   } catch (e) { out.replaceChildren(el("div", { textContent: `NEAR didn't answer: ${String(e.message || e).slice(0, 120)}` })); }
 });

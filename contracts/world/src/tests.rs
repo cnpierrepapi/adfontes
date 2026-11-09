@@ -829,3 +829,39 @@ fn the_operator_pays_for_token_storage() {
     set("operator.adfontes.near", 0);
     w.mt_mint_batch(vec![MtMint { token_id: "r:c1".into(), owner_id: acc("dao-a.near"), amount: U128(1), title: Some("x".into()) }], None);
 }
+
+#[test]
+fn a_nations_tokens_move_from_its_dao_to_its_broker() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    let dao = w.get_clan(a).unwrap().dao;
+    for t in ["r:c1", "r:c2", "p:d1"] { mint(&mut w, t, dao.as_str(), 1); }
+    op();
+    w.set_agent_wallet(a, "Broker".into(), acc("broker1.op.near"));
+    assert_eq!(w.mt_move_to_broker(a, 2), 2, "a page at a time");
+    assert_eq!(w.mt_move_to_broker(a, 10), 1);
+    assert_eq!(w.mt_move_to_broker(a, 10), 0, "nothing left in the DAO");
+    assert!(w.mt_tokens_for_owner(dao, None, None).is_empty());
+    assert_eq!(ids(w.mt_tokens_for_owner(acc("broker1.op.near"), None, None)), vec!["p:d1", "r:c1", "r:c2"]);
+    assert_eq!(w.mt_token(vec!["p:d1".into()])[0].as_ref().unwrap().owner_id, Some(acc("broker1.op.near")));
+}
+
+#[test]
+#[should_panic(expected = "Broker has no wallet yet")]
+fn tokens_only_move_to_a_registered_broker() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    let dao = w.get_clan(a).unwrap().dao;
+    mint(&mut w, "r:c1", dao.as_str(), 1);
+    op();
+    w.mt_move_to_broker(a, 10);
+}
+
+#[test]
+#[should_panic(expected = "Only the world operator")]
+fn only_the_operator_moves_tokens_to_the_broker() {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    set("god1.near", 0);
+    w.mt_move_to_broker(a, 10);
+}

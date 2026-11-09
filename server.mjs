@@ -110,12 +110,14 @@ function makeApi(NET) {
       return cachedN("world", 5_000, async () => {
         const [cfg, totals, clans, s] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 }), stateNow()]);
         const last = await dayOf(s.day);
-        // What each nation's DAO holds as NEP-245 tokens (9 Nov), counted by kind; a minute's cache.
+        // What each nation's Broker holds as NEP-245 tokens in its own wallet (his call 9 Nov: the
+        // agents trade them; until its wallet exists, its DAO), counted by kind; a minute's cache.
         const held = await cachedN("tokens", 60_000, async () => Object.fromEntries(await Promise.all(clans.map(async (c) => {
-          const list = await view("mt_tokens_for_owner", { account_id: c.dao, limit: 500 }).catch(() => null);
+          const holder = (await view("get_agent_wallet", { clan_id: c.id, role: "Broker" }).catch(() => null)) || c.dao;
+          const list = await view("mt_tokens_for_owner", { account_id: holder, limit: 500 }).catch(() => null);
           if (!list) return [c.id, null];
           const n = (p) => list.filter((t) => t.token_id.startsWith(p)).length;
-          return [c.id, { research: n("r:"), patents: n("p:"), kits: n("k:"), sample: list.find((t) => t.token_id.startsWith("p:"))?.token_id ?? list[0]?.token_id ?? null }];
+          return [c.id, { holder, research: n("r:"), patents: n("p:"), kits: n("k:"), sample: list.find((t) => t.token_id.startsWith("p:"))?.token_id ?? list[0]?.token_id ?? null }];
         }))));
         const weather = last.records.find((r) => r.kind === "weather") ?? null;
         // The world clock now (SPEC §14), not as of the last engine turn: the sky turns on time.

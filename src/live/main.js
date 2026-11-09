@@ -47,7 +47,7 @@ function showClan(c, status) {
   // What its DAO holds as NEP-245 tokens: research copies, patents (one of a kind), figure kits.
   if (c.tokens && (c.tokens.research || c.tokens.patents || c.tokens.kits)) {
     const t = c.tokens, pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-    named.append(...(named.childNodes.length ? [document.createElement("br")] : []), `Its treasury holds ${pl(t.research, "research token")}, ${pl(t.patents, "patent")} and ${pl(t.kits, "kit")} on NEAR.`);
+    named.append(...(named.childNodes.length ? [document.createElement("br")] : []), `Its Broker holds ${pl(t.research, "research token")}, ${pl(t.patents, "patent")} and ${pl(t.kits, "kit")} on NEAR, to trade.`);
   }
   p.append(h, m, nums, line, ...(named.childNodes.length ? [named] : []), ...(war.textContent ? [war] : []), views);
   if (gods) p.append(gods.section(c, status)); // the god panel: bless, and your powers if you're a god here

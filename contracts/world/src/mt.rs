@@ -169,6 +169,23 @@ impl World {
         }
     }
 
+    /// His call 9 Nov: a nation's tokens are the agents' to trade, so they live in its Broker's
+    /// wallet, not its DAO. The operator moves what a nation's DAO holds into that same nation's
+    /// registered Broker wallet, nowhere else, up to `limit` kinds a call. Returns how many moved.
+    pub fn mt_move_to_broker(&mut self, clan_id: u32, limit: u32) -> u32 {
+        require!(env::predecessor_account_id() == self.operator, "Only the world operator");
+        let clan = self.clans.get(&clan_id).expect("No such clan").clone();
+        let broker = World::wallet_of(clan_id, "Broker").unwrap_or_else(|| env::panic_str("That nation's Broker has no wallet yet"));
+        let n = num(&format!("mt:on:{}", clan.dao)).min(limit.min(100) as u128);
+        let tokens: Vec<String> = (0..n).filter_map(|i| rd(&format!("mt:oi:{}:{i}", clan.dao))).collect();
+        if tokens.is_empty() {
+            return 0;
+        }
+        let amounts: Vec<U128> = tokens.iter().map(|t| U128(num(&bal_key(&clan.dao, t)))).collect();
+        move_tokens(&clan.dao, &broker, &tokens, &amounts, Some("to the Broker's wallet".into()));
+        tokens.len() as u32
+    }
+
     // ------------------------------------------------------------ NEP-245 core: transfers
 
     #[payable]

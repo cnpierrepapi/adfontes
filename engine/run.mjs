@@ -586,8 +586,16 @@ for (let n = 0; n < days; n++) {
   }
   async function mtSync() {
     const chainNow = await chain.clans();
-    const daoOf = Object.fromEntries(chainNow.map((x) => [x.id, x.dao]));
-    const list = TK.toMint(s, (id) => daoOf[id] ?? null).slice(0, 150);
+    // Held by each nation's Broker, in its own wallet (his call 9 Nov), once the wallet exists.
+    const holderOf = (id) => (s.clans[id]?.agentWallets ? chain.agentId(id, "Broker") : null);
+    // Anything still in a nation's DAO (the first mints of 9 Nov) moves to its Broker first.
+    for (const x of chainNow) {
+      if (!holderOf(x.id) || !(await chain.mtHoldsAny(x.dao))) continue;
+      let moved = 0, r;
+      do { r = await chain.mtMoveToBroker(x.id); moved += r.moved; } while (r.moved >= 100);
+      if (moved) log({ kind: "tokens-moved", clan: x.id, from: x.dao, to: holderOf(x.id), kinds: moved, tx: r.hash });
+    }
+    const list = TK.toMint(s, holderOf).slice(0, 150);
     if (!list.length) return;
     s.mtDone ||= [];
     // Anything already on NEAR (a record lost on our side) is marked done, never minted twice.

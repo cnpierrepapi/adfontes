@@ -149,6 +149,16 @@ export function connect(net) {
       if (fail) throw new Error(`mt_mint_batch failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
       return { hash: r.transaction.hash };
     },
+    /** Move what a nation's DAO still holds into its Broker's wallet (up to 100 kinds a call). */
+    async mtMoveToBroker(clanId) {
+      const r = await op.callFunctionRaw({ contractId: world, methodName: "mt_move_to_broker", args: { clan_id: clanId, limit: 100 }, gas: T(200) });
+      const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+      if (fail) throw new Error(`mt_move_to_broker failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
+      const v = r.status.SuccessValue;
+      return { moved: v ? JSON.parse(Buffer.from(v, "base64").toString()) : 0, hash: r.transaction.hash };
+    },
+    /** Does this account hold any tokens at all? */
+    mtHoldsAny: (owner) => view("mt_tokens_for_owner", { account_id: owner, limit: 1 }).then((l) => l.length > 0, () => false),
     /** What an account already holds of these tokens (null: a world from before tokens). */
     mtBalances: (owner, tokenIds) => view("mt_batch_balance_of", { account_id: owner, token_ids: tokenIds }).catch(() => null),
     // ---- named nation accounts ----

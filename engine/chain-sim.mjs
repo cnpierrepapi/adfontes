@@ -67,6 +67,8 @@ export function connectSim(file) {
     ensureAlias: async (id) => { S.aliases ||= {}; S.aliases[id] ||= `${clan(id).name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "nation"}.sim.local`; save(); return S.aliases[id]; },
     forwardAlias: async () => null, // nothing is ever sent to a stand-in account
     mtMint: async (mints) => { S.mt ||= {}; for (const m of mints) { const k = `${m.owner_id}|${m.token_id}`; S.mt[k] = String(BigInt(S.mt[k] || 0) + BigInt(m.amount)); } save(); return tx(); },
+    mtMoveToBroker: async () => ({ moved: 0, hash: null }),
+    mtHoldsAny: async () => false,
     mtBalances: async (owner, ids) => ids.map((t) => (S.mt || {})[`${owner}|${t}`] || "0"),
     agentBuy: async function (buyer, seller, florins, memo) { const r = await this.trade(buyer, seller, florins, memo); return { ...r, signer: `broker${buyer}.sim-operator` }; },
     agentSpend: async function (id, florins, memo) { const r = await this.burn(id, florins, memo); return { ...r, signer: `patron${id}.sim-operator` }; },
