@@ -1,0 +1,58 @@
+/* The season world (/timelapse/): the live world's HUD plus a player bar, a caption, a start card and
+   the every-nation table. Gold = real turns, violet = simulated ones. */
+body.season .hint { display: none; }
+body.season .dial.sim { background: rgba(124, 82, 214, 0.92); color: #fff; }
+
+.ss-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 30; width: min(860px, calc(100vw - 24px)); display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(10px); box-shadow: 0 10px 28px rgba(29, 20, 48, 0.22); font-family: var(--display); color: var(--ink); }
+.ss-play { flex: none; width: 40px; height: 40px; border: 0; border-radius: 50%; background: linear-gradient(135deg, #ffe08a, #ffb800); color: var(--ink); font-size: 1rem; font-weight: 800; cursor: pointer; }
+.ss-turn { flex: none; font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; background: #ffd25a; white-space: nowrap; }
+.ss-turn.sim { background: #7c52d6; color: #fff; }
+.ss-track { position: relative; flex: 1; min-width: 80px; height: 30px; display: flex; align-items: center; }
+.ss-track input { width: 100%; margin: 0; accent-color: #7c52d6; cursor: pointer; position: relative; z-index: 2; background: transparent; }
+.ss-marks { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; pointer-events: none; }
+.ss-marks .m { position: absolute; top: 2px; width: 3px; height: 8px; border-radius: 2px; transform: translateX(-50%); background: #888; }
+.ss-marks .m.found { background: #ffb800; } .ss-marks .m.war { background: #e8325e; height: 10px; } .ss-marks .m.peace { background: #22a35a; } .ss-marks .m.fall { background: #1d1430; height: 12px; }
+.ss-marks .m.realend { top: 0; height: 30px; width: 2px; background: repeating-linear-gradient(#7c52d6 0 3px, transparent 3px 6px); }
+.ss-speed { flex: none; display: flex; gap: 2px; }
+.ss-speed button { font: inherit; font-size: 0.8rem; font-weight: 800; border: 0; background: transparent; color: var(--ink); padding: 6px 8px; border-radius: 999px; cursor: pointer; }
+.ss-speed button.on { background: var(--ink); color: #fff; }
+
+.ss-cap { position: fixed; left: 50%; bottom: 86px; transform: translateX(-50%); z-index: 29; width: min(720px, calc(100vw - 32px)); margin: 0; text-align: center; font-family: var(--display); font-weight: 700; font-size: clamp(0.9rem, 2vw, 1.12rem); line-height: 1.35; color: var(--ink); background: rgba(255, 252, 244, 0.92); padding: 10px 18px; border-radius: 14px; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.25); opacity: 0; transition: opacity 0.4s; pointer-events: none; }
+.ss-cap.in { opacity: 1; }
+.ss-cap:empty { display: none; }
+
+.ss-start { position: fixed; inset: 0; z-index: 40; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; color: #fff; background: rgba(7, 4, 15, 0.62); }
+.ss-start[hidden] { display: none; }
+.ss-start small { font-family: var(--mono); letter-spacing: 0.2em; text-transform: uppercase; color: #ffd36b; }
+.ss-start b { font-family: var(--display); font-size: clamp(1.4rem, 4vw, 2.4rem); line-height: 1.1; }
+.ss-start p { margin: 0 0 6px; max-width: 560px; line-height: 1.5; opacity: 0.9; }
+.ss-start .tl-go { font-size: 1.05rem; padding: 12px 28px; }
+
+.ss-chip { display: inline-block; margin: 0 0 6px; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: #ffd25a; color: var(--ink); }
+.ss-chip.sim { background: #7c52d6; color: #fff; }
+
+.ss-all { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 35; width: min(900px, calc(100vw - 24px)); max-height: 70vh; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; background: rgba(255, 255, 255, 0.95); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35); color: var(--ink); font-family: var(--body); }
+.ss-all[hidden] { display: none; }
+.ss-all-head { display: flex; align-items: center; gap: 10px; }
+.ss-all-head b { font-family: var(--display); font-size: 1.15rem; }
+.ss-all-head .ss-chip { margin: 0; }
+.ss-x { margin-left: auto; border: 0; background: #eee; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-weight: 800; }
+.ss-all-scroll { overflow: auto; }
+.ss-all table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.ss-all th, .ss-all td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #efeaf7; white-space: nowrap; }
+.ss-all th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+.ss-all tbody tr { cursor: pointer; }
+.ss-all tbody tr:hover { background: #f6f2ff; }
+.ss-all tr.fallen { opacity: 0.55; }
+.ss-all small { opacity: 0.65; }
+
+@media (max-width: 700px) {
+  .ss-bar { bottom: 10px; gap: 6px; padding: 6px 8px; flex-wrap: wrap; border-radius: 22px; }
+  .ss-track { order: 5; flex-basis: 100%; }
+  .ss-cap { bottom: 120px; }
+}
+
+.chip.follow:not(.on) { opacity: 0.6; }
+.chip.follow.on { background: var(--gold); }
+body.season .hud-top nav .chip .word { display: inline; }
+@media (max-width: 700px) { body.season .hud-top nav .chip .word { display: none; } }

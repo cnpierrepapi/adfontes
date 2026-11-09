@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>AD FONTES: the season, fast-forwarded</title>
+    <meta name="description" content="The whole season in a few minutes, in its own 3D world: the nations founded, their research, trades, wars, the weapons they fired and the one that fell. Pause on any turn to see every nation as it stood." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#1d1430" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/live/live.css" />
+    <link rel="stylesheet" href="/src/season/season.css" />
+  </head>
+  <body class="live season night">
+    <canvas id="world"></canvas>
+    <div id="plates" class="plates"></div>
+    <div id="visor" class="visor">
+      <header class="hud-top">
+        <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
+        <div class="dial" id="dial">loading the season…</div>
+        <nav><button id="follow" class="chip follow" type="button">🎥 <span class="word">Follow</span></button> <button id="all" class="chip" type="button">▦ <span class="word">All nations</span></button> <button id="home" class="chip" type="button">◎ <span class="word">Whole world</span></button> <a class="chip" href="/">Live world</a> <a class="chip" href="/judge/">For judges</a></nav>
+      </header>
+      <aside id="panel" class="godpanel" hidden></aside>
+      <p class="ss-cap" id="cap"></p>
+      <div class="ss-bar" id="bar">
+        <button id="play" class="ss-play" type="button" aria-label="Play">▶</button>
+        <span class="ss-turn" id="turn">Turn 1</span>
+        <div class="ss-track" id="track"><input id="scrub" type="range" min="1" max="99" value="1" aria-label="Turn" /><div class="ss-marks" id="marks"></div></div>
+        <span class="ss-speed" id="speed"><button type="button" data-s="0.5">½×</button><button type="button" data-s="1">1×</button><button type="button" data-s="2">2×</button><button type="button" data-s="4">4×</button></span>
+      </div>
+      <div class="ss-all" id="allbox" hidden></div>
+      <div class="ss-start" id="start">
+        <small>The season, fast-forwarded</small>
+        <b>From the first nation to the last war.</b>
+        <p id="start-p">Loading…</p>
+        <button id="go" class="tl-go" type="button">▶ Play</button>
+      </div>
+    </div>
+    <script type="module" src="/src/season/main.js"></script>
+  </body>
+</html>

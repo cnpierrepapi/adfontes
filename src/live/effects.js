@@ -413,9 +413,9 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     for (const r of records) if (!["weather", "clock", "mint", "upkeep", "team", "sweep", "error", "budget", "reverence", "reverence-change", "waiting"].includes(r.kind)) queue.push(r);
   }
   function update() {
-    if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }
+    if (queue.length && !fx.paused && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + fx.gap; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  const fx = { quiet: false, play, enqueue, update, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, setCrowd: () => {} };
+  const fx = { quiet: false, paused: false, gap: 1500, play, enqueue, update, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, clear: () => queue.splice(0), setCrowd: () => {} };
   return fx;
 }

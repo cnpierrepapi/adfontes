@@ -364,3 +364,6 @@ body.tl-on .standings, body.tl-on #panel, body.tl-on .hud-top, body.tl-on .repla
 body.night .standings .events li.ev .tip { border-top-color: rgba(255, 255, 255, 0.2); }
 #panel .named { margin: 8px 0 0; font-size: 0.78rem; line-height: 1.35; word-break: break-all; opacity: 0.9; }
 #panel .named a { font-family: "JetBrains Mono", monospace; }
+
+/* The season offer's Play is a link to /timelapse/ now. */
+a.tl-go { display: inline-block; text-decoration: none; }

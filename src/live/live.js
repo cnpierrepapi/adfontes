@@ -374,7 +374,9 @@ export async function startLive(canvas, hud, opts = {}) {
   eventSink = standings.event;
   early.splice(0).forEach(standings.event);
   let lastDay = W.day;
-  api(`day?d=${W.day}`).then((d) => { folk.dayRecords(d.records, W.day); fx.enqueue(d.records || []); }).catch(() => {});
+  // Which of a turn's records play on screen (the season world plays its cut; the live world, all).
+  const cut = (recs) => (opts.cut ? opts.cut(recs) : recs);
+  api(`day?d=${W.day}`).then((d) => { const recs = cut(d.records || []); folk.dayRecords(recs, W.day); fx.enqueue(recs); }).catch(() => {});
   // The game days before it in the last 24 hours (11 more) don't play on the world view, but
   // count as missed: flying in replays them.
   for (let d = Math.max(1, W.day - 11); d < W.day; d++) api(`day?d=${d}`).then((x) => (x.records || []).forEach((r) => noteMissed(r, true))).catch(() => {});
@@ -417,6 +419,7 @@ export async function startLive(canvas, hud, opts = {}) {
     report: (r) => `a report: ${r.claim}`, overtake: (r) => r.text, "report-settled": (r) => `a report about ${r.accused} was settled`,
   };
   function stepReplay(now) {
+    if (opts.noReplay) return; // the season world plays its own cut, never "while you were away"
     // Left the nation mid-replay: what didn't play yet waits for the next visit.
     if (replay && (replay.id !== focusId || nearNow < 0.3)) {
       const rest = replay.list.slice(replay.i);
@@ -459,6 +462,8 @@ export async function startLive(canvas, hud, opts = {}) {
         // Techs (SPEC §14): a new building appears in the town as soon as the world knows of it.
         if (isl && (c.techs?.length ?? 0) !== (isl.userData.clan.techs?.length ?? 0)) { isl.userData.clan.techs = c.techs; retownLater(c.id); }
         if (isl) isl.userData.clan.mood = c.mood;
+        // The panel reads these: keep them current (the season world pauses on any turn and reads them).
+        if (isl) for (const k of ["florins", "worth", "points", "depth", "line", "clean_gifts", "fortune", "tricksters", "gods", "total_in", "alive"]) if (k in c) isl.userData.clan[k] = c[k];
         if (!isl || !c.reverence) continue;
         isl.userData.clan.reverence = c.reverence;
         const span = isl.userData.plate?.querySelector("span");
@@ -467,13 +472,18 @@ export async function startLive(canvas, hud, opts = {}) {
       // A nation a god just left for good: its island goes to ruins now, not on the next game day.
       for (const c of now.clans) {
         const isl = islands.get(c.id);
-        if (isl && !c.alive && isl.userData.status !== "dead") { isl.userData.status = "dead"; Object.assign(isl.userData.clan, c); loadMind(c.id); }
+        if (isl && !c.alive && isl.userData.status !== "dead") {
+          isl.userData.status = "dead"; Object.assign(isl.userData.clan, c); loadMind(c.id);
+          const span = isl.userData.plate?.querySelector("span");
+          if (span) span.textContent = `${c.field ?? ""} nation · ${c.fallen ? "fallen" : "gone"} · ruins`;
+          isl.userData.plate?.classList.add("dead");
+        }
       }
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
       W.wars = now.wars || []; updateWars(); warLayer.update(now);
       for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; } }
-      for (let d = lastDay + 1; d <= now.day; d++) { const recs = ((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)); folk.dayRecords(recs, d); fx.enqueue(recs); }
+      for (let d = lastDay + 1; d <= now.day; d++) { const recs = cut(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live))); folk.dayRecords(recs, d); fx.enqueue(recs); }
       W.jackpot = now.jackpot;
       standings.update(now);
       opts.onPoll?.(now); // the world clock: day or night now
@@ -870,7 +880,7 @@ export async function startLive(canvas, hud, opts = {}) {
   frame();
   setTheme(opts.theme || "night");
   // setWars: show war lines without a world refresh (the intro recorder; display only).
-  return { setViewShift: (px) => { viewShift = Math.max(0, Math.round(px)); resize(); }, setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, standingsRank: () => standings.ranks?.() ?? {} };
+  return { setViewShift: (px) => { viewShift = Math.max(0, Math.round(px)); resize(); }, setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, poll: pollNow, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, standingsRank: () => standings.ranks?.() ?? {} };
 }
 
 // A clan's island: size from its mindmap, town from its state.

@@ -136,7 +136,7 @@ if (!q.has("stills")) cinema.then(async (played) => {
   setTimeout(() => runTutorial(), played ? 900 : 1500);
 });
 {
-  const b = Object.assign(document.createElement("button"), { type: "button", className: "chip season", title: "Watch the season, fast-forwarded (about 90 seconds)" });
+  const b = Object.assign(document.createElement("button"), { type: "button", className: "chip season", title: "Watch the season, fast-forwarded, in its own world" });
   b.innerHTML = '▶ <span class="word">Season</span>';
   b.addEventListener("click", () => playTimelapse(live));
   document.querySelector(".hud-top nav")?.prepend(b, " ");

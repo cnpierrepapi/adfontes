@@ -84,6 +84,8 @@ export function says(r, clanName) {
       if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}${used ? ` (${used})` : ""}: both walls held.`;
       return `War, round ${r.round}${used ? ` (${used})` : ""}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} point${r.sides[id].hp === 1 ? "" : "s"} left)`).join("; ")}.`;
     }
+    // A god's blessing (the live world's own carry their words in r.text; the season world's don't).
+    case "bless": return r.text ?? (r.mode === "rescue" ? `A god who had drifted away rushed back to ${c(r.clan)} with ${n2(r.near)} NEAR.` : `A god blessed ${c(r.clan)} with ${n2(r.near)} NEAR.`);
     // The marketplace (his calls 9 Nov): only the Brokers trade, from their own wallets.
     case "listed": return `${c(r.clan)}'s Broker put ${thing(r)} up for sale at ${fl(r.price)}.`;
     case "delisted": return `${c(r.clan)}'s Broker took ${thing(r)} off the market.`;
