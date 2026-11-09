@@ -21,7 +21,7 @@ async function load() {
   if (M.error) throw new Error(M.error);
   names = Object.fromEntries(W.clans.map((c) => [c.id, c.name]));
   explorer = M.explorer;
-  $("where").textContent = `the marketplace · ${M.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${M.day}`;
+  $("where").textContent = `the marketplace · ${M.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${M.day} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   const note = $("note");
   note.hidden = M.counts.listings > 0;
   note.textContent = "Nothing has been listed yet. The Brokers' market days haven't started on this world. The patents below already earn royalties from the ordinary trades, though.";

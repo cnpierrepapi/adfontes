@@ -1,7 +1,7 @@
 // Research, patents and figure kits as NEP-245 tokens (his call 8 Nov; contract: contracts/world/src/mt.rs).
 // The engine's records stay the truth of what each nation knows; the tokens mirror them on NEAR,
 // held by each nation's Broker in its own wallet (his call 9 Nov: the agents trade them, the gods
-// never touch them; they were in the DAOs for one turn and moved over). One step per scheduled turn compares what every nation should hold with
+// never touch them; they were in the DAOs for one turn and moved over). One step every turn (instant ones too, since 9 Nov), plus a mint the moment a sale completes, compares what every nation should hold with
 // what was already minted and mints the difference, so the backfill of everything made before tokens
 // existed and the minting of new work are the same code, and a mint that failed is retried next turn.
 //
