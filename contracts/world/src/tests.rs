@@ -1019,3 +1019,95 @@ fn a_new_broker_wallet_takes_over_the_old_ones_tokens() {
     let old = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { as_("broker1.op.near"); w.market_list("r:c1".into(), U128(FLORIN), "".into()); }));
     assert!(old.is_err(), "the retired wallet can't trade any more");
 }
+
+// ---------------------------------------------------------------- grants and the founding fund (9 Nov)
+
+#[test]
+fn a_grant_credits_one_god_at_todays_price_with_no_jackpot_cut() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    let _b = found(&mut w, "god2.near", 3 * NEAR);
+    let t0 = w.get_totals();
+    let other = stake(&w, 2, "god2.near");
+    let before = stake(&w, a, "god1.near");
+    set("operator.adfontes.near", NEAR);
+    w.grant(a, acc("god1.near"));
+    let t1 = w.get_totals();
+    assert_eq!(t1.jackpot.0, t0.jackpot.0, "no jackpot cut");
+    assert_eq!(t1.backing.0, t0.backing.0 + NEAR, "all of it backs florins");
+    assert!(close(t1.florin_value.0, t0.florin_value.0, 1), "the florin's value doesn't move");
+    assert!(close(stake(&w, a, "god1.near"), before + NEAR, 10), "the god is credited the full NEAR");
+    assert!(close(stake(&w, 2, "god2.near"), other, 10), "nobody else's stake moves");
+    let s = w.get_stake(a, acc("god1.near"));
+    assert_eq!(s.granted.0, NEAR);
+    assert_eq!(s.put_in.0, clan(&w, a).gods[0].put_in.0, "put_in untouched (the engine reads it as blessings)");
+    assert!(t1.balance.0 >= t1.liabilities.0, "still solvent in the test's books");
+}
+
+#[test]
+#[should_panic(expected = "Only the owner or operator")]
+fn a_stranger_cannot_grant() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("god1.near", NEAR);
+    w.grant(a, acc("god1.near"));
+}
+
+#[test]
+#[should_panic(expected = "Not a god of that nation")]
+fn a_grant_goes_only_to_a_god_of_that_nation() {
+    let mut w = new_world();
+    let a = found(&mut w, "god1.near", 3 * NEAR);
+    set("operator.adfontes.near", NEAR);
+    w.grant(a, acc("god2.near"));
+}
+
+#[test]
+fn the_founding_fund_pays_the_dao_and_staking_so_all_the_deposit_becomes_florins() {
+    let mut w = new_world();
+    set("anyone.near", 2 * NEAR);
+    w.fund_founding();
+    assert_eq!(w.get_founding().1 .0, NEAR, "with the fund full, 1 NEAR founds a nation");
+    // 1.5 NEAR is below the usual 2.3 minimum: the fund (2) covers DAO 0.1 + staking 1.2.
+    let id = found(&mut w, "god1.near", 1500 * MILLI);
+    let net = clan(&w, id).total_in.0;
+    assert!(net > 1490 * MILLI && net < 1500 * MILLI, "only storage comes off: {net}");
+    assert_eq!(clan(&w, id).staking_fund.0, 1200 * MILLI);
+    assert_eq!(w.get_founding().0 .0, 700 * MILLI, "2 - 1.3 left in the fund");
+    // The fund is money the world owes until it's spent.
+    let t = w.get_totals();
+    let staking: u128 = 1200 * MILLI;
+    assert_eq!(t.liabilities.0, staking + t.backing.0 + t.jackpot.0 + 700 * MILLI);
+}
+
+#[test]
+fn a_failed_dao_gives_the_founding_fund_back_its_share() {
+    let mut w = new_world();
+    set("anyone.near", 2 * NEAR);
+    w.fund_founding();
+    set("god1.near", 1500 * MILLI);
+    let _ = w.found_clan("x".into());
+    assert_eq!(w.get_founding().0 .0, 700 * MILLI, "set aside at found time");
+    set_with_result("world.adfontes.near", PromiseResult::Failed);
+    assert!(!w.finish_founding(1, "x".into(), "adf-clan-1".into(), acc("god1.near"), U128(1500 * MILLI), false));
+    assert_eq!(w.get_founding().0 .0, 2 * NEAR, "the fund is whole again");
+}
+
+#[test]
+#[should_panic(expected = "below the minimum")]
+fn a_fund_too_small_for_the_costs_means_the_usual_minimum() {
+    let mut w = new_world();
+    set("anyone.near", NEAR); // less than DAO 0.1 + staking 1.2
+    w.fund_founding();
+    assert_eq!(w.get_founding().1 .0, 2300 * MILLI);
+    set("god1.near", 1500 * MILLI);
+    let _ = w.found_clan("x".into());
+}
+
+#[test]
+fn without_the_fund_founding_works_as_before() {
+    let mut w = new_world();
+    let id = found(&mut w, "god1.near", 3 * NEAR);
+    let net = clan(&w, id).total_in.0;
+    assert!(net < 1700 * MILLI && net > 1690 * MILLI, "the founder still pays DAO + staking: {net}");
+}

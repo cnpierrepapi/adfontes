@@ -9,7 +9,13 @@ import { resilientProvider } from "./chain.mjs";
 export const SPONSOR = {
   rpc: "https://near-testnet.drpc.org", // FastNEAR as the backup (resilientProvider)
   helper: "https://helper.testnet.near.org/account",
-  perNation: 65n * 10n ** 23n, // 6.5 testnet NEAR: the founding minimum (6) plus room for gas (6.2 was too tight)
+  // His call 9 Nov: a new player starts with 7 NEAR of florins. The world's founding fund pays the
+  // DAO and staking, so all a founder puts in becomes florins, less 14% to the jackpot:
+  // 8.14 in -> 7 NEAR of florins; 8.3 leaves room for gas.
+  perNation: 83n * 10n ** 23n,
+  // ...and for each nation it sponsors, the pool tops the founding fund up by that nation's DAO +
+  // staking costs (5.5 + 0.1), so sponsored players never drain it.
+  fundPerNation: 56n * 10n ** 23n,
   keep: 2n * 10n ** 24n, // the pool keeps 2 NEAR back for its own gas and storage
   refillHours: 12, // the helper allows 10 new accounts per 12 hours
   refillCount: 10,
@@ -25,7 +31,7 @@ export async function balanceOf(accountId) {
 export async function nationsLeft(poolId) {
   const b = await balanceOf(poolId);
   if (b == null || b <= SPONSOR.keep) return 0;
-  return Number((b - SPONSOR.keep) / SPONSOR.perNation);
+  return Number((b - SPONSOR.keep) / (SPONSOR.perNation + SPONSOR.fundPerNation));
 }
 
 /** Move an account's whole balance into the pool by deleting it (beneficiary = pool). */
@@ -48,6 +54,13 @@ export async function refill(poolId, n = SPONSOR.refillCount, log = console.log)
     catch (e) { log(`  sponsor refill: couldn't sweep ${id}: ${String(e.message).slice(0, 120)}`); }
   }
   return { made, limitReset };
+}
+
+/** Top the world's founding fund up from the pool (the contract's fund_founding). Returns the tx hash. */
+export async function fundFounding(poolId, poolKey, world, amount = SPONSOR.fundPerNation) {
+  const pool = new Account(poolId, provider(), poolKey);
+  const r = await pool.callFunctionRaw({ contractId: world, methodName: "fund_founding", args: {}, deposit: amount, gas: 30n * 10n ** 12n });
+  return r?.transaction?.hash ?? null;
 }
 
 /** Send a founder what they're short of founding, from the pool. Returns the tx hash. */

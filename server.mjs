@@ -11,7 +11,7 @@ import { PRICES } from "./engine/prices.mjs";
 import { fairOf, kindOf, holderOfPatent } from "./engine/market.mjs";
 import * as store from "./engine/store.mjs";
 import { clockAt, extendHours } from "./engine/clock.mjs";
-import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, PUBLIC_KEY } from "./engine/sponsor.mjs";
+import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, fundFounding, PUBLIC_KEY } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
 import { standings } from "./engine/reverence.mjs";
 
@@ -340,8 +340,10 @@ function makeApi(NET) {
         for (const g of c.gods || []) {
           const st = await view("get_stake", { clan_id: c.id, account: g.account }).catch(() => null);
           if (!st) continue;
-          const put = near(st.put_in), now = near(st.near);
-          rows.push({ clan: c.id, nation: c.name, alive: c.alive && !s.clans[c.id]?.fallen, god: g.account, put_in: put, florins: florins(st.florins), claim_now: now, gain: +(now - put).toFixed(6), pct: put > 0 ? +((now / put - 1) * 100).toFixed(1) : null });
+          // Put in = what bought florins plus what the world credited back (9 Nov: the founders' DAO
+          // costs, granted into the backing), so the result compares like with like.
+          const granted = near(st.granted || "0"), put = +(near(st.put_in) + granted).toFixed(6), now = near(st.near);
+          rows.push({ clan: c.id, nation: c.name, alive: c.alive && !s.clans[c.id]?.fallen, god: g.account, put_in: put, granted, florins: florins(st.florins), claim_now: now, gain: +(now - put).toFixed(6), pct: put > 0 ? +((now / put - 1) * 100).toFixed(1) : null });
         }
       }));
       rows.sort((a, b) => (b.pct ?? -1e9) - (a.pct ?? -1e9));
@@ -478,6 +480,8 @@ async function sponsorPost(req, res) {
     const tx = await topUp(pool, key, account, amount);
     await store.markSponsored("testnet", account, tx);
     sponsorByIp.set(ip, [...today, Date.now()]);
+    // Its nation's DAO + staking go into the world's founding fund (9 Nov), so all it founds with becomes florins.
+    fundFounding(pool, key, NETWORKS.testnet.world).catch((e) => console.error("founding fund top-up", String(e?.message ?? e).slice(0, 160)));
     cache.delete("testnet:sponsor");
     return json(200, { ok: true, sent: near(amount.toString()), tx });
   } catch (e) {
@@ -496,6 +500,7 @@ async function sponsorNamed(req, res, json, pool, key, publicKey) {
   try {
     const { account, tx } = await createNamed(pool, key, publicKey, SPONSOR.perNation);
     await store.markSponsored("testnet", account, tx);
+    fundFounding(pool, key, NETWORKS.testnet.world).catch((e) => console.error("founding fund top-up", String(e?.message ?? e).slice(0, 160)));
     cache.delete("testnet:sponsor");
     return json(200, { ok: true, account, sent: near(SPONSOR.perNation.toString()), tx });
   } catch (e) {

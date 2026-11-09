@@ -240,12 +240,15 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
 
   // ---------------------------------------------------------------- the powers
   function foundCard() {
-    Promise.all([wallet.view(WORLD, "get_config"), wallet.balance(account).catch(() => null), W.net === "testnet" ? api("sponsor").catch(() => null) : null]).then(([cfg, bal, sp]) => {
+    Promise.all([wallet.view(WORLD, "get_config"), wallet.balance(account).catch(() => null), W.net === "testnet" ? api("sponsor").catch(() => null) : null, wallet.view(WORLD, "get_founding").catch(() => null)]).then(([cfg, bal, sp, fund]) => {
+      // The world's founding fund (9 Nov): while it pays the DAO and staking, a founder needs only
+      // its smaller minimum, and all of it becomes florins. A world without the fund keeps min_found.
+      if (fund?.[1]) cfg = { ...cfg, min_found: fund[1] };
       // A brand-new browser-key account isn't on chain until NEAR reaches it: it has 0, not "?".
       if (bal == null && /^[0-9a-f]{64}$/.test(account || "")) bal = 0n;
       const name = input({ placeholder: "Name your nation", maxLength: 40 });
-      // Testnet: put in everything you have (less 0.15 for gas), since 5.5 of the minimum makes the DAO
-      // and a nation founded at the bare minimum has almost nothing left to spend.
+      // Testnet: put in everything you have (less 0.15 for gas). With the founding fund paying the DAO,
+      // all of it becomes florins: a sponsored player's 8.3 makes about 7 NEAR of florins.
       const most = bal != null ? bal - 15n * 10n ** 22n : 0n;
       const amt = input({ value: near(W.net === "testnet" && most > BigInt(cfg.min_found) ? most : cfg.min_found), inputMode: "decimal" });
       // Founding pays Sputnik for the nation's DAO, so it can't be cheap. Mainnet: real NEAR. Testnet:
@@ -256,6 +259,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       const help = el("div", { className: "fields" });
       const line = (t, warn) => el("p", { className: `fine${warn ? " warn" : ""}`, textContent: t });
       help.append(line(`You have ${bal == null ? "?" : near(bal)} ${W.net === "mainnet" ? "NEAR" : "testnet NEAR"}; founding takes at least ${near(cfg.min_found)} plus a little for gas.${W.net === "mainnet" ? " This is real NEAR." : ""}`, short));
+      if (fund && BigInt(fund[0]) > 0n && BigInt(fund[1]) < 2n * 10n ** 24n) help.append(line("The world pays for your nation's DAO. Everything you put in becomes florins, less 14% for the season jackpot."));
       if (W.net === "testnet" && sp?.available) {
         const left = sp.nations_left;
         const refill = sp.next_refill_ms ? Math.max(1, Math.round((sp.next_refill_ms - Date.now()) / 3600e3)) : null;

@@ -85,7 +85,7 @@ async function showStakes() {
   const pct = (p) => (p == null ? "–" : `${p > 0 ? "+" : ""}${p}%`);
   const head = el("tr", {}, ...["Nation", "God", "Put in", "Florins", "Claim now", "Result"].map((h) => el("th", { textContent: h })));
   const rows = S.stakes.map((x) => el("tr", { className: x.pct > 0 ? "up" : x.pct > -14 ? "even" : "" },
-    el("td", {}, el("b", { textContent: x.nation }), x.alive ? null : el("span", { className: "mtag", textContent: "fallen" })),
+    el("td", {}, el("b", { textContent: x.nation }), x.alive ? null : el("span", { className: "mtag", textContent: "fallen" }), x.granted ? el("span", { className: "mtag", title: `${n(x.granted)} NEAR of founding costs credited back by the world (9 Nov)`, textContent: "founder" }) : null),
     el("td", {}, el("a", { href: `${S.explorer}/address/${x.god}`, target: "_blank", rel: "noopener", textContent: short(x.god) })),
     el("td", { textContent: `${n(x.put_in)} NEAR` }),
     el("td", { textContent: n(x.florins, 1) }),

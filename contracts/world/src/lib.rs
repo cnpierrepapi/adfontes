@@ -41,6 +41,17 @@ const FORWARDER_WASM: &[u8] = include_bytes!("../res/forwarder.wasm");
 const ALIAS_DEPOSIT: u128 = 30_000_000_000_000_000_000_000; // 0.03 NEAR: the account, its 2 KB of code, gas headroom
 const GAS_ALIAS_INIT: Gas = Gas::from_tgas(5);
 const DAO_BOND: u128 = 10_000_000_000_000_000_000_000;
+/// The founding fund (9 Nov): while it covers a nation's DAO and staking costs, the world pays them
+/// and a founder needs only this much (all of which becomes florins). Raw key "ff".
+const MIN_FOUND_FUNDED: u128 = 1_000_000_000_000_000_000_000_000; // 1 NEAR
+
+/// A number kept under a raw storage key (new state without a state-layout change: no migration).
+fn raw_u128(k: &str) -> u128 {
+    env::storage_read(k.as_bytes()).and_then(|v| String::from_utf8(v).ok()).and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+fn set_raw_u128(k: &str, v: u128) {
+    env::storage_write(k.as_bytes(), v.to_string().as_bytes());
+}
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
@@ -160,6 +171,9 @@ pub struct Stake {
     /// What claiming them pays now (yocto).
     pub near: U128,
     pub put_in: U128,
+    /// NEAR the world credited to this god on top (9 Nov: the founders' DAO costs given back).
+    /// Kept apart from put_in, which the engine reads as blessings.
+    pub granted: U128,
 }
 
 #[near(serializers = [json])]
@@ -280,11 +294,20 @@ impl World {
     pub fn found_clan(&mut self, name: String) -> Promise {
         require!(!self.paused, "Paused: no new money while we check something");
         let deposit = env::attached_deposit().as_yoctonear();
-        require!(deposit >= self.min_found, "Deposit is below the minimum to found a clan");
+        // The founding fund pays the DAO and staking costs while it can; then every yocto the
+        // founder puts in becomes florins. Otherwise the founder pays them, as before.
+        let costs = self.dao_deposit + self.staking_deposit;
+        let fund = raw_u128("ff");
+        let funded = fund >= costs;
+        require!(deposit >= if funded { MIN_FOUND_FUNDED } else { self.min_found }, "Deposit is below the minimum to found a clan");
         require!(!name.is_empty() && name.len() <= 40, "Clan name must be 1-40 characters");
         let founder = env::predecessor_account_id();
         let id = self.next_clan;
         self.next_clan += 1;
+        if funded {
+            set_raw_u128("ff", fund - costs);
+            env::storage_write(format!("ffr:{id}").as_bytes(), b"1"); // finish_founding reads it
+        }
 
         // The nation's name, readable (9 Nov), and the block height: nobody can register it ahead of
         // us to block a founding.
@@ -428,8 +451,12 @@ impl World {
         deposit: U128,
         created: bool,
     ) -> bool {
+        // Paid from the founding fund? (found_clan left a mark.)
+        let funded = env::storage_remove(format!("ffr:{id}").as_bytes());
         if !created {
-            // The factory sends the DAO deposit back to us; the founder gets everything back.
+            // The factory sends the DAO deposit back to us; the founder gets everything back, and
+            // the founding fund gets back what it set aside.
+            if funded { set_raw_u128("ff", raw_u128("ff") + self.dao_deposit + self.staking_deposit); }
             self.pay(founder, deposit.0).detach();
             env::log_str(&format!("clan {id} not founded; deposit refunded"));
             return false;
@@ -455,11 +482,12 @@ impl World {
         let storage = self.storage_cost_since(before) * 2; // headroom for the clan growing
         // Never panic in a callback: a panic here would strand the founder's deposit.
         // found_clan already checked deposit >= min_found > costs, so this can't go below 0.
-        let net = deposit
-            .0
-            .saturating_sub(self.dao_deposit)
-            .saturating_sub(self.staking_deposit)
-            .saturating_sub(storage);
+        // From the founding fund, the DAO and staking were paid already: only storage comes off.
+        let net = if funded {
+            deposit.0.saturating_sub(storage)
+        } else {
+            deposit.0.saturating_sub(self.dao_deposit).saturating_sub(self.staking_deposit).saturating_sub(storage)
+        };
         clan.gods[0].put_in = U128(net);
         clan.total_in = U128(net);
         self.buy_in(&mut clan, 0, net);
@@ -997,7 +1025,8 @@ impl World {
         let liabilities: u128 = self.clans.values().map(|c| c.staking_fund.0).sum::<u128>()
             + self.backing
             + self.jackpot
-            + self.owed_total;
+            + self.owed_total
+            + raw_u128("ff"); // the founding fund is set aside for nations not yet founded
         Totals {
             balance: U128(env::account_balance().as_yoctonear()),
             liabilities: U128(liabilities),
@@ -1013,14 +1042,53 @@ impl World {
         }
     }
 
+    /// Credit a god of a living nation with the attached NEAR, straight into the backing as florins
+    /// at today's price, no jackpot cut (9 Nov: the founders get back the DAO costs founding took).
+    /// Owner or operator only. Recorded apart from put_in, so the engine doesn't read it as a blessing.
+    #[payable]
+    pub fn grant(&mut self, clan_id: u32, god: AccountId) -> U128 {
+        let who = env::predecessor_account_id();
+        require!(who == self.owner || who == self.operator, "Only the owner or operator");
+        let amount = env::attached_deposit().as_yoctonear();
+        require!(amount > 0, "Attach the NEAR to grant");
+        let mut clan = self.live_clan(clan_id);
+        let idx = clan.gods.iter().position(|g| g.account == god).unwrap_or_else(|| env::panic_str("Not a god of that nation"));
+        let fl = self.credit(&mut clan, idx, amount);
+        self.clans.insert(clan_id, clan);
+        let k = format!("gr:{clan_id}:{god}");
+        set_raw_u128(&k, raw_u128(&k) + amount);
+        env::log_str(&format!("granted {amount} yocto to {god} in clan {clan_id}: {fl} florin units"));
+        U128(fl)
+    }
+
+    /// Put NEAR into the founding fund (anyone; it only ever pays new nations' DAO and staking).
+    #[payable]
+    pub fn fund_founding(&mut self) -> U128 {
+        let amount = env::attached_deposit().as_yoctonear();
+        require!(amount > 0, "Attach the NEAR for the fund");
+        let fund = raw_u128("ff") + amount;
+        set_raw_u128("ff", fund);
+        env::log_str(&format!("founding fund +{amount} = {fund}"));
+        U128(fund)
+    }
+
+    /// The founding fund: NEAR set aside to pay new nations' DAO and staking costs (yocto), and the
+    /// least a founder must attach right now.
+    pub fn get_founding(&self) -> (U128, U128) {
+        let fund = raw_u128("ff");
+        let min = if fund >= self.dao_deposit + self.staking_deposit { MIN_FOUND_FUNDED } else { self.min_found };
+        (U128(fund), U128(min))
+    }
+
     /// A god's stake in a nation: their florins and what claiming them pays now (yocto).
     pub fn get_stake(&self, clan_id: u32, account: AccountId) -> Stake {
-        let none = Stake { florins: U128(0), near: U128(0), put_in: U128(0) };
+        let granted = U128(raw_u128(&format!("gr:{clan_id}:{account}")));
+        let none = Stake { florins: U128(0), near: U128(0), put_in: U128(0), granted };
         let Some(c) = self.clans.get(&clan_id) else { return none };
         let Some(g) = c.gods.iter().find(|g| g.account == account) else { return none };
         let fl = if c.shares.0 == 0 { 0 } else { mul_div(c.florins.0, g.shares.0, c.shares.0) };
         let near = if self.florins_total == 0 { 0 } else { mul_div(fl, self.backing, self.florins_total) };
-        Stake { florins: U128(fl), near: U128(near), put_in: g.put_in }
+        Stake { florins: U128(fl), near: U128(near), put_in: g.put_in, granted }
     }
 
     // ---------------------------------------------------------------- internals
@@ -1098,8 +1166,13 @@ impl World {
     /// gets florins at today's price and the god gets shares of the nation's florins.
     fn buy_in(&mut self, clan: &mut Clan, idx: usize, net: u128) {
         let jack = bps(net, JACKPOT_BPS);
-        let back = net - jack;
         self.jackpot += jack;
+        self.credit(clan, idx, net - jack);
+    }
+
+    /// `back` NEAR into the backing: florins at today's price for the nation, shares for god `idx`.
+    /// Today's price stays today's price, so nobody else's florins move. Returns the florins made.
+    fn credit(&mut self, clan: &mut Clan, idx: usize, back: u128) -> u128 {
         let fl = if self.backing == 0 || self.florins_total == 0 { back } else { mul_div(back, self.florins_total, self.backing) };
         self.backing += back;
         self.florins_total += fl;
@@ -1112,6 +1185,7 @@ impl World {
         clan.florins = U128(clan.florins.0 + fl);
         clan.shares = U128(clan.shares.0 + sh);
         clan.gods[idx].shares = U128(clan.gods[idx].shares.0 + sh);
+        fl
     }
 
     /// Storage the nation caused (a citizen, a long whisper): burn florins worth `cost` and take
