@@ -64,7 +64,7 @@ export function says(r, clanName) {
         : r.was ? `${c(r.clan)} is content again.` : `${c(r.clan)} is content.`;
     case "sweep": return "The day's fees went to the treasury.";
     case "weather": return `Weather: NEAR ${n2(r.price)} in the week of ${r.week}.`;
-    case "error": return `${c(r.clan)} had a bad day (a service didn't answer).`;
+    case "error": return r.clan == null ? "A service didn't answer for a moment. The turn carried on." : `${c(r.clan)} had a bad day (a service didn't answer).`;
     case "budget": return "The day's research budget ran out: research and drafts wait until tomorrow.";
     case "waiting": return `${c(r.clan)}'s citizens wait in the plaza for their god's first whisper.`;
     case "reverence": return `${c(r.clan)}'s reverence: ${Object.entries(r.gods || {}).map(([g, v]) => `${g.split(".")[0]} ${v}`).join(", ") || "no gods"}${r.followed ? `; it follows ${r.followed.split(".")[0]}` : ""}.`;

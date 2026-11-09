@@ -148,7 +148,19 @@ export function connect(net) {
     /** Mint up to 50 tokens; the operator attaches 0.01 NEAR a token for their storage (a new token
      *  takes up to ~0.008) and the contract sends back what wasn't used. */
     async mtMint(mints, memo) {
-      const r = await op.callFunctionRaw({ contractId: world, methodName: "mt_mint_batch", args: { mints, memo }, deposit: BigInt(mints.length) * 10n ** 22n, gas: T(150) });
+      let r;
+      try { r = await op.callFunctionRaw({ contractId: world, methodName: "mt_mint_batch", args: { mints, memo }, deposit: BigInt(mints.length) * 10n ** 22n, gas: T(150) }); }
+      catch (e) {
+        // 9 Nov, two turns running: the RPC answered 500 while waiting on the mint, yet the mint had
+        // landed. On an RPC error (not a contract refusal), look on NEAR before calling it a failure.
+        if (/panicked|Smart contract|NotEnoughBalance|InvalidNonce/i.test(String(e?.message ?? e))) throw e;
+        for (const wait of [4000, 8000]) {
+          await new Promise((res) => setTimeout(res, wait));
+          const held = await Promise.all(mints.map((m) => view("mt_balance_of", { account_id: m.owner_id, token_id: m.token_id }).catch(() => null)));
+          if (held.every((b) => b != null && BigInt(b) >= 1n)) return { hash: null, recovered: true };
+        }
+        throw e;
+      }
       const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
       if (fail) throw new Error(`mt_mint_batch failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
       return { hash: r.transaction.hash };
