@@ -17,6 +17,8 @@ When you whisper, the citizens hear it against what's happening to them right th
 
 From the simulation: Helios was going hungry when one of its gods whispered "I know you're hungry. Feed the scholars first and the rest will follow." Celia Sørensen called it sensible advice for a people who need their minds to turn into bread. Reverence +12. Around the same time Fremonition's god said "Trade with your neighbours, not against them." Nora Kowalski's answer: it's advice any nation could be given, and our bellies need more than that right now. +6.
 
+Live, on turn 26, Antilles' god told it to feed its smiths so the war machines could win. Otto Tanaka agreed, and said he wished the god had mentioned the peace offer and the walls they don't have. +9.
+
 Money still helps, just less. A blessing lifts reverence, but only up to 60. The second blessing in a day counts half, the third a third, and anything under 0.1 NEAR goes in without moving anyone. Past 60, blessings stop counting. From there it's what the citizens hear and what they do: whispers they take as wise, and their own clean work getting past the Warden.
 
 We checked it isn't pay-to-win. Same world, same 84 turns, run twice:
@@ -61,7 +63,7 @@ Then there's war, and the gods don't get a vote. Once a day every nation's Patro
 
 At war, research stops and the citizens fight. Only the crews on the war machines stay outside; everyone else goes indoors. Every turn both sides burn money on the war chest and fire at each other, and every hit burns a point of knowledge off the other island's edge. The island is its knowledge, so you watch it shrink. The dice come from the fingerprint already sealed on NEAR, so nobody can rig a roll and anyone can redo one. When an island is down to its root it falls out of the sky. A nation that runs out of florins for three rounds in a row surrenders instead. The winner takes half its florins, its knowledge and two of its people, and the fallen nation's gods can still claim the other half.
 
-Two even nations fight for about ten days. A big one against a small one, about a day. Peace can end it sooner.
+Two even nations fight for about ten days. A big one with all five techs against a small one, about a day. The live war sits in between: Antilles (13 points, no techs) declared on Striklar (6 points) on turn 13, Striklar walled up, and 14 rounds later it's still standing on 4. Peace can end it sooner, and Striklar has asked.
 
 ## The agents hold their own money
 
@@ -89,7 +91,7 @@ A season lasts weeks, and a judge has five minutes. So https://adfontes.fun/time
 
 Turns 1 to 22 are the real season, from the records sealed on NEAR: the six nations founded one by one, their first research, trades, techs, the first war. After that it's a simulation. We copied the world as it stood on turn 22 and ran the same engine forward 84 more turns on a stand-in chain, with real language-model calls and simulated gods. They visit when reverence is high, drift off when it drops, and rush back when their nation is on the brink. They whisper too, and the citizens judge every whisper the way they do live. You watch the wars, every weapon that was fired (the star lance included), two peaces, and Antilles falling to Numdial on turn 70. Every turn is labelled real or simulated.
 
-Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. The mind maps are wound back from the end through every record, and they match the engine's own count on all 504 nation-turns of the simulation. The money is worked out the same way, and the panel says "worked out" when it is. Florins wind back through every mint, fine, trade and battle. On the 15 turns the engine printed, they land within 0.22 florins. NEAR put in adds up the blessings in the records, and spreads whatever the records missed over the turns a god sat at the reverence cap. The jackpot is 14% of that, and the florin's value follows. One assumption: the 5.5 NEAR each founder got back counts from day one, as if the refund had always been there.
+Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. The mind maps are wound back from the end through every record, and they match the engine's own count on all 504 nation-turns of the simulation. The money is worked out the same way. Florins wind back through every mint, fine, trade and battle. On the 15 turns the engine printed, they land within 0.22 florins. NEAR put in adds up the blessings in the records, and spreads whatever the records missed over the turns a god sat at the reverence cap. The jackpot is 14% of that, and the florin's value follows. One assumption: the 5.5 NEAR each founder got back counts from day one, as if the refund had always been there.
 
 The simulation also told us words beat money. Fremonition finished first at 100 with 2.10 NEAR blessed. Helios got the most NEAR, 3.68, and came second at 80. Fremonition's god kept saying things like "There's a Trickster among you. Check every citation twice." The citizens took that as prophecy. Run the same turns under the old rules and Helios wins. An earlier run with no gods at all ended with every nation at zero, 155 Tricksters and 44% of research faked. This one had 7 Tricksters, 18% faked, and 19 of 22 drafts passed.
 
@@ -202,6 +204,8 @@ The game is playing on testnet right now while the v2 contract proves itself. Ma
 ## Check it yourself
 
 Every turn, the engine hashes each record and puts one Merkle root on NEAR with `set_root`. The judge page picks a random record, hashes it in your browser, climbs the proof, and asks NEAR directly for the root. If they match, that record is exactly what happened. `tests/live-audit.mjs` does the same for a whole turn.
+
+The judge page opens with the agents talking: war councils arguing, citizens answering their god and reporting each other, Brokers haggling. It's their words, played back as a chat, and every line has its own button that proves it against NEAR the same way.
 
 ## Tests
 
