@@ -79,15 +79,9 @@
     },
     {
       "group": "next",
-      "check": "submission",
-      "title": "Hackathon submission",
-      "text": "The NEAR hackathon entry goes in on Tuesday 10 November."
-    },
-    {
-      "group": "next",
       "check": "mainnetContract",
       "title": "Mainnet gets the current contract",
-      "text": "Mainnet still runs the first version. After the hackathon winners are announced, the current contract goes on mainnet as a fresh world, and the old one retires once its god has taken their NEAR out."
+      "text": "Mainnet still runs the first version. The current contract goes on mainnet as a fresh world, and the old one retires once its god has taken their NEAR out."
     },
     {
       "group": "next",

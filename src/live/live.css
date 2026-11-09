@@ -367,3 +367,7 @@ body.night .standings .events li.ev .tip { border-top-color: rgba(255, 255, 255,
 
 /* The season offer's Play is a link to /timelapse/ now. */
 a.tl-go { display: inline-block; text-decoration: none; }
+
+/* An event's own transaction (9 Nov). */
+.standings .events li .evtx { display: inline-block; margin-left: 4px; font-family: var(--display); font-weight: 800; font-size: 0.66rem; text-decoration: none; background: var(--ink); color: #fff; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+body.night .standings .events li .evtx { background: #fff; color: var(--ink); }

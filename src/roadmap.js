@@ -42,7 +42,6 @@ const CHECKS = {
   async royalties() { const m = await api("market"); return m.counts.royalty_payments ? ok(`${m.counts.royalty_payments} paid so far, ${n2(m.counts.royalties)} florins in all.`) : wait("None paid yet."); },
   async founding() { const [fund, min] = await view("testnet", "get_founding"); return ok(`The fund holds ${n2(N(fund))} NEAR; founding a nation takes ${n2(N(min))} NEAR right now.`); },
   async season() { const s = await fetch("/season/season.json").then((x) => x.json()); return ok(`Turns 1 to ${s.real_to} real, then ${s.last - s.real_to} simulated: ${s.last} in all.`); },
-  async submission() { return Date.now() < Date.UTC(2026, 10, 11) ? wait("Due Tuesday 10 November.") : info("The date has passed. The entry is on the hackathon's site."); },
   async mainnetContract() {
     const has = await view("mainnet", "get_founding").then(() => true, () => false);
     return has ? ok(`${WORLD.mainnet} runs the current contract.`) : wait(`${WORLD.mainnet} still runs the first version.`);

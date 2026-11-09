@@ -711,10 +711,11 @@ export async function startLive(canvas, hud, opts = {}) {
     if (!isl) return;
     const p = isl.position, r = isl.userData.r;
     const dir = new THREE.Vector3().subVectors(camera.position, p).setY(0).normalize();
-    // Low arrival, looking up a little: the town at the bottom of the frame, its sky above it.
-    const lookY = p.y + mindBase(r) + 1.6;
+    // A little closer and lower (his note 9 Nov): aim between the island and the foot of its sky, so
+    // the island fills the lower half of the frame and its knowledge still shows above it.
+    const lookY = p.y + mindBase(r) * 0.4 + 0.6;
     const fit = camera.aspect < 1 ? 1 / Math.pow(camera.aspect, 0.55) : 1; // portrait phones stand back to fit the sky
-    const dest = p.clone().addScaledVector(dir, (r * 4.4 + 10) * fit).setY(p.y + r * 0.8 + 2);
+    const dest = p.clone().addScaledVector(dir, (r * 3.6 + 7.5) * fit).setY(p.y + r * 0.95 + 1.6);
     focusId = id;
     controls.setLookAt(dest.x, dest.y, dest.z, p.x, lookY, p.z, true);
     flying = { t0: performance.now(), dur: 1400 };

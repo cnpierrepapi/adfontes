@@ -17,11 +17,18 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
   drawEvHead();
   evHead.addEventListener("click", () => { evOpen = !evOpen; drawEvHead(); });
   const MAX_EVENTS = 30;
-  function event({ text, kind, clan, tip }) {
+  function event({ text, kind, clan, tip, tx }) {
     if (!text) return;
     const li = el("li", { className: `ev ${kind || ""}${clan != null ? " go" : ""}${tip ? " has-tip" : ""}`, textContent: text, title: clan != null && !tip ? "Fly there" : "" });
     // A trade's price sum and the merchant's reason: shown on hover, or on a tap (phones).
     if (tip) li.append(el("span", { className: "tip", textContent: tip }));
+    // Its own transaction on NEAR, when it has one (9 Nov). Research, battles and councils have none:
+    // they live in the turn's sealed records, not in a transaction of their own.
+    if (tx && W.explorer) {
+      const a = el("a", { className: "evtx", href: `${W.explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: "NEAR ↗", title: "Open this transaction on NEAR" });
+      a.addEventListener("click", (e) => e.stopPropagation());
+      li.append(" ", a);
+    }
     li.addEventListener("click", () => { if (tip) li.classList.toggle("open"); if (clan != null) flyTo(clan); });
     events.prepend(li);
     while (events.children.length > MAX_EVENTS) events.lastChild.remove();

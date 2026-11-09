@@ -14,8 +14,10 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
 
   // The words go to the event list under the season standings (SPEC §14), not over the islands:
   // the effect still plays where it happened.
+  // The record being played: its transaction (if it has one of its own) goes with its event line.
+  let playingTx = null;
   function bubble(isl, text, kind, tip) {
-    if (!fx.quiet) onEvent?.({ text, kind, tip, clan: isl?.userData?.clan?.id ?? null }); // the reel plays effects without writing to the event list
+    if (!fx.quiet) onEvent?.({ text, kind, tip, tx: playingTx, clan: isl?.userData?.clan?.id ?? null }); // the reel plays effects without writing to the event list
   }
 
   // A comet of knowledge along the bridge, seller -> buyer.
@@ -353,6 +355,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
 
   function play(r) {
     const text = r.text ?? says(r, clanName); // a god's own action brings its own words
+    playingTx = r.tx ?? null;
     if (!fx.quiet) onRecord?.(r);
     switch (r.kind) {
       case "trade": comet(r.seller, r.buyer, r.tool ? VIOLET : CYAN); bubble(islands.get(r.buyer), text, "trade", tipOf(r)); break;
