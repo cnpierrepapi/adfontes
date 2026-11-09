@@ -15,7 +15,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   // The words go to the event list under the season standings (SPEC §14), not over the islands:
   // the effect still plays where it happened.
   function bubble(isl, text, kind, tip) {
-    onEvent?.({ text, kind, tip, clan: isl?.userData?.clan?.id ?? null });
+    if (!fx.quiet) onEvent?.({ text, kind, tip, clan: isl?.userData?.clan?.id ?? null }); // the reel plays effects without writing to the event list
   }
 
   // A comet of knowledge along the bridge, seller -> buyer.
@@ -353,7 +353,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
 
   function play(r) {
     const text = r.text ?? says(r, clanName); // a god's own action brings its own words
-    onRecord?.(r);
+    if (!fx.quiet) onRecord?.(r);
     switch (r.kind) {
       case "trade": comet(r.seller, r.buyer, r.tool ? VIOLET : CYAN); bubble(islands.get(r.buyer), text, "trade", tipOf(r)); break;
       case "corpus": page(islands.get(r.clan), r.fake ? RED : WHITE); bubble(islands.get(r.clan), text, r.stir === "doubt" ? "warden" : "corpus"); break;
@@ -416,5 +416,6 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     if (queue.length && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + 1500; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  return { play, enqueue, update, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, setCrowd: () => {} };
+  const fx = { quiet: false, play, enqueue, update, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, setCrowd: () => {} };
+  return fx;
 }

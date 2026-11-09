@@ -82,7 +82,7 @@ export function says(r, clanName) {
       const used = Object.keys(r.sides).map((id) => r.sides[id].weapon ? `${c(Number(id))} used ${WEAPON[r.sides[id].weapon] ?? r.sides[id].weapon}` : null).filter(Boolean).join(", ");
       const ids = Object.keys(r.sides).map(Number), hit = ids.filter((id) => r.sides[id].burned?.length);
       if (!hit.length) return `War between ${c(ids[0])} and ${c(ids[1])}, round ${r.round}${used ? ` (${used})` : ""}: both walls held.`;
-      return `War, round ${r.round}${used ? ` (${used})` : ""}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} points left)`).join("; ")}.`;
+      return `War, round ${r.round}${used ? ` (${used})` : ""}: ${hit.map((id) => `${c(id)} lost "${r.sides[id].burned.join('", "')}" (${r.sides[id].hp} point${r.sides[id].hp === 1 ? "" : "s"} left)`).join("; ")}.`;
     }
     // The marketplace (his calls 9 Nov): only the Brokers trade, from their own wallets.
     case "listed": return `${c(r.clan)}'s Broker put ${thing(r)} up for sale at ${fl(r.price)}.`;
@@ -97,7 +97,7 @@ export function says(r, clanName) {
     case "royalty": return `${c(r.clan)} earned ${fl(r.florins)} in patent royalties. ${r.sales === 1 ? "Someone bought research" : `${r.sales} buys of research`} in its patents' chains.`;
     case "tokens": return `${r.minted} new tokens on NEAR: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
     case "tokens-moved": return `${c(r.clan)}'s tokens moved into its Broker's own wallet.`;
-    case "fallen": return `${r.name} has ${r.surrendered ? "run out of money and surrendered" : "fallen"}. ${r.byName} took ${fl(r.loot)}, ${r.knowledge} points of its knowledge and two of its people.`;
+    case "fallen": return `${r.name} has ${r.surrendered ? "run out of money and surrendered" : "fallen"}. ${r.byName} took ${fl(r.loot)}${r.knowledge ? `, ${r.knowledge} point${r.knowledge === 1 ? "" : "s"} of its knowledge` : ""} and two of its people.`;
     default: return r.kind;
   }
 }
