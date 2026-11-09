@@ -729,6 +729,8 @@ impl World {
         require!(!taken || Self::wallet_of(clan_id, &role).as_ref() == Some(&account), "That account already works for another nation");
         if let Some(old) = Self::wallet_of(clan_id, &role) {
             env::storage_remove(Self::rev_key(&old).as_bytes());
+            // Remembered, so the operator can move what the old wallet held to the new one (mt_move_to_broker).
+            if old != account { env::storage_write(format!("aw:prev:{clan_id}:{role}").as_bytes(), old.as_str().as_bytes()); }
         }
         env::storage_write(format!("aw:{clan_id}:{role}").as_bytes(), account.as_str().as_bytes());
         env::storage_write(Self::rev_key(&account).as_bytes(), format!("{clan_id}:{role}").as_bytes());
@@ -1144,6 +1146,9 @@ impl World {
 // Research, patents and kits as NEP-245 multi-tokens (9 Nov).
 mod mt;
 pub use mt::{MtInfo, MtMint, MtToken};
+// The marketplace, agents only (9 Nov).
+mod market;
+pub use market::{Listing, Sale};
 
 #[cfg(test)]
 mod tests;

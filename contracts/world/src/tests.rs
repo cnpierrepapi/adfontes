@@ -865,3 +865,157 @@ fn only_the_operator_moves_tokens_to_the_broker() {
     set("god1.near", 0);
     w.mt_move_to_broker(a, 10);
 }
+
+// ---------------------------------------------------------------- the marketplace, agents only (9 Nov)
+
+/// Two nations, each with a Broker wallet and 50 florins; Helios' Broker holds r:c1, k:t1 and p:d1.
+fn market_world() -> (World, u32, u32) {
+    let mut w = new_world();
+    let a = found_named(&mut w, "god1.near", "Helios");
+    let b = found_named(&mut w, "god2.near", "Salamanco");
+    op();
+    w.mint(a, U128(50 * FLORIN), "work".into());
+    w.mint(b, U128(50 * FLORIN), "work".into());
+    w.set_agent_wallet(a, "Broker".into(), acc("broker1.op.near"));
+    w.set_agent_wallet(b, "Broker".into(), acc("broker2.op.near"));
+    w.set_agent_wallet(a, "Patron".into(), acc("patron1.op.near"));
+    for t in ["r:c1", "k:t1", "p:d1"] { mint(&mut w, t, "broker1.op.near", 1); }
+    (w, a, b)
+}
+fn as_(who: &str) { set(who, 0); }
+fn fl_of(w: &World, id: u32) -> u128 { w.get_clan(id).unwrap().florins.0 }
+
+#[test]
+fn research_sells_as_copies_and_the_seller_keeps_its_own() {
+    let (mut w, a, b) = market_world();
+    as_("broker1.op.near");
+    let id = w.market_list("r:c1".into(), U128(5 * FLORIN), "they need batteries".into());
+    let (fa, fb) = (fl_of(&w, a), fl_of(&w, b));
+    as_("broker2.op.near");
+    w.market_buy(id, "fills our open question".into());
+    assert_eq!(fl_of(&w, a), fa + 5 * FLORIN, "the seller nation is paid");
+    assert_eq!(fl_of(&w, b), fb - 5 * FLORIN, "with the buyer nation's florins");
+    assert_eq!(w.mt_balance_of(acc("broker1.op.near"), "r:c1".into()).0, 1, "the seller keeps its copy");
+    let l = &w.market_listings(None, None)[0];
+    assert!(l.open && l.sold == 1 && l.kind == "copy", "a copy listing stays open");
+    let s = &w.market_sales(None, None)[0];
+    assert_eq!((s.buyer, s.seller, s.token_id.as_str(), s.reason.as_str()), (b, a, "r:c1", "fills our open question"));
+    assert_eq!(w.market_count().1 .0, 1);
+}
+
+#[test]
+#[should_panic(expected = "You already have that")]
+fn a_nation_buys_each_copy_once() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near");
+    let id = w.market_list("r:c1".into(), U128(FLORIN), "".into());
+    as_("broker2.op.near");
+    w.market_buy(id, "".into());
+    w.market_buy(id, "".into());
+}
+
+#[test]
+fn a_patent_sells_once_and_moves_to_the_buyer() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near");
+    let id = w.market_list("p:d1".into(), U128(20 * FLORIN), "cash for the war".into());
+    assert_eq!(w.market_listings(None, None)[0].kind, "sale");
+    as_("broker2.op.near");
+    w.market_buy(id, "".into());
+    assert_eq!(w.mt_token(vec!["p:d1".into()])[0].as_ref().unwrap().owner_id, Some(acc("broker2.op.near")));
+    assert!(!w.market_listings(None, None)[0].open, "sold: the listing closes");
+    let again = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { as_("broker2.op.near"); w.market_buy(id, "".into()); }));
+    assert!(again.is_err(), "nobody buys it twice");
+}
+
+#[test]
+#[should_panic(expected = "Not an agent wallet")]
+fn market_a_god_cant_list() {
+    let (mut w, _, _) = market_world();
+    as_("god1.near"); w.market_list("r:c1".into(), U128(FLORIN), "".into());
+}
+
+#[test]
+#[should_panic(expected = "This wallet can't do that")]
+fn market_a_patron_cant_list() {
+    let (mut w, _, _) = market_world();
+    as_("patron1.op.near"); w.market_list("r:c1".into(), U128(FLORIN), "".into());
+}
+
+#[test]
+#[should_panic(expected = "You don't hold that token")]
+fn market_nobody_lists_what_it_doesnt_hold() {
+    let (mut w, _, _) = market_world();
+    as_("broker2.op.near"); w.market_list("r:c1".into(), U128(FLORIN), "".into());
+}
+
+#[test]
+#[should_panic(expected = "Price must be between")]
+fn market_no_free_listings() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near"); w.market_list("r:c1".into(), U128(0), "".into());
+}
+
+#[test]
+#[should_panic(expected = "Price must be between")]
+fn market_no_absurd_prices() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near"); w.market_list("r:c1".into(), U128(1001 * FLORIN), "".into());
+}
+
+#[test]
+#[should_panic(expected = "already listed")]
+fn market_no_double_listing() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near"); w.market_list("r:c1".into(), U128(FLORIN), "".into()); w.market_list("r:c1".into(), U128(FLORIN), "".into());
+}
+
+#[test]
+#[should_panic(expected = "your own listing")]
+fn market_no_buying_your_own_listing() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near"); let id = w.market_list("r:c1".into(), U128(FLORIN), "".into()); w.market_buy(id, "".into());
+}
+
+#[test]
+#[should_panic(expected = "Buyer can't afford it")]
+fn market_no_spending_florins_a_nation_doesnt_have() {
+    let (mut w, _, b) = market_world();
+    assert!(fl_of(&w, b) < 1000 * FLORIN);
+    as_("broker1.op.near"); let id = w.market_list("r:c1".into(), U128(1000 * FLORIN), "".into()); as_("broker2.op.near"); w.market_buy(id, "".into());
+}
+
+#[test]
+#[should_panic(expected = "Not your listing")]
+fn market_only_the_seller_takes_it_down() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near"); let id = w.market_list("r:c1".into(), U128(FLORIN), "".into()); as_("broker2.op.near"); w.market_delist(id);
+}
+
+#[test]
+#[should_panic(expected = "That listing is closed")]
+fn market_a_delisted_item_cant_be_bought() {
+    let (mut w, _, _) = market_world();
+    as_("broker1.op.near"); let id = w.market_list("r:c1".into(), U128(FLORIN), "".into()); w.market_delist(id); as_("broker2.op.near"); w.market_buy(id, "".into());
+}
+
+#[test]
+#[should_panic(expected = "at most 10 open listings")]
+fn ten_open_listings_at_most() {
+    let (mut w, _, _) = market_world();
+    for i in 0..11 { mint(&mut w, &format!("r:x{i}"), "broker1.op.near", 1); }
+    as_("broker1.op.near");
+    for i in 0..11 { w.market_list(format!("r:x{i}"), U128(FLORIN), "".into()); }
+}
+
+#[test]
+fn a_new_broker_wallet_takes_over_the_old_ones_tokens() {
+    let (mut w, a, _) = market_world();
+    op();
+    w.set_agent_wallet(a, "Broker".into(), acc("trader1.op.near"));
+    assert_eq!(w.mt_move_to_broker(a, 100), 3);
+    assert!(w.mt_tokens_for_owner(acc("broker1.op.near"), None, None).is_empty());
+    assert_eq!(ids(w.mt_tokens_for_owner(acc("trader1.op.near"), None, None)), vec!["k:t1", "p:d1", "r:c1"]);
+    let old = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { as_("broker1.op.near"); w.market_list("r:c1".into(), U128(FLORIN), "".into()); }));
+    assert!(old.is_err(), "the retired wallet can't trade any more");
+}
