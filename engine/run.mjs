@@ -193,6 +193,16 @@ for (let n = 0; n < days; n++) {
     }
     let listTx = null;
     if (!shelf) {
+      // Its own token, made now if it isn't on NEAR yet (research written earlier this same turn is
+      // only minted at the turn's end; 9 Nov the contract refused a listing for that reason).
+      const sellerW = chain.agentId(seller, "Broker"), have = await chain.mtBalances(sellerW, [token]);
+      if (have && BigInt(have[0] || 0) === 0n) {
+        const title = MK.fairOf(s, token, FL)?.title ?? token;
+        const m = await chain.mtMint([{ token_id: token, owner_id: sellerW, amount: "1", title: String(title).slice(0, 120) }], `before sale to ${buyer}`);
+        const key = `${seller}|${token}`;
+        if (!(s.mtDone ||= []).includes(key)) s.mtDone.push(key);
+        log({ kind: "tokens", minted: 1, research: +(token[0] === "r"), patents: 0, kits: +(token[0] === "k"), for: seller, tx: m.hash });
+      }
       const L = await chain.marketList(seller, token, ask.price, ask.why);
       ask.listing = L.value; listTx = L.hash;
       all.push({ id: L.value, seller, token_id: token, price: ask.price, kind: token[0] === "p" ? "sale" : "copy", open: true, reason: ask.why, sold: 0 });
