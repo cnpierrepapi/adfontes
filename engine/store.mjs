@@ -200,7 +200,7 @@ export async function getDraft(net, id) {
 
 export async function listDrafts(net, limit = 30, clan = null) {
   const p = await db();
-  if (p && clan != null) return (await p.query("select id, clan, day, passed, data->'draft'->>'title' as title from drafts where net = $1 and clan = $3 order by day desc, id desc limit $2", [net, limit, clan])).rows;
-  if (p) return (await p.query("select id, clan, day, passed, data->'draft'->>'title' as title from drafts where net = $1 order by day desc, id desc limit $2", [net, limit])).rows;
+  if (p && clan != null) return (await p.query("select id, clan, day, passed, data->'draft'->>'title' as title, data->'chain' as chain from drafts where net = $1 and clan = $3 order by day desc, id desc limit $2", [net, limit, clan])).rows;
+  if (p) return (await p.query("select id, clan, day, passed, data->'draft'->>'title' as title, data->'chain' as chain from drafts where net = $1 order by day desc, id desc limit $2", [net, limit])).rows;
   return [];
 }
