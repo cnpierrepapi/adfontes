@@ -3,7 +3,7 @@ import { api } from "./net.js";
 import { says as saysWith, tipOf } from "./says.js";
 import { sectionNav } from "./pagenav.js";
 import { verifyRecord } from "./proof.js";
-import { startTalk } from "./talk.js";
+import { startTalk, goneIds, touches } from "./talk.js";
 sectionNav();
 
 const $ = (id) => document.getElementById(id);
@@ -53,7 +53,8 @@ async function load() {
   $("tokens").replaceChildren(...live.filter((x) => x.tokens).map((x) => el("li", {}, el("b", { textContent: x.name }), ` · ${pl(x.tokens.research, "research token")}, ${pl(x.tokens.patents, "patent")}, ${pl(x.tokens.kits, "kit")}`)));
   if (!live.some((x) => x.tokens?.sample)) $("tokens").replaceChildren(el("li", { textContent: "The first tokens are minted on the next turn." }));
   sealed = await lastSealed();
-  const txs = (sealed?.records || []).filter((r) => r.tx).slice(-12).reverse();
+  const gone = goneIds(W); // nations whose last god claimed out: left out everywhere on this page
+  const txs = (sealed?.records || []).filter((r) => r.tx && !touches(r, gone)).slice(-12).reverse();
   $("chain-intro").replaceChildren("The world contract is ", el("a", { href: `${W.explorer}/address/${W.world}`, target: "_blank", rel: "noopener", textContent: W.world }), sealed ? `. Below: transactions from turn ${sealed.day}, the last one sealed on NEAR.` : ". No turn is sealed yet.");
   $("txs").replaceChildren(...txs.map((r) => el("li", {}, el("span", { textContent: saysWith(r, clanName) }), el("span", { className: "signer", textContent: `Signed by ${signerOf(r)}` }), ...(tipOf(r) ? [el("span", { className: "tip", textContent: tipOf(r) })] : []), " ", el("a", { className: "near", href: `${W.explorer}/txns/${r.tx}`, target: "_blank", rel: "noopener", textContent: "NEAR ↗", title: "Open this transaction on NEAR" }))));
   if (!txs.length) $("txs").append(el("li", { textContent: "No transactions in the last sealed turn yet." }));
@@ -96,7 +97,8 @@ $("check").addEventListener("click", async () => {
   if (!sealed) return void (out.textContent = "No turn is sealed yet. Try again in a few minutes.");
   out.textContent = "Checking…";
   try {
-    const i = Math.floor(Math.random() * sealed.records.length), d = sealed.day;
+    const gone = goneIds(W), pool = sealed.records.map((r, k) => k).filter((k) => !touches(sealed.records[k], gone));
+    const i = pool[Math.floor(Math.random() * pool.length)], d = sealed.day;
     const v = await verifyRecord(d, i);
     if (v.error) return void (out.textContent = v.error);
     out.replaceChildren(

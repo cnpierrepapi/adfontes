@@ -10,6 +10,9 @@ const fl = (x) => `${Math.round(x * 100) / 100} florins`;
 // The engine stores reasons up to 200 characters; one cut off there ends in "…" rather than mid-word.
 const said = (t) => { const x = String(t || "").trim(); return x.length >= 195 && !/[.!?"')]$/.test(x) ? `${x}…` : x; };
 
+export const goneIds = (W) => new Set(W.clans.filter((c) => !c.alive && !c.fallen && !(c.gods > 0 || c.gods?.length > 0)).map((c) => c.id));
+export const touches = (r, ids) => [r.clan, r.buyer, r.seller, r.to, r.by, r.attacker, r.defender, r.a, r.b].some((x) => x != null && ids.has(Number(x)));
+
 async function sealedDays(W) {
   const out = [];
   const ds = Array.from({ length: W.day }, (_, k) => k + 1);
@@ -88,7 +91,9 @@ function threads(recs, name) {
 
 export async function startTalk(root, W) {
   const name = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
-  const recs = await sealedDays(W);
+  // A nation whose last god claimed out is gone from the world (his call 10 Nov): none of its lines here.
+  const gone = goneIds(W);
+  const recs = (await sealedDays(W)).filter((r) => !touches(r, gone));
   const ts = threads(recs, name);
   if (!ts.length) { root.replaceChildren(el("p", { textContent: "Nothing said yet. Come back after the next turn." })); return; }
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
