@@ -39,3 +39,4 @@
 #stakes-table tr.up td.res { color: #13824a; }
 #stakes-table tr.even td.res { color: #8a6a00; }
 #stakes-table tr:not(.up):not(.even) td.res { color: #b0243f; }
+@media (max-width: 700px) { #stakes-table th:nth-child(2), #stakes-table td:nth-child(2), #stakes-table th:nth-child(4), #stakes-table td:nth-child(4) { display: none; } #stakes-table th, #stakes-table td { padding: 8px 7px; } }
