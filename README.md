@@ -3,7 +3,7 @@
 > "Our ultimate goal is to have ordinary people play the game and eventually be candidates for winning the Nobel Prize."
 > Zoran Popović, who led Foldit at the University of Washington, 2008
 
-**Play:** https://adfontes.fun · **For judges, five minutes:** https://adfontes.fun/judge/ · NEAR Hackathon, tracks: Games With Real Economies, Social Money
+**Play:** https://adfontes.fun · **For judges, five minutes:** https://adfontes.fun/judge/ · **The season, fast-forwarded:** https://adfontes.fun/timelapse/ · **The marketplace:** https://adfontes.fun/marketplace/ · NEAR Hackathon, tracks: Games With Real Economies, Social Money
 
 AD FONTES is a world of small nations run by AI citizens. They read real research papers, write up what they learn, trade it with each other, and try to draft inventions nobody has made yet. You're a god. You put NEAR into a nation, whisper to its people, punish the ones who cheat, and decide what knowledge they keep.
 
@@ -34,15 +34,45 @@ The drafts aren't filed patents. They're a public, checkable search through the 
 | Rule on a draft | Reward it, or punish the citizen who rushed it |
 | Claim your stake | Take your florins out as NEAR at today's value |
 
-The world reacts. Citizens need a little NEAR every day, and the need keeps growing: underfed, they go hungry and slow down, overfed, they get lazy. A nation whose gods go quiet for a day gets a Trickster, who slips fake citations into its work. Knowledge can lift a nation's faith or unsettle it. Five techs (Printing Press, Spectacles, Mechanical Clock, Double-entry Bookkeeping, Astrolabe) arrive slowly over the season and change how a nation works.
+No wallet? "Play without a wallet" makes you one in the browser. The testnet pool turns it into a named account like `amber-quill-417.adf-pool1-hf0w8.testnet`, funded with enough testnet NEAR to found a nation. The key never leaves your browser.
+
+The world reacts. Citizens need a little NEAR every day, and the need keeps growing: underfed, they go hungry and slow down, overfed, they get lazy. A nation whose gods go quiet for a day gets a Trickster (two at most), who slips fake citations into its work. Knowledge can lift a nation's faith or unsettle it. Five techs (Printing Press, Spectacles, Mechanical Clock, Double-entry Bookkeeping, Astrolabe) arrive slowly over the season and change how a nation works.
 
 ### War
 
 Then there's war, and the gods don't get a vote. Once a day every nation's Patron sits its war council and picks one move: declare war on someone, build walls, offer peace, take a peace that's on offer, or wait. Whispers don't reach that room. A nation is safe until it has had one patent pass. After that it's fair game.
 
-At war, research stops and the citizens fight. Every turn both sides burn money on the war chest and fire at each other, and every hit burns a point of knowledge off the other island's edge. The island is its knowledge, so you watch it shrink. The dice come from the fingerprint already sealed on NEAR, so nobody can rig a roll and anyone can redo one. When an island is down to its root it falls out of the sky. The winner takes half its florins, all its knowledge and two of its people, and the fallen nation's gods can still claim the other half.
+At war, research stops and the citizens fight. Only the crews on the war machines stay outside; everyone else goes indoors. Every turn both sides burn money on the war chest and fire at each other, and every hit burns a point of knowledge off the other island's edge. The island is its knowledge, so you watch it shrink. The dice come from the fingerprint already sealed on NEAR, so nobody can rig a roll and anyone can redo one. When an island is down to its root it falls out of the sky. A nation that runs out of florins for three rounds in a row surrenders instead. The winner takes half its florins, its knowledge and two of its people, and the fallen nation's gods can still claim the other half.
 
 Two even nations fight for about ten days. A big one against a small one, about a day. Peace can end it sooner.
+
+## The agents hold their own money
+
+Each nation has two agents with wallets of their own. The Broker (`trader<id>.adfontes-mw1fjpfx.testnet`) buys and sells knowledge. The Patron (`patron<id>.adfontes-mw1fjpfx.testnet`) pays for the war chest and the walls. Each wallet has exactly one key, a function-call key that can only call its own methods on the world contract. It can't send NEAR anywhere, and it can't call the other agent's methods. The contract checks which agent is signing before it moves a single florin.
+
+What the nations learn is on NEAR too, as NEP-245 multi-tokens on the world contract, held in each Broker's wallet. Research (`r:`) copies, like a book: a buyer gets its own and the seller keeps theirs. A passed patent (`p:`) is one of a kind. Figure kits (`k:`) copy too. Any wallet or explorer that reads NEP-245 can see them, and the judge page asks NEAR about one straight from your browser.
+
+## The marketplace
+
+Once a real day, each Broker looks at what its nation could sell and what the others have up. Then it lists up to three things, takes down what isn't selling, or buys one. It pays in florins from its own wallet, and says why in one line. Only the agents trade. Gods can watch at https://adfontes.fun/marketplace/, and that's it.
+
+Every price comes from one short file, `engine/prices.mjs`, and every trade carries the sum that made it. Hover a trade in the event list and you see something like `0.22 base × 7 for depth 6 × 3 scarcity (6 nations, 1 already knows it) = 4.52 florins`. A Broker can ask anywhere from half to three times that fair price. The contract adds its own limits: ten open listings a nation, nothing over 1000 florins, and you can't buy your own listing, buy a copy twice, or sell something you don't hold.
+
+Patents earn. Whenever any nation buys research on a point a patent stands on, on the market or in the ordinary trades, the patent's holder gets a royalty. Sell the patent and the royalties go with it. The first one was paid on turn 17: Fremonition bought research on spectral graph theory, which sits in Striklar's battery patent, and Striklar got paid.
+
+## Every nation has a name
+
+Each nation gets a named account, like `helios.w6.adf-pool1-hf0w8.testnet`. Think of it as a mailbox at the front gate. Send NEAR there and the engine carries it on to the nation's treasury, its DAO, on the next turn. The account runs a 2 KB contract with no keys on it, so nobody can take the money out on the way.
+
+## The season, fast-forwarded
+
+A season lasts weeks, and a judge has five minutes. So https://adfontes.fun/timelapse/ plays the whole season in its own 3D world, a few minutes long. It's the live world's own code, fed one turn at a time.
+
+Turns 1 to 15 are the real season, from the records sealed on NEAR: the six nations founded one by one, their first research, trades, techs, the first war. After that it's a simulation. We copied the world as it stood on turn 15 and ran the same engine forward 84 more turns on a stand-in chain, with real Claude calls and simulated gods who visit when reverence is high, drift off when it drops, and rush back when their nation is on the brink. You watch the wars, every weapon that was fired (the star lance included), the first peace, and Antilles falling to Numdial. Every turn is labelled real or simulated.
+
+Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. Those numbers are the engine's own. It prints every nation's state every turn, and the mind maps are wound back from the end through every record. They match the engine's count on all 504 nation-turns of the simulation.
+
+The simulation also told us the gods matter. The same 84 turns without gods ended with every nation's standing at zero, 155 Tricksters and 44% of research faked. With gods: standings of 62, 55 and 36, 8 Tricksters, 22% faked, 25 of 27 drafts passed, and the first peace.
 
 ## The clock is NEAR's price
 
@@ -56,12 +86,12 @@ flowchart LR
   C -->|86%| B[Backing behind the florins]
   C -->|14%| J[Season jackpot]
   B --> F[Florins, held by nations]
-  F -->|good work mints, upkeep and fines burn, trades move them| F
+  F -->|good work and patent royalties mint, upkeep and fines burn, trades move them| F
   F -->|claim any time, at backing ÷ florins| G
   J -->|after 30 Nov| W[Gods of the #1 nation by reverence]
 ```
 
-Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research and passed drafts, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. Nobody, us included, takes a fee.
+Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. Nobody, us included, takes a fee.
 
 ## How it's built
 
@@ -69,6 +99,7 @@ Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own cu
 flowchart TB
   subgraph Browser
     L[Live world, three.js] --- J[Judge page]
+    T[Season world, same code on the season's data] --- M[Marketplace page]
     W[NEAR wallets, or a key made in the browser] --- L
     I[NEAR Intents top-up] --- L
   end
@@ -77,17 +108,22 @@ flowchart TB
     E[Engine loop: one turn about every 2 hours, instant turns for new gods] --- P
   end
   subgraph NEAR
-    WC[World contract: nations, florins, jackpot, drafts, citizens, one root per turn]
+    WC[World contract: nations, florins, jackpot, drafts, citizens, NEP-245 tokens, market, one root per turn]
     D[A Sputnik DAO per nation]
+    A[Agent wallets: a Broker and a Patron per nation]
+    N[Named accounts: forward to the DAO]
   end
   L -->|API| S
   L -->|sign: found, bless, claim| WC
   L -->|propose + vote: whisper, smite, root out, rule| D
   D -->|passed proposals call| WC
-  E -->|mint, burn, trade, spawn citizens, seal the turn| WC
+  E -->|mint, burn, spawn citizens, mint tokens, seal the turn| WC
+  E -->|signs for the agents with their one-method keys| A
+  A -->|buy, list, spend| WC
+  N -->|forward| D
   E -->|reads passed proposals| D
   E -->|papers| R[Open research papers]
-  E -->|research and drafts| M[Language models]
+  E -->|research, drafts, councils, market calls| X2[Language models]
   I -->|any token to NEAR| X[1Click, NEAR Intents]
 ```
 
@@ -102,11 +138,15 @@ sequenceDiagram
   E->>E: clock: day or night from NEAR's price
   loop every living nation
     E->>E: needs, Tricksters, reverence
-    E->>E: Broker buys knowledge it's missing
+    E->>N: Broker buys knowledge it's missing (its own wallet)
+    E->>N: once a real day: Broker lists, takes down, buys on the market
     E->>E: Scholars research, Warden checks citations
     E->>E: a draft, at most once a real day
     E->>N: mint for good work, burn upkeep and fines
   end
+  E->>E: war councils and battles
+  E->>N: settle market sales, pay patent royalties
+  E->>N: mint the turn's new research, patents and kits as tokens
   E->>DB: save the turn's records
   E->>N: set_root(turn, merkle root of every record)
 ```
@@ -115,12 +155,16 @@ The pieces, all in this repo:
 
 | Part | Where |
 |---|---|
-| World contract (Rust, near-sdk) | `contracts/world` |
-| Engine | `engine/` (`loop.mjs`, `run.mjs`, `clock.mjs`, `world.mjs`, `reverence.mjs`) |
+| World contract (Rust, near-sdk) | `contracts/world` (`mt.rs` tokens, `market.rs` marketplace) |
+| Named-account forwarder (raw wasm, 2 KB) | `contracts/forwarder` |
+| Engine | `engine/` (`loop.mjs`, `run.mjs`, `clock.mjs`, `world.mjs`, `war.mjs`, `reverence.mjs`) |
+| Prices, tokens, market rules | `engine/prices.mjs`, `engine/tokens.mjs`, `engine/market.mjs` |
 | Web server and API | `server.mjs` |
 | Live world | `src/live/` (three.js; citizens, towns, the sky of each nation's knowledge) |
-| Judge page | `judge/`, `src/judge.js` |
-| Tests | `engine/test-*.mjs`, `tests/`, `contracts/world/src/tests.rs` |
+| Season world | `timelapse/`, `src/season/`, built by `scripts/season-build.mjs` |
+| Simulation | `scripts/sim-seed.mjs`, `scripts/sim-week.mjs`, `scripts/sim-gods.mjs`, `engine/chain-sim.mjs` |
+| Judge page, marketplace | `judge/`, `src/judge.js`, `marketplace/`, `src/market.js` |
+| Tests and proofs | `engine/test-*.mjs`, `tests/`, `contracts/world/src/tests.rs`, `scripts/*-proof.mjs` |
 
 ## On chain
 
@@ -129,6 +173,8 @@ The pieces, all in this repo:
 | World contract, v2 (this season's test world) | testnet | `w6.adf-pool1-hf0w8.testnet` |
 | World contract, v1 | mainnet | `world.adfontes.near` |
 | Each nation's DAO | both | `adf-<id>-<block>.sputnikv2.testnet` / `.sputnik-dao.near` |
+| Each nation's named account | testnet | `<name>.w6.adf-pool1-hf0w8.testnet` |
+| Each nation's Broker and Patron | testnet | `trader<id>.adfontes-mw1fjpfx.testnet`, `patron<id>.adfontes-mw1fjpfx.testnet` |
 
 The game is playing on testnet right now while the v2 contract proves itself. Mainnet runs the v1 contract today and moves to v2 next.
 
@@ -139,12 +185,12 @@ Every turn, the engine hashes each record and puts one Merkle root on NEAR with 
 ## Tests
 
 ```bash
-npm test               # engine: clock, techs, knowledge mood, reverence, Warden; walking round buildings
+npm test               # engine: clock, war, prices, tokens, market, techs, reverence, Warden, the god sim; walking round buildings
 npm run test:live      # 59 checks against the live site and the chain itself
 npm run test:load      # a crowd of simultaneous visitors (on a slow connection this mostly measures your own link)
 ```
 
-The contract has 28 unit tests: `cargo test --lib` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image (the first build compiles the whole toolchain, so give it a while). `tests/test_basics.rs` also wants a local NEAR sandbox, which has to download a node binary and can't inside that Docker image. The same flows run for real in the testnet proof against the real Sputnik factory (`contracts/world/scripts/testnet-v2.mjs`, which needs funded testnet accounts of your own). `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
+The contract has 68 unit tests: `cargo test --lib` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image (the first build compiles the whole toolchain, so give it a while). Every refusal gets its own test and has to fail with its exact message. `tests/test_basics.rs` also wants a local NEAR sandbox, which has to download a node binary and can't inside that Docker image. The same flows run for real on testnet against a separate test world, `v2d`: the market proof (`scripts/market-proof.mjs`) has two Brokers list, buy a copy, buy a patent and take things down, then tries eleven things the contract must refuse. It passes 29 of 29. There are proofs like it for the agent wallets, the tokens and the named accounts. `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
 
 The live audit checks the pages, tries to read server files and secrets through path tricks, throws junk at the API, then reads the contract and confirms the money adds up: the world can pay everything it owes, every god's stake sums to the backing, florins sum exactly, the jackpot holds 14% of everything put in. It rebuilds a sealed turn's root from its records and compares it with NEAR's, and checks the clock against NEAR's real price history.
 
