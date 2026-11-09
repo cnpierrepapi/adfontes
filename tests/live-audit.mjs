@@ -22,10 +22,12 @@ const merkle = (leaves) => { let l = leaves.slice(); if (!l.length) return sha("
 // ---------- A. pages ----------
 console.log("\n# Pages");
 const title = async (p) => { const r = await get(p); const t = await r.text(); return [r.status, (t.match(/<title>([^<]*)<\/title>/) || [])[1] || ""]; };
-for (const [p, want] of [["/", "the live world"], ["/live/", "the live world"], ["/judge/", "for judges"], ["/world/", "the world right now"], ["/about/", "they invent"], ["/demo/", ""]]) {
+for (const [p, want] of [["/", "the live world"], ["/live/", "the live world"], ["/judge/", "for judges"], ["/world/", "the world right now"], ["/marketplace/", "the marketplace"], ["/roadmap/", ""], ["/timelapse/", "fast-forwarded"]]) {
   const [s, t] = await title(p);
   ok(s === 200 && t.toLowerCase().includes(want), `${p} loads${want ? ` (title has "${want}")` : ""}`, `${s} "${t}"`);
 }
+// The old landing page and recorded demo were retired (9 Nov): both send you to the judge page.
+for (const p of ["/about", "/demo"]) { const r = await get(p); ok(r.status === 302 && r.headers.get("location") === "/judge/", `${p} sends you to /judge/`, `${r.status} ${r.headers.get("location")}`); }
 ok((await get("/no-such-page")).status === 404, "an unknown page is a 404");
 
 // ---------- B. security ----------
@@ -74,9 +76,16 @@ const T = await view(W.world, "get_totals"), clans = await view(W.world, "list_c
 const staking = clans.reduce((a, c) => a + BigInt(c.staking_fund), 0n);
 ok(BigInt(T.balance) >= BigInt(T.liabilities) + BigInt(T.storage_locked), "the world can pay everything it owes (balance ≥ liabilities + storage)", `${near(T.balance)} ≥ ${near(T.liabilities)} + ${near(T.storage_locked)}`);
 ok(BigInt(T.liabilities) >= BigInt(T.backing) + BigInt(T.jackpot) + staking, "liabilities cover backing + jackpot + staking funds");
-let stakes = 0n;
-for (const c of clans) for (const g of c.gods) stakes += BigInt((await view(W.world, "get_stake", { clan_id: c.id, account: g.account })).near);
-ok(BigInt(T.backing) - stakes >= 0n && BigInt(T.backing) - stakes < 10n ** 21n, "every god's stake adds up to the backing (to 0.001 NEAR)", `${near(stakes)} of ${near(T.backing)}`);
+// A turn can land between reading the totals and the stakes, so read both again until they come
+// from the same moment (9 Nov: one turn mid-read showed 0.0003 NEAR too much).
+let stakes = 0n, T2 = T;
+for (let tries = 0; tries < 3; tries++) {
+  T2 = await view(W.world, "get_totals"); stakes = 0n;
+  const cl = await view(W.world, "list_clans", { limit: 100 });
+  for (const c of cl) for (const g of c.gods) stakes += BigInt((await view(W.world, "get_stake", { clan_id: c.id, account: g.account })).near);
+  if ((await view(W.world, "get_totals")).backing === T2.backing) break;
+}
+ok(BigInt(T2.backing) - stakes >= 0n && BigInt(T2.backing) - stakes < 10n ** 21n, "every god's stake adds up to the backing (to 0.001 NEAR)", `${near(stakes)} of ${near(T2.backing)}`);
 ok(clans.reduce((a, c) => a + BigInt(c.florins), 0n) === BigInt(T.florins), "florins held by nations = florins in existence, exactly");
 ok(BigInt(T.florin_value) === (BigInt(T.florins) ? (10n ** 22n * BigInt(T.backing)) / BigInt(T.florins) : 10n ** 22n), "florin value on chain = backing ÷ florins");
 const putIn = clans.reduce((a, c) => a + BigInt(c.total_in), 0n);

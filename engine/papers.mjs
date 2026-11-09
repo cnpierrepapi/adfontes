@@ -3,7 +3,11 @@ import fs from "node:fs";
 import { getPapers, putPapers } from "./store.mjs";
 
 // Free OpenAlex key = $1/day (~1,000 searches). Without one we share $0.10/day per IP address.
-const KEY = process.env.OPENALEX_API_KEY || (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").match(/^OPENALEX_API_KEY=(\S+)/m)?.[1];
+// A local simulation (ADF_SIM_CHAIN) never spends the live world's key (9 Nov: three sims used up the
+// day's budget and the live nations' research failed with 429s). It reads the shared paper cache and,
+// on a miss, asks OpenAlex with its own key (ADF_SIM_OPENALEX_KEY) or none (the per-IP free pool).
+const SIM = !!process.env.ADF_SIM_CHAIN;
+const KEY = SIM ? process.env.ADF_SIM_OPENALEX_KEY : process.env.OPENALEX_API_KEY || (fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "").match(/^OPENALEX_API_KEY=(\S+)/m)?.[1];
 const AUTH = KEY ? { Authorization: `Bearer ${KEY}` } : {};
 
 const unInvert = (idx) => {
