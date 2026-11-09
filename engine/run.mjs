@@ -358,10 +358,14 @@ for (let n = 0; n < days; n++) {
     const atWar = !!WR.warOf(s, oc.id);
     // A nation state seen for the first time: the 3D world plays its founding.
     if (isNew) log({ kind: "founded", clan: oc.id, name: oc.name, field: c.field, gods: oc.gods.length });
+    // Reverence lives outside the turn's try: if research or anything after it throws, the nation's
+    // reverence still fades and its record is still written (9 Nov: OpenAlex 429s skipped both).
+    let rv = null, revDone = false, agents = [];
+    const revCh = [];
     try {
       // Team
       // Top the clan up to the full starting team (only on first sight; the dead stay dead).
-      let agents = await chain.agents(oc.id);
+      agents = await chain.agents(oc.id);
       if (!c.teamDone) {
         const taken = new Set(Object.values(s.clans).flatMap((x) => Object.keys(x.skills)));
         for (const a of agents) taken.add(a.name);
@@ -406,8 +410,7 @@ for (let n = 0; n < days; n++) {
       // Reverence (SPEC §12m): read what the gods did since last time, then let it shape today.
       // A reverence bug must never cost the nation its day: on any error it falls back to the old
       // rules (the on-chain whisper, no modifiers) and the error is logged.
-      let rv = null, eff = { waiting: false, whisper: oc.whisper, effortMul: 1, mistakeAdd: 0, tricksterMul: 1 };
-      const revCh = [];
+      let eff = { waiting: false, whisper: oc.whisper, effortMul: 1, mistakeAdd: 0, tricksterMul: 1 };
       try {
         rv = RV.ensure(s, oc, day, { fresh: isNew });
         // The citizens hear a whisper against how their nation is doing right now (his call 9 Nov).
@@ -775,9 +778,21 @@ for (let n = 0; n < days; n++) {
       if (rep) log(rep);
       RV.follow(s, oc.id, revCh);
       log(RV.record(rv, oc.id, revCh));
-      } catch (e) { log({ kind: "error", clan: oc.id, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
+      revDone = true;
+      } catch (e) { revDone = true; log({ kind: "error", clan: oc.id, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
     } catch (e) {
       log({ kind: "error", clan: oc.id, error: String(e.message || e).slice(0, 200) });
+      // The turn broke before its reverence step: still fade, drift, lapse reports and write the record.
+      if (rv && !revDone) {
+        try {
+          const living = (await chain.agents(oc.id)).filter((a) => a.alive);
+          if (!INSTANT) RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh, c.mood === "hungry" ? CFG.needs.hungryFade : 1);
+          if (!INSTANT) RV.stirDrift(rv, c, revCh);
+          if (!INSTANT) for (const r of RV.lapseReports(s, rv, oc.id, day, revCh)) log(r);
+          RV.follow(s, oc.id, revCh);
+          log(RV.record(rv, oc.id, revCh));
+        } catch (e2) { log({ kind: "error", clan: oc.id, error: `reverence: ${String(e2.message || e2).slice(0, 180)}` }); }
+      }
     }
     if (!INSTANT) s.inProgress.done.push(oc.id);
     await checkpoint();
