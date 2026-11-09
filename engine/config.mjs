@@ -79,12 +79,15 @@ export const CFG = {
 
 export const NETWORKS = {
   testnet: {
-    rpc: "https://rpc.testnet.fastnear.com", // rpc.testnet.near.org is deprecated + rate-limited
+    // His call 9 Nov after a FastNEAR rate limit stalled a turn: dRPC first, FastNEAR as the backup.
+    rpc: "https://near-testnet.drpc.org",
+    backupRpc: "https://rpc.testnet.fastnear.com",
     world: process.env.ADF_WORLD || "w6.adf-pool1-hf0w8.testnet", // the v2 world (wipe day, 7 Nov; SPEC §14)
     operatorKeyFile: ".keys/adfontes-mw1fjpfx.testnet.json",
   },
   mainnet: {
     rpc: "https://rpc.mainnet.fastnear.com",
+    backupRpc: "https://rpc.mainnet.near.org",
     world: "world.adfontes.near",
     operatorEnv: "ADFONTES_OPERATOR", // keys from Documents/env.txt
   },

@@ -75,10 +75,11 @@ function reportsOf(s, id) {
 }
 
 function makeApi(NET) {
-  // FastNEAR first; NEAR's own RPC if FastNEAR fails or rate-limits us, and for a minute after.
+  // The main RPC first (testnet: dRPC, his call 9 Nov); the backup (testnet: FastNEAR) if it fails or
+  // rate-limits us, and for a minute after.
   // (near-api-js's FailoverRpcProvider shares one index across parallel calls, so it can try the
   // dead one twice: this is the per-call version.)
-  const BACKUP = { testnet: "https://rpc.testnet.near.org", mainnet: "https://rpc.mainnet.near.org" }[NET];
+  const BACKUP = NETWORKS[NET].backupRpc;
   const rpcs = [process.env.ADF_TEST_DEAD_RPC || NETWORKS[NET].rpc, BACKUP].map((url, i) => new JsonRpcProvider({ url }, i === 0 ? { retries: 1, wait: 300, backoff: 1.5 } : {})); // fail fast to the backup
   const WORLD = NETWORKS[NET].world;
   let primaryDownUntil = 0;

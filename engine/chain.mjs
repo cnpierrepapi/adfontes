@@ -30,13 +30,13 @@ function operatorKey(net) {
   return [get(`${n.operatorEnv}_ACCOUNT_ID`), get(`${n.operatorEnv}_PRIVATE_KEY`)];
 }
 // NEAR RPC that rides out rate limits (9 Nov: a FastNEAR 429 crashed the 00:02 UTC turn). Every
-// call goes to the network's main RPC; on a 429 it waits and tries again, then falls back to NEAR's
-// own RPC. A 429 means the request was refused, not run, so sending it again is safe. Any other
+// call goes to the network's main RPC (testnet: dRPC); on a 429 it waits and tries again, then falls
+// back to the backup (testnet: FastNEAR). A 429 means the request was refused, not run, so sending it again is safe. Any other
 // error (a contract refusing, a missing account) comes straight back.
-const FALLBACK_RPC = { testnet: "https://rpc.testnet.near.org", mainnet: "https://rpc.mainnet.near.org" };
+
 const is429 = (e) => e?.cause === 429 || /\b429\b|Rate limits exceeded|Too Many Requests/i.test(String(e?.message || e));
 export function resilientProvider(net, url) {
-  const all = [new JsonRpcProvider({ url }), new JsonRpcProvider({ url: FALLBACK_RPC[net] })];
+  const all = [new JsonRpcProvider({ url }), new JsonRpcProvider({ url: NETWORKS[net].backupRpc })];
   return new Proxy(all[0], {
     get(target, key) {
       const v = target[key];

@@ -3,17 +3,18 @@
 // helper, which makes brand-new accounts holding 10 testnet NEAR, 10 per 12 hours: each new account
 // deletes itself straight away with the pool as beneficiary, so all its NEAR lands in the pool and
 // no extra key is ever kept. Testnet only; mainnet founders use their own NEAR.
-import { Account, JsonRpcProvider, KeyPair } from "near-api-js";
+import { Account, KeyPair } from "near-api-js";
+import { resilientProvider } from "./chain.mjs";
 
 export const SPONSOR = {
-  rpc: "https://rpc.testnet.fastnear.com",
+  rpc: "https://near-testnet.drpc.org", // FastNEAR as the backup (resilientProvider)
   helper: "https://helper.testnet.near.org/account",
   perNation: 65n * 10n ** 23n, // 6.5 testnet NEAR: the founding minimum (6) plus room for gas (6.2 was too tight)
   keep: 2n * 10n ** 24n, // the pool keeps 2 NEAR back for its own gas and storage
   refillHours: 12, // the helper allows 10 new accounts per 12 hours
   refillCount: 10,
 };
-const provider = () => new JsonRpcProvider({ url: SPONSOR.rpc });
+const provider = () => resilientProvider("testnet", SPONSOR.rpc);
 
 export async function balanceOf(accountId) {
   try { return BigInt((await provider().query({ request_type: "view_account", finality: "optimistic", account_id: accountId })).amount); }

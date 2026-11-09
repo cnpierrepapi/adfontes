@@ -7,7 +7,7 @@ import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";
 import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
 import { returned } from "./calls.js";
 
-const RPC = { testnet: "https://rpc.testnet.fastnear.com", mainnet: "https://rpc.mainnet.fastnear.com" };
+const RPC = { testnet: "https://near-testnet.drpc.org", mainnet: "https://rpc.mainnet.fastnear.com" }; // testnet: dRPC (9 Nov)
 export const YOCTO = 10n ** 24n;
 export const TGAS = 10n ** 12n;
 const enc = new TextEncoder(), dec = new TextDecoder();
