@@ -2,13 +2,12 @@
 import { api } from "./net.js";
 import { says as saysWith, tipOf } from "./says.js";
 import { sectionNav } from "./pagenav.js";
+import { verifyRecord } from "./proof.js";
+import { startTalk } from "./talk.js";
 sectionNav();
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter((k) => k != null)); return n; };
-const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-const sha256 = async (s) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
-const canon = (v) => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]" : v && typeof v === "object" ? "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}" : JSON.stringify(v);
 const n = (x, d = 3) => (Math.round(x * 10 ** d) / 10 ** d).toString();
 
 let W = null, sealed = null;
@@ -20,11 +19,6 @@ async function viewOnNear(rpc, contract, method, args) {
   return JSON.parse(new TextDecoder().decode(new Uint8Array(r.result.result)));
 }
 const RPC = { testnet: "https://near-testnet.drpc.org", mainnet: "https://rpc.mainnet.fastnear.com" };
-
-async function rootOnNear(rpc, world, day) {
-  const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "query", params: { request_type: "call_function", finality: "final", account_id: world, method_name: "get_root", args_base64: btoa(JSON.stringify({ day })) } }) }).then((x) => x.json());
-  return JSON.parse(String.fromCharCode(...r.result.result));
-}
 
 // The newest turn whose fingerprint is already on NEAR.
 async function lastSealed() {
@@ -103,24 +97,19 @@ $("check").addEventListener("click", async () => {
   out.textContent = "Checking…";
   try {
     const i = Math.floor(Math.random() * sealed.records.length), d = sealed.day;
-    const p = await api(`proof?d=${d}&i=${i}`);
-    if (p.error) return void (out.textContent = "That record doesn't exist.");
-    const leaf = p.scheme === "original text" ? await sha256(p.raw) : await sha256(canon(p.record));
-    let h = leaf;
-    for (const s of p.path) h = s.left ? await sha256(s.hash + h) : await sha256(h + s.hash);
-    const onchain = await rootOnNear(p.rpc, p.world, d);
-    const ok = h === onchain;
+    const v = await verifyRecord(d, i);
+    if (v.error) return void (out.textContent = v.error);
     out.replaceChildren(
-      el("div", { className: `verdict ${ok ? "yes" : "no"}`, textContent: ok ? `Matches NEAR. Record ${i + 1} of turn ${d} is exactly what happened.` : "Doesn't match. That record isn't what was sealed." }),
-      el("div", { textContent: `The record: ${saysWith(p.record, clanName)}` }),
-      el("div", { textContent: `Your browser got: ${h}` }),
-      el("div", {}, `NEAR holds:   ${onchain} (asked `, el("a", { href: `${p.explorer}/address/${p.world}`, target: "_blank", rel: "noopener", textContent: p.world }), " directly)"),
-      el("div", { textContent: `${p.path.length} steps from the record up to the turn's fingerprint.` }),
+      el("div", { className: `verdict ${v.ok ? "yes" : "no"}`, textContent: v.ok ? `Matches NEAR. Record ${i + 1} of turn ${d} is exactly what happened.` : "Doesn't match. That record isn't what was sealed." }),
+      el("div", { textContent: `The record: ${saysWith(v.record, clanName)}` }),
+      el("div", { textContent: `Your browser got: ${v.mine}` }),
+      el("div", {}, `NEAR holds:   ${v.onchain} (asked `, el("a", { href: `${v.explorer}/address/${v.world}`, target: "_blank", rel: "noopener", textContent: v.world }), " directly)"),
+      el("div", { textContent: `${v.steps} steps from the record up to the turn's fingerprint.` }),
     );
   } catch (e) { out.textContent = `The check couldn't finish (${String(e.message || e).slice(0, 80)}). Try again.`; }
 });
 
-load().catch(() => ($("where").textContent = "The world didn't answer. Try again in a minute."));
+load().then(() => startTalk($("talk-box"), W)).catch(() => ($("where").textContent = "The world didn't answer. Try again in a minute."));
 // Live (his call 9 Nov: the page follows the world turn by turn): everything reloads every 30 seconds.
 // A failed refresh keeps what's on screen.
 setInterval(() => { if (!document.hidden) load().catch(() => {}); }, 30_000);
