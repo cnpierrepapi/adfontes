@@ -178,6 +178,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       err.textContent = "";
       sign.textContent = "Waiting for your wallet…";
       try {
+        await spec.before?.(); // a last look at the chain before anything is signed
         const outs = await wallet.send(calls);
         const bad = outs.map(failure).find(Boolean);
         if (bad) throw new Error(`NEAR refused it: ${bad}`);
@@ -389,7 +390,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         box.append(stakeBox);
         wallet.view(WORLD, "get_stake", { clan_id: clan.id, account }).then((st) => {
           if (my !== token) return;
-          const put = Number(BigInt(st.put_in) / 10n ** 18n), got = Number(BigInt(st.near) / 10n ** 18n);
+          // Put in = what bought florins plus what the world granted back (9 Nov, the founders' DAO cost).
+          const put = Number((BigInt(st.put_in) + BigInt(st.granted || "0")) / 10n ** 18n), got = Number(BigInt(st.near) / 10n ** 18n);
           const pct = put ? Math.round((got / put) * 100) : 0;
           stakeBox.replaceChildren(el("small", { textContent: "Your stake" }), el("b", { textContent: `${fl(st.florins)} florins` }),
             el("span", { className: pct >= 100 ? "up" : "down", textContent: `${near(st.near)} NEAR if you claim today` }),
@@ -418,36 +420,59 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       }
       box.append(grid, rev);
       if (clan.whisper) box.append(el("p", { className: "fine" }, "The gods' last whisper: ", el("i", { textContent: `"${clan.whisper}"` })));
+      // The DAO's open proposals (read straight from the DAO, never a cache), and every gift's status
+      // live from the world contract: a ruling already waiting, or one that can't do anything any
+      // more, shows as such (9 Nov: a second god's ruling waited for the other vote, the panel kept
+      // offering "Rule on it", and seven more rulings piled up on a gift already settled).
+      const nowNs = BigInt(Date.now()) * 1_000_000n;
+      let open = [];
+      if (policy) {
+        const last = await wallet.view(c.dao, "get_last_proposal_id").catch(() => 0);
+        const props = last ? await wallet.view(c.dao, "get_proposals", { from_index: Math.max(0, last - 15), limit: 15 }).catch(() => []) : [];
+        if (my !== token) return;
+        const period = BigInt(policy.proposal_period);
+        open = props.filter((p) => p.status === "InProgress" && BigInt(p.submission_time) + period > nowNs && p.kind.FunctionCall?.receiver_id === WORLD).reverse();
+      }
+      const argsOf = (p) => C.vote(c.dao, p, "VoteApprove").decoded;
+      const rulingFor = new Map(); // gift id -> the open ruling proposal on it (the newest)
+      for (const p of open) { const d = argsOf(p); if (d.method === "rule" && d.args?.gift_id != null && !rulingFor.has(d.args.gift_id)) rulingFor.set(d.args.gift_id, p); }
+      const giftNow = new Map(); // gift id -> its status on the world contract, now
+      await Promise.all([...new Set([...rulingFor.keys(), ...open.map((p) => argsOf(p).args?.gift_id).filter((x) => x != null)])]
+        .map((id) => wallet.view(WORLD, "get_gift", { gift_id: id }).then((x) => giftNow.set(id, x?.status)).catch(() => {})));
       // Drafts to rule on (own, within 24h). Drafts can't be claimed any more (SPEC §14).
       if (me) {
         const g = await api(`gifts?id=${c.id}`).catch(() => ({ gifts: [] }));
         if (my !== token) return;
         const now = g.now_ms ?? Date.now();
-        const toRule = (g.gifts || []).filter((x) => x.clan === c.id && x.status === "Pending" && now < x.ends_ms);
+        const toRule = (g.gifts || []).filter((x) => x.clan === c.id && (giftNow.get(x.id) ?? x.status) === "Pending" && now < x.ends_ms);
         if (seats.includes(account)) for (const x of toRule) {
           const hrs = Math.max(1, Math.round((x.ends_ms - now) / 3600000));
           const row = el("div", { className: "gift" }, el("span", { textContent: `Gift #${x.id}: ${x.title ?? "a draft"} (${x.passed ? "the Warden passed it" : "the Warden failed it"}, ${hrs}h left to rule)` }));
-          const b = el("button", { type: "button", className: "viewbtn", textContent: "Rule on it" });
-          b.addEventListener("click", () => ruleCard(clan, x));
-          row.append(b);
+          const waitingP = rulingFor.get(x.id);
+          if (waitingP) {
+            const yes = Object.values(waitingP.votes || {}).filter((v) => v === "Approve").length, need = C.needed(seats.length, 0);
+            row.append(el("small", { textContent: ` A ruling is already waiting: ${yes} of ${need} yes votes.${waitingP.votes?.[account] ? " Yours is in; the other gods vote under Open proposals." : " Vote on it under Open proposals."}` }));
+          } else {
+            const b = el("button", { type: "button", className: "viewbtn", textContent: "Rule on it" });
+            b.addEventListener("click", () => ruleCard(clan, x));
+            row.append(b);
+          }
           box.append(row);
         }
       }
       // Open proposals: nations with more than one god vote on each power (and a lone god can finish
       // a proposal whose vote they didn't sign).
       if (policy) {
-        const last = await wallet.view(c.dao, "get_last_proposal_id").catch(() => 0);
-        const props = last ? await wallet.view(c.dao, "get_proposals", { from_index: Math.max(0, last - 15), limit: 15 }).catch(() => []) : [];
-        if (my !== token) return;
-        const period = BigInt(policy.proposal_period);
-        const nowNs = BigInt(Date.now()) * 1_000_000n;
-        const open = props.filter((p) => p.status === "InProgress" && BigInt(p.submission_time) + period > nowNs && p.kind.FunctionCall?.receiver_id === WORLD).reverse();
         if (open.length) box.append(el("h4", { textContent: "Open proposals" }));
         for (const p of open) {
           const yes = Object.values(p.votes || {}).filter((v) => v === "Approve").length;
           const need = C.needed(seats.length, 0);
           const row = el("div", { className: "gift" }, el("span", { textContent: `${p.description.replace(/^AD FONTES: /, "")} · by ${short(p.proposer)} · ${yes} of ${need} yes votes` }));
-          if (seats.includes(account) && !p.votes?.[account]) {
+          // A ruling on a gift that's no longer pending can't do anything: no vote buttons.
+          const d = argsOf(p), gs = d.method === "rule" ? giftNow.get(d.args?.gift_id) : null;
+          const stale = d.method === "rule" && (gs !== "Pending" || rulingFor.get(d.args?.gift_id) !== p);
+          if (stale) row.append(el("small", { textContent: gs && gs !== "Pending" ? ` Out of date: gift #${d.args.gift_id} was already ruled on, so this can't do anything now. It lapses on its own.` : " A newer ruling on the same gift is open; vote on that one." }));
+          else if (seats.includes(account) && !p.votes?.[account]) {
             for (const [lab, action] of [["Approve", "VoteApprove"], ["Reject", "VoteReject"]]) {
               const b = el("button", { type: "button", className: "viewbtn", textContent: lab });
               b.addEventListener("click", () => voteCard(clan, p, action));
@@ -679,6 +704,11 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       title: yes ? "Approve this proposal" : "Reject this proposal",
       words: () => `${p.description.replace(/^AD FONTES: /, "")}. Proposed by ${p.proposer}. Your ${yes ? "yes" : "no"} vote${yes ? " runs it straight away if it's the last one needed" : " counts against it"}.`,
       calls: () => [call],
+      // Still open? (9 Nov: a vote on a proposal another god had just finished failed in the wallet.)
+      before: async () => {
+        const now = await wallet.view(clan.dao, "get_proposal", { id: p.id }).catch(() => null);
+        if (now && now.status !== "InProgress") throw new Error(`This proposal was already decided (${now.status.toLowerCase()}), so there's nothing to vote on. Nothing was sent.`);
+      },
       after: async () => {
         const r = yes ? await daoResult(clan, p.id) : { passed: false };
         if (!r.passed) return yes ? waiting(r.left) : "Your no vote is in.";
