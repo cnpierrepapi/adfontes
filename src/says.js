@@ -12,7 +12,8 @@ const TECH_LINE = {
 
 /** For a trade: how its price was made (engine/prices.mjs) and the merchant's reason, in plain words.
  *  Shown when you hover (or tap) a trade in the event list, and on the judge page. */
-export function tipOf(r) {
+export function tipOf(r) { return tidy(tipRaw(r)); }
+function tipRaw(r) {
   const why = r.why && `The Broker's reason: ${r.why}`;
   switch (r.kind) {
     case "trade": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, r.sellerWhy && `The seller asked ${fl(r.price)}: ${r.sellerWhy}`, why].filter(Boolean).join("\n");
@@ -38,9 +39,19 @@ function thing(r, from) {
 // Broker", and lines that are only its own housekeeping aren't shown at all.
 const OTHER = "another nation";
 const HOUSEKEEPING = new Set(["alias", "forwarded", "wallets", "team", "tokens", "tokens-moved", "mint", "ruins", "delisted", "reverence", "gas", "upkeep", "needs", "waiting"]);
+// The ended nations' names (from the world's `ended` list, via net.js). Sealed records are served
+// exactly as sealed, so their own words can still name an ended nation: reworded here, on display only.
+let ENDED = [];
+const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export function setEnded(names) {
+  ENDED = (names || []).filter(Boolean).map((n) => [new RegExp(`${esc(n)}'s `, "g"), new RegExp(esc(n), "g")]);
+}
 export function tidy(t) {
-  if (!t || !t.includes(OTHER)) return t;
-  return t.replace(new RegExp(`${OTHER}'s `, "g"), "the ").replace(/(^|[.!?:]\s+)the /g, (m, a) => `${a}The `);
+  if (!t || typeof t !== "string") return t;
+  let x = t;
+  for (const [poss, bare] of ENDED) x = x.replace(poss, `${OTHER}'s `).replace(bare, OTHER);
+  if (!x.includes(OTHER)) return x;
+  return x.replace(new RegExp(`${OTHER}'s `, "g"), "the ").replace(/(^|[.!?:]\s+)the /g, (m, a) => `${a}The `);
 }
 export function says(r, clanName) {
   const c = (id) => { const n = clanName(id); return n == null || /^nation \d+$/.test(n) ? OTHER : n; };

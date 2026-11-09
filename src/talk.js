@@ -106,7 +106,7 @@ export async function startTalk(root, W) {
     if (!m.who) return el("div", { className: "talk-note" }, tidy(m.note), m.rec ? check(m.rec) : null);
     return el("div", { className: `talk-msg ${m.side}${m.god ? " god" : ""}` },
       el("b", { textContent: tidy(m.who).replace(/^the /, "The ") }),
-      el("p", { textContent: said(m.text) }),
+      el("p", { textContent: tidy(said(m.text)) }),
       el("small", {}, m.rec ? `turn ${m.rec._d}` : "", m.rec ? check(m.rec) : null));
   };
   const check = (rec) => {

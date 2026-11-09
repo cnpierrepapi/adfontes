@@ -1,7 +1,7 @@
 // World events played out in place: each record from the engine becomes a short effect at the
 // island where it happened, and a line of plain words in the event list (onEvent).
 import * as THREE from "three";
-import { says, tipOf } from "../says.js";
+import { says, tipOf, tidy } from "../says.js";
 
 // Colours above 1.0 so only these effects bloom (bloom threshold sits just above white).
 const HDR = (r, g, b) => new THREE.Color(r, g, b);
@@ -17,7 +17,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   // The record being played: its transaction (if it has one of its own) goes with its event line.
   let playingTx = null;
   function bubble(isl, text, kind, tip) {
-    if (!fx.quiet) onEvent?.({ text, kind, tip, tx: playingTx, clan: isl?.userData?.clan?.id ?? null }); // the reel plays effects without writing to the event list
+    if (!fx.quiet) onEvent?.({ text: tidy(text), kind, tip: tidy(tip), tx: playingTx, clan: isl?.userData?.clan?.id ?? null }); // tidy: ended nations reworded (10 Nov) // the reel plays effects without writing to the event list
   }
 
   // A comet of knowledge along the bridge, seller -> buyer.

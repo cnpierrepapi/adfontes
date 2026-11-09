@@ -566,9 +566,13 @@ http
         // Ended nations leave the game (his call 10 Nov): out of the world list, and their names
         // rewritten in every text sent out. /api/proof is left exact: it's what the NEAR fingerprint
         // is checked against, and the sealed records themselves never change.
-        if (m[1] !== "proof") {
+        // 10 Nov fix: /api/day serves sealed records too, and a whole turn rebuilt from it must hash
+        // to NEAR's root, so it stays exact as well. The pages reword those on display (says.js),
+        // reading the ended names from the world's `ended` list, which is never shown.
+        if (m[1] !== "proof" && m[1] !== "day") {
           const ended = await APIS[net]._ended().catch(() => []);
           if (ended.length) out = scrubEnded(out, ended, m[1] === "world");
+          if (m[1] === "world" && out && typeof out === "object") out = { ...out, ended: ended.map((e) => e.name) };
         }
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-cache", "access-control-allow-origin": "*" });
         return res.end(JSON.stringify(out));
