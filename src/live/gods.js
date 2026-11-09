@@ -27,14 +27,19 @@ const fl = (u) => (Number(BigInt(u || 0) / 10n ** 16n) / 1e6).toFixed(1);
 // from the world's config), so they see the whole amount and where it went. The founder is the
 // first god in the list (a founder who left hands that place on, so this is the usual case).
 function putInWords(clan, me, cfg, st) {
-  const put = BigInt(st.put_in), pct = put ? Math.round((Number(BigInt(st.near)) / Number(put)) * 100) : 0;
+  const put = BigInt(st.put_in), given = BigInt(st.granted || 0), counts = put + given;
+  const pct = counts ? Math.round((Number(BigInt(st.near)) / Number(counts)) * 100) : 0;
   const founder = clan.gods[0]?.account === me.account && cfg;
-  if (!founder) return { short: `${pct}% of the ${near(put)} NEAR you put in`, long: `You put in ${near(put)} NEAR, so that's ${pct}% of it.` };
-  const costs = BigInt(cfg.dao_deposit) + BigInt(cfg.staking_deposit), whole = put + costs;
-  return {
-    short: `founded with ${near(whole)} NEAR: ${near(costs)} went to founding costs, your stake started at ${near(put)} (now ${pct}%)`,
-    long: `You founded ${clan.name} with about ${near(whole)} NEAR. ${near(costs)} of that went to founding costs (the nation's DAO and its staking fund), so your stake started at ${near(put)} NEAR, and today it's ${pct}% of that.`,
-  };
+  if (founder && given) {
+    const costs = BigInt(cfg.dao_deposit) + BigInt(cfg.staking_deposit), paid = put + costs;
+    return {
+      short: `founded with ${near(paid)} NEAR, the world gave back ${near(given)} of the founding costs, so your stake counts ${near(counts)} NEAR (${pct}% of it today)`,
+      long: `You founded ${clan.name} with about ${near(paid)} NEAR. ${near(costs)} of that paid for the nation's DAO and its staking fund, and the world gave ${near(given)} back to you as florins. So your stake counts ${near(counts)} NEAR, and today it's worth ${pct}% of that.`,
+    };
+  }
+  if (given) return { short: `${pct}% of the ${near(counts)} NEAR your stake counts (${near(put)} you put in, ${near(given)} from the world)`, long: `Your stake counts ${near(counts)} NEAR: ${near(put)} you put in and ${near(given)} the world gave you. Today it's worth ${pct}% of that.` };
+  if (founder) return { short: `${pct}% of the ${near(put)} NEAR in your stake (founding costs aside)`, long: `After founding costs, ${near(put)} NEAR of what you paid went into your stake, and today it's worth ${pct}% of that.` };
+  return { short: `${pct}% of the ${near(put)} NEAR you put in`, long: `You put in ${near(put)} NEAR, so that's ${pct}% of it.` };
 }
 
 export async function createGods({ live, W, nav, toast, route, replayIntro }) {

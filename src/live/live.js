@@ -211,7 +211,7 @@ export async function startLive(canvas, hud, opts = {}) {
     isl.userData.seed = seed;
     if (controls.distance > 26) { // watching the whole world: drift toward the new nation
       const t = new THREE.Vector3(); controls.getTarget(t);
-      t.lerp(isl.position, 0.45);
+      t.lerp(restOf(isl), 0.45); // where it will land, not where it is under the clouds
       controls.setTarget(t.x, t.y, t.z, true);
     }
   }
@@ -706,10 +706,13 @@ export async function startLive(canvas, hud, opts = {}) {
   for (const ev of ["pointerdown", "wheel", "touchstart", "keydown"]) window.addEventListener(ev, () => (lastInput = performance.now()), { passive: true });
 
   // Fly to a clan on a curve; the lens widens mid-flight and settles (the "dolly" feel).
+  // Where an island rests: during a founding rise it starts 24 below its place, under the clouds,
+  // so the camera aims at where it will land (his note 9 Nov) and the island climbs into the shot.
+  function restOf(isl) { return isl.position.clone().setY(isl.userData.baseY); }
   function flyTo(id) {
     const isl = islands.get(id);
     if (!isl) return;
-    const p = isl.position, r = isl.userData.r;
+    const p = restOf(isl), r = isl.userData.r;
     const dir = new THREE.Vector3().subVectors(camera.position, p).setY(0).normalize();
     // A little closer and lower (his note 9 Nov): aim between the island and the foot of its sky, so
     // the island fills the lower half of the frame and its knowledge still shows above it.
@@ -727,7 +730,7 @@ export async function startLive(canvas, hud, opts = {}) {
     const isl = islands.get(id);
     if (!isl) return;
     focusId = id;
-    const p = isl.getWorldPosition(new THREE.Vector3()), r = isl.userData.r;
+    const p = restOf(isl), r = isl.userData.r;
     const dir = new THREE.Vector3().subVectors(camera.position, p).setY(0).normalize();
     const d = p.clone().addScaledVector(dir, r * 1.55).setY(p.y + r * 0.85);
     controls.setLookAt(d.x, d.y, d.z, p.x, p.y + r * 0.08, p.z, true);
