@@ -193,6 +193,11 @@ export async function startLive(canvas, hud, opts = {}) {
   // His call 10 Nov: a nation whose last god claimed out leaves the map (no ruins). One that fell in
   // a war keeps its ruins: that's part of the war's story.
   const gone = (c) => !c.alive && !c.fallen && !(c.gods > 0 || c.gods?.length > 0);
+  // Born (10 Nov): a nation goes on the map only once the engine has made its people ("ready"), so its
+  // island rises with them on it. (Older servers and the season world don't send the flag: ready.)
+  const ready = (c) => c.ready !== false;
+  const unready = new Set(W.clans.filter((c) => !ready(c)).map((c) => c.id));
+  W.clans = W.clans.filter(ready);
   for (const c of W.clans) if (!gone(c)) addNation(c);
   function takeDown(id) {
     const isl = islands.get(id);
@@ -207,7 +212,45 @@ export async function startLive(canvas, hud, opts = {}) {
   // Founding: a seed of light falls, the island rises out of the clouds turning, its town builds
   // up, then the plate fades in. Plays once per nation (on its "founded" record or when it appears).
   const rising = new Map();
-  const atLoad = new Set(W.clans.map((c) => c.id)); // nations standing when the page loaded
+  const atLoad = new Set(W.clans.map((c) => c.id)); // nations standing when the page loaded (ready ones)
+  // A nation being born (10 Nov): its people and town are built out of sight, then the island rises
+  // with them already on it. If that takes more than 8 s it rises anyway and they appear as they load.
+  const birthing = new Set();
+  async function birth(c) {
+    birthing.add(c.id);
+    W.clans.push(c);
+    const isl = addNation(c); fitWorld();
+    isl.visible = false;
+    try {
+      await Promise.race([
+        (async () => { await loadMind(c.id, [], { fresh: true }); await folk.focus(c.id); })(),
+        new Promise((r) => setTimeout(r, 8000)),
+      ]);
+    } catch {}
+    isl.visible = true;
+    // Watching the whole world? Glide to the new home view (re-picked for one more island).
+    if (focusId == null && !flying) controls.setLookAt(...HOME.pos, ...HOME.target, true);
+    riseNation(c.id);
+    birthing.delete(c.id);
+  }
+  // What a nation does waits until its island has risen (10 Nov): research, trades and reports from a
+  // nation still being born are held, then played in order the moment it lands.
+  const held = new Map();
+  const waiting = (id) => id != null && (unready.has(Number(id)) || birthing.has(Number(id)) || rising.has(Number(id)));
+  function holdBack(recs) {
+    const now = [];
+    for (const r of recs || []) {
+      if (waiting(r.clan)) { const k = Number(r.clan); if (!held.has(k)) held.set(k, []); held.get(k).push(r); }
+      else now.push(r);
+    }
+    return now;
+  }
+  function letGo(id) {
+    const recs = held.get(id);
+    if (!recs?.length) return;
+    held.delete(id);
+    fx.enqueue(recs);
+  }
   function riseNation(id) {
     const isl = islands.get(id);
     if (!isl || isl.userData.rose) return;
@@ -249,7 +292,7 @@ export async function startLive(canvas, hud, opts = {}) {
       const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
       if (town) town.scale.set(1, Math.max(0.01, Math.min(1, (k - 0.55) / 0.35)), 1); // the town builds up
       isl.userData.plateFade = Math.max(0, Math.min(1, (k - 0.8) / 0.2));
-      if (k >= 1) { rising.delete(id); isl.userData.rose = true; showRoutesOf(id, true); isl.userData.riseY = 0; isl.userData.plateFade = 1; isl.scale.setScalar(1); isl.rotation.y = 0; }
+      if (k >= 1) { rising.delete(id); isl.userData.rose = true; showRoutesOf(id, true); isl.userData.riseY = 0; isl.userData.plateFade = 1; isl.scale.setScalar(1); isl.rotation.y = 0; letGo(id); }
     }
   }
 
@@ -466,12 +509,9 @@ export async function startLive(canvas, hud, opts = {}) {
   async function poll() {
     try {
       const now = await api("world");
-      for (const c of now.clans) if (!islands.has(c.id) && !gone(c)) {
-        W.clans.push(c); addNation(c); fitWorld();
-        // Watching the whole world? Glide to the new home view (re-picked for one more island).
-        if (focusId == null && !flying) controls.setLookAt(...HOME.pos, ...HOME.target, true);
-        riseNation(c.id); loadMind(c.id);
-      }
+      unready.clear();
+      for (const c of now.clans) if (!ready(c) && !gone(c)) unready.add(c.id);
+      for (const c of now.clans) if (!islands.has(c.id) && !gone(c) && ready(c) && !birthing.has(c.id)) birth(c);
       // Reverence moves every game day: the plates, panels and towns read the latest.
       for (const c of now.clans) {
         const isl = islands.get(c.id);
@@ -500,7 +540,7 @@ export async function startLive(canvas, hud, opts = {}) {
       updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
       W.wars = now.wars || []; updateWars(); warLayer.update(now);
       for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; } }
-      for (let d = lastDay + 1; d <= now.day; d++) { const recs = cut(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live))); folk.dayRecords(recs, d); fx.enqueue(recs); }
+      for (let d = lastDay + 1; d <= now.day; d++) { const recs = cut(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live))); folk.dayRecords(recs, d); fx.enqueue(holdBack(recs)); }
       W.jackpot = now.jackpot;
       standings.update(now);
       opts.onPoll?.(now); // the world clock: day or night now
@@ -525,7 +565,7 @@ export async function startLive(canvas, hud, opts = {}) {
       if (!fresh.length) return;
       folk.dayRecords(fresh, W.day + 1);
       for (const r of fresh) if (r.kind === "team" || r.kind === "corpus") loadMind(r.clan);
-      fx.enqueue(fresh);
+      fx.enqueue(holdBack(fresh));
       opts.onLive?.(fresh);
       pollNow(); // reverence, standings, panels
     } catch {} finally { liveBusy = false; }
@@ -535,12 +575,12 @@ export async function startLive(canvas, hud, opts = {}) {
   // After a god's transaction: look again now and after the API's 20 s cache, and fly to a nation
   // they just founded (by name) once it shows up.
   async function refresh(foundedName) {
-    // A founding: look every 3 s for up to 90 s, so the island rises the moment the world shows it.
-    const waits = foundedName ? Array(30).fill(3000) : [2500, 12000, 23000];
+    // A founding: look every 2 s for up to 2 minutes, so the island rises the moment its people are made.
+    const waits = foundedName ? Array(60).fill(2000) : [2500, 12000, 23000];
     for (const wait of waits) {
       await new Promise((r) => setTimeout(r, wait));
       const now = await poll();
-      const c = foundedName && now?.clans.find((x) => x.name === foundedName && islands.has(x.id));
+      const c = foundedName && now?.clans.find((x) => x.name === foundedName && islands.has(x.id) && !birthing.has(x.id));
       if (c) { setTimeout(() => flyTo(c.id), 1500); return; }
       if (!foundedName && now) return;
     }
@@ -562,11 +602,11 @@ export async function startLive(canvas, hud, opts = {}) {
   retownLater = folk.retown;
   errandLater = folk.errand;
   // One load at a time per nation, so two quick records can't both build a sky.
-  function loadMind(id, light = []) {
+  function loadMind(id, light = [], o = {}) {
     const run = (mindQueue.get(id) || Promise.resolve()).then(async () => {
       const isl = islands.get(id);
       if (!isl) return;
-      const d = await api(`clan?id=${id}&d=${lastDay}`).catch(() => null);
+      const d = await api(`clan?id=${id}&d=${lastDay}${o.fresh ? "&fresh=1" : ""}`).catch(() => null);
       if (!d || d.error) return;
       folk.setAgents(id, d.agents, lastDay);
       const old = minds.get(id);

@@ -158,8 +158,9 @@ export async function loadCitizenKit(base = "/citizens/") {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   const load = (f) => loader.loadAsync(base + f + ".glb");
   const names = ["anims", "male_peasant", "female_peasant", "male_ranger", "female_ranger", "head_male", "head_female"];
-  const G = {};
-  for (const n of names) G[n] = await load(n); // one at a time keeps a busy page responsive
+  // All at once (10 Nov): one at a time took ~8 s on every reload, and the plaza showed dots meanwhile.
+  // The server now lets the browser keep them for a day, so a reload usually reads them from cache.
+  const G = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await load(n)])));
   const hairCache = {};
   const hair = (n) => (hairCache[n] ??= load(n));
   const clips = Object.fromEntries(G.anims.animations.map((a) => [a.name, a]));

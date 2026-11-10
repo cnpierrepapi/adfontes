@@ -348,3 +348,18 @@ a.tl-go { display: inline-block; text-decoration: none; }
 /* An event's own transaction (9 Nov). */
 .standings .events li .evtx { display: inline-block; margin-left: 4px; font-family: var(--display); font-weight: 800; font-size: 0.66rem; text-decoration: none; background: var(--ink); color: #fff; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
 body.night .standings .events li .evtx { background: #fff; color: var(--ink); }
+
+/* Born (10 Nov): what's happening while a new nation is made, and its first whisper */
+.birth { position: fixed; left: 16px; bottom: 16px; z-index: 40; width: min(360px, calc(100vw - 32px)); display: grid; gap: 8px; padding: 16px 18px; border-radius: 6px 20px 20px 20px; background: rgba(255, 255, 255, 0.96); color: var(--ink); font-family: var(--body); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32); border-top: 4px solid var(--gold); }
+.birth h3 { font-size: 1.1rem; margin: 0; display: flex; justify-content: space-between; gap: 8px; }
+.birth .clock { font-size: 0.8rem; font-weight: 400; color: #5b5170; font-variant-numeric: tabular-nums; }
+.birth ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.86rem; line-height: 1.4; }
+.birth li { padding-left: 22px; position: relative; }
+.birth li::before { position: absolute; left: 0; top: 0; }
+.birth li.todo { color: #8a8299; }
+.birth li.todo::before { content: "○"; animation: birthpulse 1.4s ease-in-out infinite; }
+.birth li.done::before { content: "✓"; color: #2f8f5b; font-weight: 700; }
+.birth .fine { margin: 0; font-size: 0.78rem; line-height: 1.45; color: #5b5170; }
+.birth .row { display: flex; justify-content: flex-end; }
+@keyframes birthpulse { 50% { opacity: 0.35; } }
+@media (max-width: 700px) { .birth { left: 8px; right: 8px; bottom: 8px; width: auto; } }

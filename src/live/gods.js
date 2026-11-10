@@ -184,6 +184,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         const hash = outs.map((o) => o?.transaction?.hash).find(Boolean);
         sign.textContent = "Done";
         const msg = (await spec.after?.(outs)) ?? "Done.";
+        if (spec.closeAfter) { close(); refreshPanel(); return; } // something else carries on from here (a founding's birth panel)
         box.replaceChildren(el("h3", { textContent: spec.title }), el("p", { className: "words", textContent: msg }),
           hash ? el("p", { className: "fine" }, el("a", { href: `${wallet.explorer}/txns/${hash}`, target: "_blank", rel: "noopener", textContent: "See it on NEAR ↗" })) : null,
           el("div", { className: "row" }, Object.assign(el("button", { type: "button", className: "viewbtn", textContent: "Close" }), { onclick: close })));
@@ -286,7 +287,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           ? `You found "${name.value.trim() || "…"}" and become its first god. The world pays for its DAO, so everything you put in is the nation's money: 86% for its citizens to spend, 14% to the season jackpot.`
           : `You found "${name.value.trim() || "…"}" and become its first god. ${near(cfg.dao_deposit)} NEAR makes its DAO, ${near(cfg.staking_deposit)} NEAR goes to its staking fund and a little pays for storage. The rest is the nation's money: 86% for its citizens to spend, 14% to the season jackpot.`,
         working: "Founding… NEAR is building your nation's DAO. About 20 seconds.",
-        start: () => { const want = name.value.trim(); live.refresh?.(want); route?.founded(want); },
+        start: () => { const want = name.value.trim(); live.refresh?.(want); route?.founded(want); birthPanel(want); },
+        closeAfter: true, // the birth panel takes over once it's signed
         // Done as soon as the world lists the nation with you as its god, whatever the wallet is doing.
         settled: () => new Promise((res) => {
           const want = name.value.trim(), t0 = Date.now();
@@ -521,9 +523,58 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       after: async () => "Your seat is proposed and approved by the world. You can use the DAO powers in a few seconds.",
     });
   }
-  async function whisperCard(clan) {
+  // Born (10 Nov): from the moment you sign a founding until its island is up, what's happening step by
+  // step (read from the API every 2 s), and a place to write your first whisper while you wait. When the
+  // island has risen, the whisper card opens with it filled in, ready to sign.
+  function birthPanel(want) {
+    document.querySelector(".birth")?.remove();
+    const t0 = Date.now();
+    const step = (t) => el("li", { className: "todo", textContent: t });
+    const steps = [step(`NEAR is making ${want} and its DAO.`), step("Its first citizens are on their way."), step("Their reverence for you starts with them."), step("Then the island rises.")];
+    const done = (i, t) => { steps[i].className = "done"; if (t) steps[i].textContent = t; };
+    const clock = el("span", { className: "clock" });
+    const text = el("textarea", { className: "txin", maxLength: 280, rows: 3, placeholder: "e.g. Read slowly. Only cite what you can check." });
+    const hide = el("button", { type: "button", className: "viewbtn", textContent: "Hide" });
+    const box = el("aside", { className: "birth", role: "status" },
+      el("h3", {}, `${want} is being born `, clock),
+      el("ol", {}, ...steps),
+      el("p", { className: "fine", textContent: "While you wait, write your first whisper. Tell them what matters. It opens for you to send the moment they're here." }),
+      text, el("div", { className: "row" }, hide));
+    let stop = false, id = null;
+    hide.addEventListener("click", () => { stop = true; box.remove(); });
+    document.body.append(box);
+    const tick = async () => {
+      if (stop || !box.isConnected) return;
+      clock.textContent = `${Math.round((Date.now() - t0) / 1000)} s`;
+      try {
+        const w = await api("world");
+        const c = w.clans.find((x) => x.name === want);
+        if (c) { id = c.id; done(0, `${want} is on NEAR, with its own DAO.`); }
+        if (c?.ready) {
+          const d = await api(`clan?id=${c.id}&fresh=1`).catch(() => null);
+          const people = (d?.agents || []).filter((a) => a.alive);
+          if (people.length) done(1, `Here: ${people.map((a) => `${a.name} (${a.role})`).join(", ")}.`);
+          const mine = c.reverence?.gods?.[account]?.r ?? Math.max(0, ...Object.values(c.reverence?.gods || {}).map((g) => g.r));
+          if (c.reverence) done(2, `They revere you at ${Math.round(mine)} to start.`);
+        }
+        const isl = id != null && live.islands.get(id);
+        if (isl?.visible && isl.userData.rose) {
+          done(3, `${want} is up. Your people are on the plaza.`);
+          stop = true;
+          const words = text.value.trim();
+          setTimeout(() => { box.remove(); if (words) whisperCard(W.clans.find((x) => x.id === id) ?? c, words); }, 4500);
+          return;
+        }
+      } catch {}
+      if (Date.now() - t0 < 180e3) setTimeout(tick, 2000);
+      else done(3, "This is taking longer than usual. The island rises as soon as its people are made.");
+    };
+    tick();
+  }
+  async function whisperCard(clan, preset = "") {
     const p = await prepDao(clan);
     const text = el("textarea", { className: "txin", maxLength: 280, rows: 3, placeholder: "e.g. Take fewer risks this season. Honesty first." });
+    text.value = preset;
     card({
       title: "Whisper",
       fields: [label("Your whisper (280 characters at most)", text)],

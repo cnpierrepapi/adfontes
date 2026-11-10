@@ -243,7 +243,9 @@ export function createFolk({ scene, islands, renderer, camera }) {
       }
       pos.needsUpdate = true;
       d.pts.geometry.setDrawRange(0, warStations.has(id) ? Math.min(d.living.length, warStations.get(id).length) : d.living.length);
-      const close = crowds.has(id) && id === focusId ? nearK : 0;
+      // Up close on a nation whose people are still being built: no dots on the plaza (10 Nov), the
+      // town shows them a moment later. Far out, the dots are the people.
+      const close = id === focusId ? (crowds.has(id) ? nearK : nearK > 0.3 ? 1 : 0) : 0;
       d.pts.material.opacity = 1 - close;
       d.pts.visible = d.pts.material.opacity > 0.02 && isl.userData.rose !== "rising";
     }
@@ -506,7 +508,9 @@ export function createFolk({ scene, islands, renderer, camera }) {
   }
   /** The war layer sets (or clears, with null) the crew stations of an island at war. */
   function setWar(id, stations) { if (stations?.length) warStations.set(id, stations); else warStations.delete(id); }
-  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown, errand, setWar };
+  // The citizen kit starts downloading the moment the page opens (10 Nov), not after every sky loads.
+  ensureKit().catch(() => {});
+  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown, errand, setWar, ready: (id) => crowds.has(id) };
 }
 
 // A star-gun, almost a citizen's height (citizen-local metres; the barrel runs along +Y):

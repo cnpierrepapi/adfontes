@@ -106,7 +106,8 @@ export function createRoute({ live, W, account, onChange }) {
   function founded(name) {
     const t0 = Date.now();
     const look = setInterval(() => {
-      const isl = [...live.islands.values()].find((i) => i.userData.clan?.name === name);
+      // Visible = its people are built and it has started to rise (a nation being born is hidden till then).
+      const isl = [...live.islands.values()].find((i) => i.userData.clan?.name === name && i.visible && i.userData.rose);
       if (!isl && Date.now() - t0 < 180e3) return;
       clearInterval(look);
       if (!isl) return;
