@@ -403,21 +403,30 @@ function makeApi(NET) {
 }
 const APIS = { testnet: makeApi("testnet"), mainnet: makeApi("mainnet") };
 
-// "Babamako's Broker walked away" -> "The Broker walked away"; "bought what Babamako knows" ->
-// "bought what another nation knows". Also drops ended nations from the world's nation list.
-function scrubEnded(out, ended, isWorld) {
+// Ended nations (his call 10 Nov) are removed, not reworded: out of the world's nation list, their
+// clan page gone, and every listing, sale, patent, royalty, trade route, draft, stake and gift of
+// theirs dropped. Sealed records (/api/day, /api/proof, /api/live and the world's `recent`) stay
+// exactly as they were written; /api/world sends the ended ids and names so a page can name them there.
+function dropEnded(endpoint, out, ended) {
   const ids = new Set(ended.map((e) => e.id));
-  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pats = ended.filter((e) => e.name).map((e) => [new RegExp(`${esc(e.name)}'s `, "g"), new RegExp(esc(e.name), "g")]);
-  const text = (t) => {
-    let x = t;
-    for (const [poss, bare] of pats) x = x.replace(poss, "the ").replace(bare, "another nation");
-    return x === t ? t : x.replace(/(^|[.!?:]\s+)the /g, (m, a) => `${a}The `);
-  };
-  const walk = (v) => typeof v === "string" ? text(v) : Array.isArray(v) ? v.map(walk) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)])) : v;
-  const res = walk(out);
-  if (isWorld && Array.isArray(res?.clans)) res.clans = res.clans.filter((c) => !ids.has(c.id));
-  return res;
+  const gone = (...xs) => xs.some((x) => x != null && ids.has(Number(x)));
+  if (!out || typeof out !== "object") return out;
+  switch (endpoint) {
+    case "world": return { ...out, clans: (out.clans || []).filter((c) => !ids.has(c.id)), ended: ended.map((e) => ({ id: e.id, name: e.name })) };
+    case "market": {
+      const open = out.open.filter((l) => !gone(l.seller)), sales = out.sales.filter((x) => !gone(x.seller, x.buyer));
+      const patents = out.patents.filter((p) => !gone(p.holder, p.drafter)), royalties = out.royalties.filter((r) => !gone(r.clan));
+      const c = out.counts, offOpen = out.open.length - open.length, offSales = out.sales.length - sales.length;
+      return { ...out, open, sales, patents, royalties, counts: { ...c, listings: c.listings - offOpen - offSales, open: open.length, sales: c.sales - offSales, royalties: +royalties.reduce((a, r) => a + r.florins, 0).toFixed(4), royalty_payments: royalties.length } };
+    }
+    case "trades": return { ...out, routes: out.routes.filter((r) => !gone(r.seller, r.buyer)) };
+    case "stakes": return { ...out, stakes: out.stakes.filter((s) => !gone(s.clan)) };
+    case "gifts": return { ...out, gifts: out.gifts.filter((g) => !gone(g.clan)) };
+    case "drafts": return Array.isArray(out) ? out.filter((d) => !gone(d.clan)) : out;
+    case "draft": return gone(out.clan) ? { error: "no such draft" } : out;
+    case "clan": return gone(out.id) ? { error: "no such clan" } : out;
+    default: return out;
+  }
 }
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".ico": "image/x-icon", ".glb": "model/gltf-binary", ".webp": "image/webp", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".webm": "video/webm", ".jpg": "image/jpeg" };
@@ -563,17 +572,8 @@ http
       if (!fn) return send(res, 404, "application/json", JSON.stringify({ error: "unknown endpoint" }));
       try {
         let out = await fn(url.searchParams);
-        // Ended nations leave the game (his call 10 Nov): out of the world list, and their names
-        // rewritten in every text sent out. /api/proof is left exact: it's what the NEAR fingerprint
-        // is checked against, and the sealed records themselves never change.
-        // 10 Nov fix: /api/day serves sealed records too, and a whole turn rebuilt from it must hash
-        // to NEAR's root, so it stays exact as well. The pages reword those on display (says.js),
-        // reading the ended names from the world's `ended` list, which is never shown.
-        if (m[1] !== "proof" && m[1] !== "day") {
-          const ended = await APIS[net]._ended().catch(() => []);
-          if (ended.length) out = scrubEnded(out, ended, m[1] === "world");
-          if (m[1] === "world" && out && typeof out === "object") out = { ...out, ended: ended.map((e) => e.name) };
-        }
+        // Ended nations are removed from everything but the sealed records (dropEnded above).
+        if (m[1] !== "proof" && m[1] !== "day" && m[1] !== "live") out = dropEnded(m[1], out, await APIS[net]._ended().catch(() => []));
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-cache", "access-control-allow-origin": "*" });
         return res.end(JSON.stringify(out));
       } catch (e) {

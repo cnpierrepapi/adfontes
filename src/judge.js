@@ -1,6 +1,6 @@
 // The judges' page: live numbers, a proof you check in your own browser, the last turn on chain.
 import { api } from "./net.js";
-import { says as saysWith, tipOf } from "./says.js";
+import { says as saysWith, tipOf, endedName } from "./says.js";
 import { sectionNav } from "./pagenav.js";
 import { verifyRecord } from "./proof.js";
 import { startTalk } from "./talk.js";
@@ -11,7 +11,7 @@ const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.crea
 const n = (x, d = 3) => (Math.round(x * 10 ** d) / 10 ** d).toString();
 
 let W = null, sealed = null;
-const clanName = (id) => W?.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
+const clanName = (id) => W?.clans.find((c) => c.id === Number(id))?.name ?? endedName(id) ?? `nation ${id}`;
 
 // One read-only call to NEAR from your browser, no server in between.
 async function viewOnNear(rpc, contract, method, args) {

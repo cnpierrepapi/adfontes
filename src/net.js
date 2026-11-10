@@ -6,8 +6,8 @@ export const NET = q === "mainnet" || q === "testnet" ? q : localStorage.getItem
 if (q === "mainnet" || q === "testnet") localStorage.setItem("adf-net", q);
 /** GET /api/<path> for this world. */
 // The season world (/timelapse/) sets globalThis.__adfApi to answer from the season data instead.
-// The world's list of ended nations (10 Nov) goes to says.js, so every page rewords their names when
-// it shows a sealed record (which is served exactly as sealed).
+// The world's list of ended nations (10 Nov: ids and names) goes to says.js, so a sealed record about
+// one of them still reads exactly as it was written.
 export const api = (p) => globalThis.__adfApi ? globalThis.__adfApi(p) : fetch(`/api/${p}${p.includes("?") ? "&" : "?"}net=${NET}`, { cache: "no-store" }).then((r) => r.json()).then((j) => { if (p.startsWith("world") && Array.isArray(j?.ended)) setEnded(j.ended); return j; });
 /** Switch worlds: remembered on this device, then the page reloads into the other one. */
 export function switchNet(to) {

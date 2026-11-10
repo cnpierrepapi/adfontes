@@ -2,6 +2,7 @@
 // floating god's camera. Zoom levels become information levels in later steps.
 import { createStandings } from "./standings.js";
 import { api as netApi } from "../net.js";
+import { endedName } from "../says.js";
 import * as THREE from "three";
 import { createWarLayer } from "./war.js";
 import CameraControls from "camera-controls";
@@ -364,7 +365,7 @@ export async function startLive(canvas, hud, opts = {}) {
   }
 
   // ---- events: replay the latest day, then follow new days as the engine runs ----
-  const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
+  const clanName = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? endedName(id) ?? `nation ${id}`;
   // Event lines go to the list under the standings; held until that list exists (no TDZ).
   // A tech record: add it to the nation and rebuild its town so the building stands there now.
   let retownLater = () => {}; // set once the people exist (folk is made further down; no TDZ)

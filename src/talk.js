@@ -4,7 +4,7 @@
 // sealed turn, and its "check" button proves that exact record against NEAR from the browser.
 import { api } from "./net.js";
 import { verifyRecord } from "./proof.js";
-import { tidy } from "./says.js";
+import { endedName } from "./says.js";
 
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter((k) => k != null)); return n; };
 const fl = (x) => `${Math.round(x * 100) / 100} florins`;
@@ -89,8 +89,8 @@ function threads(recs, name) {
 }
 
 export async function startTalk(root, W) {
-  // A nation that has ended is no longer in the world list: it reads as "another nation" (tidy below).
-  const name = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? "another nation";
+  // A nation that has ended is out of the world list, but its sealed lines keep its name.
+  const name = (id) => W.clans.find((c) => c.id === Number(id))?.name ?? endedName(id) ?? `nation ${id}`;
   const recs = await sealedDays(W);
   const ts = threads(recs, name);
   if (!ts.length) { root.replaceChildren(el("p", { textContent: "Nothing said yet. Come back after the next turn." })); return; }
@@ -103,10 +103,10 @@ export async function startTalk(root, W) {
   let run = 0;
 
   const bubble = (m) => {
-    if (!m.who) return el("div", { className: "talk-note" }, tidy(m.note), m.rec ? check(m.rec) : null);
+    if (!m.who) return el("div", { className: "talk-note" }, m.note, m.rec ? check(m.rec) : null);
     return el("div", { className: `talk-msg ${m.side}${m.god ? " god" : ""}` },
-      el("b", { textContent: tidy(m.who).replace(/^the /, "The ") }),
-      el("p", { textContent: tidy(said(m.text)) }),
+      el("b", { textContent: m.who }),
+      el("p", { textContent: said(m.text) }),
       el("small", {}, m.rec ? `turn ${m.rec._d}` : "", m.rec ? check(m.rec) : null));
   };
   const check = (rec) => {
