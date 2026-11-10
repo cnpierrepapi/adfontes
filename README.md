@@ -123,7 +123,7 @@ flowchart LR
   J -->|after 30 Nov| W[Gods of the #1 nation by reverence]
 ```
 
-Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after 30 Nov the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. This contract takes no fee for anyone, us included. (The old v1 contract on mainnet had a fee; see On chain.)
+Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after 30 Nov the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. This contract takes no fee for anyone, us included.
 
 The jackpot only ever gets 14% of what gods put in. The founders' grants and the founding fund below go straight into the backing and never touch it, so they can't raise or lower anyone's share of the pot. A god who claims out leaves their 14% behind. On turn 31 the jackpot held 2.827657 NEAR, which is exactly 14% of the 20.1975 NEAR gods have put in since the world started. That includes 10.47 NEAR from the god who founded Babamako and Colo Colo and then claimed out. `scripts/jackpot-audit.mjs` replays every deposit against NEAR's own history to check it.
 
@@ -137,7 +137,7 @@ flowchart TB
     L[Live world, three.js] --- J[Judge page]
     T[Season world, same code on the season's data] --- M[Marketplace page]
     W[NEAR wallets, or a key made in the browser] --- L
-    I[NEAR Intents top-up, mainnet] --- L
+    I[NEAR Intents top-up, for when mainnet opens] --- L
   end
   subgraph Railway
     S[Web server: site + read-only API] --- P[(Postgres: records, drafts, state)]
@@ -204,7 +204,7 @@ The pieces, all in this repo:
 
 ## On chain
 
-The game plays on testnet. Everything in this first table is live and changes every turn.
+The game plays on testnet. Everything in this table is live and changes every turn.
 
 | What | Testnet address |
 |---|---|
@@ -215,12 +215,7 @@ The game plays on testnet. Everything in this first table is live and changes ev
 | Each nation's Broker and Patron | `trader<id>.adfontes-mw1fjpfx.testnet`, `patron<id>.adfontes-mw1fjpfx.testnet` |
 | The engine's operator | `adfontes-mw1fjpfx.testnet` |
 
-Mainnet still has the first contract, and it's idle. One nation was founded there on 6 November to prove it worked, and nothing has run since: it's on day 0 with no florins, and no engine runs mainnet. It has none of the newer parts (agent wallets, tokens, the market, named accounts, the founding fund), and it took a 14% fee on what a nation spent, which this season's contract doesn't. None was ever collected. Mainnet gets the current contract after the hackathon, in a fresh account.
-
-| What | Mainnet address |
-|---|---|
-| World contract, v1 (idle) | `world.adfontes.near` |
-| Its one nation's DAO | `adf-1-223344360.sputnik-dao.near` |
+There's no AD FONTES world on mainnet right now. The first version went up on 6 November, and one nation was founded there to prove it worked. Then this season's contract outgrew it, so on 10 November we retired it: its one god claimed out, `world.adfontes.near` and its helper accounts were deleted, and the NEAR came back to us. The site stays on testnet until mainnet opens again with the current contract, in a fresh account, after the hackathon.
 
 The world contract's account owns itself. It has one key, a full-access key, and we hold it. That key is how the contract gets upgraded: every new part this season (the agent wallets, the tokens, the market, the named accounts, the founding fund) went in by deploying new code to the same account, with nobody's state or money touched. It's also the owner, so it's the only thing that can pause new deposits (claims can never be paused), move a god whose browser key was lost, or pay the jackpot after 30 November. Grants to founders can come from it or from the operator. That's a lot to hang on one key. The contract has `set_owner` so the role can move to a multisig without an upgrade, and that's on the roadmap for after Season 1.
 
