@@ -671,8 +671,9 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   // point "act of god: <id>"), so the vote is on NEAR.
   async function fireCard(clan) {
     const p = await prepDao(clan);
-    const targets = W.clans.filter((x) => x.alive && !x.fallen && x.id !== clan.id && (x.florins || 0) > 1);
-    if (!targets.length) return toast("There's no other nation with florins to burn.");
+    // Nations at war are never a target: they're already being hit (his rule 10 Nov).
+    const targets = W.clans.filter((x) => x.alive && !x.fallen && x.id !== clan.id && x.war?.enemy == null && (x.florins || 0) > 1);
+    if (!targets.length) return toast("There's no nation at peace with florins to burn. Nations at war can't be struck.");
     const top = Math.max(...W.clans.filter((x) => x.alive && !x.fallen).map((x) => x.florins || 0));
     const est = (x) => { const shield = Math.min(0.3, ((x.war?.walls || 0) / 300) * 0.3); const pct = (0.05 + 0.2 * (x.florins / top)) * (1 - shield); return { pct, fl: x.florins * pct }; };
     targets.sort((a, b) => b.florins - a.florins);
@@ -684,7 +685,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       words: () => {
         const x = pick(), e = est(x);
         return `Fire rains on ${x.name}. About ${Math.round(e.pct * 100)}% of its florins burn (${Math.round(e.fl)}), more because it's ${x.florins >= top ? "the richest nation" : "rich"}${x.war?.walls ? ", less for its walls" : ""}. Burnt florins are gone, so every other florin in the world is worth a little more. ` +
-          `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, and never on your own nation. It goes to ${clan.name}'s DAO as a proposal with your yes vote, and burns on the world's next turn.`;
+          `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, never on your own nation, and never on a nation at war. It goes to ${clan.name}'s DAO as a proposal with your yes vote, and burns on the world's next turn.`;
       },
       calls: () => p.build("root_out", { clan_id: clan.id, point: `act of god: ${sel.value}` }, `AD FONTES: an Act of God. ${clan.name}'s gods rain fire on ${pick().name}`).calls,
       after: async (outs) => {

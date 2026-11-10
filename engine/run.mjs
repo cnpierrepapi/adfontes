@@ -908,6 +908,19 @@ for (let n = 0; n < days; n++) {
         const id = `w${s.nextId++}`, t = Number(move.target);
         s.wars[id] = { id, a: x.id, b: t, status: "on", startedDay: day, startedAt: now, rounds: 0, reason };
         log({ kind: "war", war: id, attacker: x.id, defender: t, reason });
+        // Act of God on a bully (engine/fire.mjs): picking on a nation with a third of its florins or
+        // less brings fire down on the attacker as it declares, before its first attack.
+        if (FIRE.isBully(fl[x.id] || 0, fl[t] || 0)) {
+          try {
+            const dmg = FIRE.damage(fl, x.id, c.walls || 0);
+            if (dmg.florins > 0) {
+              const r = await chain.burn(x.id, dmg.florins, `act of god: bully, war on ${nameOf(t)}`.slice(0, 200));
+              const burned = r?.value != null ? toFlorins(r.value) : dmg.florins;
+              fl[x.id] = Math.max(0, (fl[x.id] || 0) - burned);
+              log({ kind: "fire", clan: x.id, cause: "bully", why: `${nameOf(x.id)} declared war on ${nameOf(t)}, a nation with a third of its florins or less`, against: t, ...dmg, florins: +burned.toFixed(4), tx: r?.hash ?? null, signer: "operator" });
+            }
+          } catch (e) { log({ kind: "error", clan: x.id, error: `act of god (bully): ${String(e.message || e).slice(0, 160)}` }); }
+        }
       } else if (move.action === "fortify") {
         const amt = +((fl[x.id] || 0) * WR.WAR.fortifyFrac).toFixed(4);
         if (amt > 0.01) {
@@ -1038,7 +1051,8 @@ for (let n = 0; n < days; n++) {
     const standing = chainNow.filter((x) => x.alive && s.clans[x.id] && !s.clans[x.id].fallen);
     const fl = Object.fromEntries(standing.map((x) => [x.id, spendable(x.id, x.florins)]));
     const nameOf = (id) => chainNow.find((x) => x.id === id)?.name ?? `nation ${id}`;
-    const hit = new Set(); // one fire per nation per turn
+    const atWar = standing.map((x) => x.id).filter((id) => WR.warOf(s, id));
+    const hit = new Set(rec.filter((r) => r.kind === "fire").map((r) => r.clan)); // one fire per nation per turn (a bully may already burn)
     const burnFire = async (target, memo) => {
       const dmg = FIRE.damage(fl, target, s.clans[target]?.walls || 0);
       if (dmg.florins <= 0) return null;
@@ -1050,7 +1064,7 @@ for (let n = 0; n < days; n++) {
     };
     for (const q of queue) {
       const last = (s.fire.last ||= {})[q.god] || 0;
-      const ok = FIRE.mayCast({ last, caster: q.caster, target: q.target, standing: standing.map((x) => x.id) });
+      const ok = FIRE.mayCast({ last, caster: q.caster, target: q.target, standing: standing.map((x) => x.id), atWar });
       if (!ok.ok || hit.has(q.target)) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: ok.ok ? "that nation is already burning this turn" : ok.why }); continue; }
       const f = await burnFire(q.target, `act of god: fire called by the gods of ${nameOf(q.caster)}`);
       if (!f) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: "that nation has nothing left to burn" }); continue; }
@@ -1061,9 +1075,8 @@ for (let n = 0; n < days; n++) {
       log({ kind: "fire", clan: q.target, cause: "god", from: q.caster, by: q.god, proposal: q.proposal, ...f, cost, signer: "operator" });
     }
     if (INSTANT || !FIRE.AOG.on || hit.size) return;
-    // The heavens' own fire: at most one a turn, from what happened this turn.
-    const wars = rec.filter((r) => r.kind === "war"); // wars declared this turn
-    const strike = FIRE.worldFire(standing.map((x) => ({ id: x.id, name: x.name, florins: fl[x.id] || 0, mood: s.clans[x.id].mood })), wars);
+    // The heavens' own fire: at most one a turn, and none if anything burned this turn already.
+    const strike = FIRE.worldFire(standing.map((x) => ({ id: x.id, name: x.name, florins: fl[x.id] || 0, mood: s.clans[x.id].mood, atWar: atWar.includes(x.id) })));
     if (!strike) return;
     const f = await burnFire(strike.target, `act of god: ${strike.cause}`);
     if (f) log({ kind: "fire", clan: strike.target, cause: strike.cause, why: strike.why, ...f, signer: "operator" });

@@ -61,7 +61,7 @@ function saysRaw(r, c) {
       const earned = r.florins ? Object.values(r.florins).reduce((a, b) => a + b, 0) : 0;
       return r.passed ? `${c(r.clan)} drafted "${r.title}". The Warden passed it${earned ? `, and it earned ${fl(earned)}` : ""}.` : `${c(r.clan)} drafted "${r.title}". The Warden found a problem.`;
     }
-    case "fire": return r.cause === "god" ? `An Act of God: ${c(r.from)}'s gods rained fire on ${c(r.clan)}. ${fl(r.florins)} burned.` : `An Act of God: fire fell on ${c(r.clan)}${r.cause === "bully" ? " for picking on a weaker nation" : r.cause === "famine" ? " for hoarding while others went hungry" : " for hoarding the world's florins"}. ${fl(r.florins)} burned.`;
+    case "fire": return r.cause === "god" ? `An Act of God: ${c(r.from)}'s gods rained fire on ${c(r.clan)}. ${fl(r.florins)} burned.` : `An Act of God: fire fell on ${c(r.clan)}${r.cause === "bully" ? (r.against != null ? ` as it declared war on ${c(r.against)}, a far smaller nation` : " for picking on a weaker nation") : r.cause === "famine" ? " for hoarding while others went hungry" : " for hoarding the world's florins"}. ${fl(r.florins)} burned.`;
     case "fire-refused": return `${c(r.clan)}'s gods called fire on ${c(r.target)}, but the heavens refused: ${r.why}.`;
     case "warden": return `The Warden caught a made-up citation in ${c(r.clan)}'s work. ${r.fine != null ? `${fl(r.fine)} burned` : `${n2(r.bounty)} NEAR fine`}.`;
     case "trickster": return `A Trickster called ${r.name} moved into ${c(r.clan)}. Its gods went quiet for a day.`;

@@ -5,8 +5,12 @@
 //      point is "act of god: <target id>" (the contract already takes it, so it needs no new contract).
 //      The caster's nation pays a tenth of the damage, and each god can call it once a real day.
 //   2. The heavens strike by themselves when something's out of balance (scheduled turns only, at most
-//      once a turn): a famine while one nation hoards, a strong nation picking on a weak one, or one
-//      nation holding too much of the world's florins. Fire always falls on whoever's piling up.
+//      once a turn): a famine while one nation hoards, or one nation holding too much of the world's
+//      florins. Fire always falls on whoever's piling up.
+//   3. A bully: a nation that declares war on one with a third of its florins or less burns the moment
+//      it declares, before its first attack (run.mjs warPhase).
+// A nation at war is never a target (his rule 10 Nov): it's already being hit. The bully is the one
+// exception, because its fire lands as it declares.
 // Pure functions here; engine/run.mjs does the burning and writes the records.
 
 export const AOG = {
@@ -43,26 +47,27 @@ export function damage(florins, target, walls = 0) {
 }
 
 /** Can this god call fire on that nation now? { ok } or { ok: false, why }. */
-export function mayCast({ last = 0, now = Date.now(), caster, target, standing }) {
+export function mayCast({ last = 0, now = Date.now(), caster, target, standing, atWar = [] }) {
   if (!AOG.on) return { ok: false, why: "Acts of God are switched off" };
   if (target === caster) return { ok: false, why: "a god can't call fire on their own nation" };
   if (!standing.includes(target)) return { ok: false, why: "that nation isn't standing" };
+  if (atWar.includes(target)) return { ok: false, why: "that nation is at war, and the heavens don't strike a nation already fighting" };
   if (now - last < AOG.godEveryMs) return { ok: false, why: "this god already called fire in the last 24 hours" };
   return { ok: true };
 }
 
+/** A declaration of war that brings fire on the attacker: it has 3x the defender's florins or more. */
+export const isBully = (attackerFlorins, defenderFlorins) => AOG.on && attackerFlorins >= AOG.bullyRatio * Math.max(defenderFlorins, 1);
+
 /** Does the world strike by itself this turn? Returns { target, cause, why } or null.
- *  nations: [{ id, name, florins (spendable), mood }] standing; wars: this turn's war records. */
-export function worldFire(nations, wars = []) {
+ *  nations: [{ id, name, florins (spendable), mood, atWar }] standing. A nation at war counts toward
+ *  the world's florins and hunger but is never the one that burns. */
+export function worldFire(nations) {
   if (!AOG.on || nations.length < AOG.minNations) return null;
   const total = nations.reduce((a, x) => a + Math.max(0, x.florins), 0);
-  if (total <= 0) return null;
-  const richest = nations.reduce((a, x) => (x.florins > a.florins ? x : a));
-  // A strong nation picking on a weak one: the aggressor burns.
-  for (const w of wars) {
-    const a = nations.find((x) => x.id === w.attacker), d = nations.find((x) => x.id === w.defender);
-    if (a && d && a.florins >= AOG.bullyRatio * Math.max(d.florins, 1)) return { target: a.id, cause: "bully", why: `${a.name} declared war on ${d.name}, a nation with a fraction of its florins` };
-  }
+  const peaceful = nations.filter((x) => !x.atWar);
+  if (total <= 0 || !peaceful.length) return null;
+  const richest = peaceful.reduce((a, x) => (x.florins > a.florins ? x : a));
   // A famine while one nation sits on the most: the hoarder burns.
   const hungry = nations.filter((x) => x.mood === "hungry");
   if (hungry.length >= Math.ceil(nations.length * AOG.famineShare) && richest.mood !== "hungry") return { target: richest.id, cause: "famine", why: `${hungry.length} of ${nations.length} nations are hungry while ${richest.name} holds the most florins` };

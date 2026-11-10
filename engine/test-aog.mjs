@@ -1,6 +1,6 @@
 // Act of God (engine/fire.mjs): damage grows with florins, walls shield, limits hold, and the heavens
 // strike only when something's out of balance. Exits 1 on any failure.
-import { AOG, castTarget, damage, mayCast, worldFire } from "./fire.mjs";
+import { AOG, castTarget, damage, mayCast, worldFire, isBully } from "./fire.mjs";
 
 let bad = 0;
 const ok = (c, m) => { console.log(`${c ? "PASS" : "FAIL"} ${m}`); if (!c) bad++; };
@@ -27,6 +27,7 @@ ok(!mayCast({ caster: 1, target: 1, standing }).ok, "not on their own nation");
 ok(!mayCast({ caster: 1, target: 9, standing }).ok, "not on a nation that isn't standing");
 ok(!mayCast({ caster: 1, target: 2, standing, last: Date.now() - 3600e3 }).ok, "not twice in 24 hours");
 ok(mayCast({ caster: 1, target: 2, standing, last: Date.now() - 25 * 3600e3 }).ok, "again after 24 hours");
+ok(!mayCast({ caster: 1, target: 2, standing, atWar: [2, 3] }).ok, "not on a nation at war");
 
 // The heavens' own fire.
 const N = (o) => [{ id: 1, name: "Big", florins: 2000, mood: "content" }, { id: 2, name: "Mid", florins: 1800, mood: "content" }, { id: 3, name: "Small", florins: 1200, mood: "content" }, { id: 4, name: "Tiny", florins: 1000, mood: "content" }].map((x) => ({ ...x, ...(o[x.id] || {}) }));
@@ -34,12 +35,14 @@ ok(worldFire(N({})) === null, "a calm world: no fire");
 const fam = worldFire(N({ 2: { mood: "hungry" }, 3: { mood: "hungry" } }));
 ok(fam?.cause === "famine" && fam.target === 1, "half the nations hungry: fire on the richest, who isn't");
 ok(worldFire(N({ 1: { mood: "hungry" }, 3: { mood: "hungry" } })) === null, "a famine where the richest is hungry too: no hoarder to punish");
-const bully = worldFire(N({ 3: { florins: 500 } }), [{ attacker: 1, defender: 3 }]);
-ok(bully?.cause === "bully" && bully.target === 1, "a nation 4x bigger declares war on a small one: the aggressor burns");
-ok(worldFire(N({}), [{ attacker: 1, defender: 2 }]) === null, "a war between near equals: no fire");
+ok(isBully(2000, 500) && isBully(1500, 500), "declaring war on a nation with a third of your florins or less: you're the bully");
+ok(!isBully(2000, 1800) && !isBully(1400, 500), "declaring on a near equal: not a bully");
+const famWar = worldFire(N({ 1: { atWar: true }, 2: { mood: "hungry" }, 3: { mood: "hungry" } }));
+ok(famWar?.target === 4 || famWar === null, "a famine never burns a nation at war (the richest is fighting, so it falls on the richest at peace, or nobody)");
+ok(worldFire(N({ 1: { florins: 9000, atWar: true } }))?.target !== 1, "a hoarder at war isn't struck");
 const hoard = worldFire(N({ 1: { florins: 9000 } }));
 ok(hoard?.cause === "hoard" && hoard.target === 1, "one nation with over 40% of the florins: it burns");
-ok(worldFire(N({}).slice(0, 2), [{ attacker: 1, defender: 2 }]) === null, "a world of two nations is left alone");
+ok(worldFire(N({ 1: { florins: 9000 } }).slice(0, 2)) === null, "a world of two nations is left alone");
 
 if (bad) { console.log(`${bad} failed`); process.exit(1); }
 console.log("all passed");
