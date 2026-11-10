@@ -17,6 +17,10 @@ const { seededAt } = JSON.parse(fs.readFileSync(`${DIR}/seed.json`, "utf8"));
 const rand = rng(seededAt % 2 ** 31);
 const env = { ...process.env, ADF_SIM_CHAIN: `${DIR}/chain.json`, ADF_STATE_DIR: `${DIR}/state`, ADF_DAILY_CAP: "50", DATABASE_URL: "" }; // real Claude for everything (his OK 8 Nov); the live cap is untouched
 if (argv.includes("--fake")) env.ADF_FAKE_LLM = "1"; else delete env.ADF_FAKE_LLM; // --fake: stand-in minds, $0 (smoke tests)
+// The sim's own keys (10 Nov): debug/sim.env (git-ignored) holds ADF_SIM_OPENALEX_KEY, a key used by
+// simulations only, so a sim never spends the live world's OpenAlex budget.
+if (fs.existsSync("debug/sim.env")) for (const line of fs.readFileSync("debug/sim.env", "utf8").split(/\r?\n/)) { const m = /^(ADF_SIM_[A-Z_]+)=(.+)$/.exec(line.trim()); if (m) env[m[1]] = m[2]; }
+if (!env.ADF_SIM_OPENALEX_KEY) console.log("note: no ADF_SIM_OPENALEX_KEY, research uses OpenAlex's shared free pool");
 env.ADF_MARKET = "1"; // the sim always has the marketplace (the live world turns it on after its proof)
 delete env.SPONSOR_ACCOUNT_ID; delete env.SPONSOR_PRIVATE_KEY; delete env.OPERATOR_PRIVATE_KEY;
 // Written synchronously (9 Nov): each turn is a blocking spawnSync, so a write stream never got to

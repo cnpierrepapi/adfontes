@@ -16,7 +16,9 @@
 //   - rules the nation's pending gifts: rewards the ones the Warden passed (a "rule" proposal + status).
 import fs from "node:fs";
 
-export const GODS = { faithfulAt: 30, rescueBelow: 10, jitter: 3, blessMin: 0.05, blessMax: 0.25, dayMs: 24 * 3600e3 };
+// whisperCap (his call 10 Nov): each god whispers at most 5 times in the whole run. A whisper is heard by
+// a model call, the run's biggest cost; after the fifth the god still visits, blesses and rules.
+export const GODS = { faithfulAt: 30, rescueBelow: 10, jitter: 3, blessMin: 0.05, blessMax: 0.25, dayMs: 24 * 3600e3, whisperCap: Number(process.env.ADF_SIM_WHISPER_CAP ?? 5) };
 const YOCTO = 10n ** 24n;
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64");
 const WHISPERS = [
@@ -82,10 +84,15 @@ export function godsTurn(dir, now, rand) {
       const dao = (C.daos[c.dao] ||= []);
       const propose = (method, args) => dao.push({ id: dao.length, proposer: g.account, status: "Approved", description: `${method} (simulated god)`,
         kind: { FunctionCall: { receiver_id: "sim.local", actions: [{ method_name: method, args: b64(args), deposit: "0", gas: "30000000000000" }] } } });
-      // 1. Whisper.
-      const text = rand() < me.att ? situational(S, C, c, rand) : WHISPERS[Math.floor(rand() * WHISPERS.length)];
-      propose("whisper", { clan_id: c.id, text });
-      c.whisper = text;
+      // 1. Whisper, while this god has whispers left (GODS.whisperCap for the whole run).
+      let whispered = false;
+      if ((me.whispers ?? 0) < GODS.whisperCap) {
+        const text = rand() < me.att ? situational(S, C, c, rand) : WHISPERS[Math.floor(rand() * WHISPERS.length)];
+        propose("whisper", { clan_id: c.id, text });
+        c.whisper = text;
+        me.whispers = (me.whispers ?? 0) + 1;
+        whispered = true;
+      }
       // 2. Bless a little: put_in up; 86% backs new florins at today's value (the god's shares), 14% jackpot.
       const near = GODS.blessMin + rand() * (GODS.blessMax - GODS.blessMin);
       const y = BigInt(Math.round(near * 1e6)) * (YOCTO / 1_000_000n);
@@ -109,7 +116,7 @@ export function godsTurn(dir, now, rand) {
         propose("rule", { gift_id: gift.id, reward: true });
         ruled.push(gift.id);
       }
-      out.push({ clan: c.id, god: g.account.slice(0, 8), mode: me.mode, standing: +standing.toFixed(1), blessed: +near.toFixed(3), ruled: ruled.length });
+      out.push({ clan: c.id, god: g.account.slice(0, 8), mode: me.mode, standing: +standing.toFixed(1), whispered, whispers: me.whispers ?? 0, blessed: +near.toFixed(3), ruled: ruled.length });
     }
   }
   fs.writeFileSync(`${dir}/chain.json`, JSON.stringify(C));

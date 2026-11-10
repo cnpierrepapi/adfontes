@@ -14,3 +14,22 @@ ok(nextMode("faithful", 31, 2) === "away" && nextMode("faithful", 31, -2) === "f
 // The walk he described: 50 -> 25 -> 8 -> 20 -> 32 -> 26
 let m = null; const path = [50, 25, 8, 20, 32, 26].map((x) => (m = nextMode(m, x)));
 ok(path.join(",") === "faithful,away,rescue,rescue,faithful,away", `decline and comeback: ${path.join(" -> ")}`);
+
+// The whisper cap (his call 10 Nov): 5 whispers per god for the whole run; after that the god still
+// visits and blesses. 20 simulated days with a faithful god in a stand-in world.
+{
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const { godsTurn, GODS } = await import("../scripts/sim-gods.mjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "simgods-"));
+  fs.mkdirSync(`${dir}/state`);
+  const god = "god.test";
+  fs.writeFileSync(`${dir}/chain.json`, JSON.stringify({ clans: [{ id: 1, alive: true, dao: "dao.test", gods: [{ account: god, put_in: "0", shares: "0" }], total_in: "0", shares: "0" }], totals: { florins: "1000", backing: "1000", jackpot: "0", balance: "0", liabilities: "0" }, gifts: {} }));
+  fs.writeFileSync(`${dir}/state/testnet.json`, JSON.stringify({ clans: { 1: { owned: {} } }, rev: { 1: { followed: god, gods: { [god]: { r: 60 } } } } }));
+  let seed = 7; const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let visitsN = 0, blessedAfter = 0;
+  for (let d = 0; d < 20; d++) for (const v of godsTurn(dir, d * GODS.dayMs + 23 * 3600e3, rand)) { if (v.blessed == null) continue; visitsN++; if (v.whispers >= GODS.whisperCap && !v.whispered) blessedAfter++; }
+  const whispers = JSON.parse(fs.readFileSync(`${dir}/chain.json`, "utf8")).daos["dao.test"].filter((p) => JSON.stringify(p).includes("whisper")).length;
+  ok(GODS.whisperCap === 5 && whispers === 5, `a god whispers ${whispers} times in ${visitsN} visits (cap ${GODS.whisperCap})`);
+  ok(blessedAfter > 0, `after the fifth whisper it still visits and blesses (${blessedAfter} visits)`);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
