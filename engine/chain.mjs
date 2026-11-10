@@ -110,6 +110,13 @@ export function connect(net) {
     dao: (dao, method, args = {}) => provider.callFunction({ contractId: dao, method, args }),
     tick: (day) => call("tick", { day }),
     spawn: (clanId, name, role) => call("spawn_agent", { clan_id: clanId, name, role }),
+    /** A new nation's whole team in ONE transaction (10 Nov: six separate calls took ~12 s). */
+    async spawnMany(clanId, team) {
+      const r = await op.signAndSendTransaction({ receiverId: world, actions: team.map(({ name, role }) => actions.functionCall("spawn_agent", { clan_id: clanId, name, role }, BigInt(T(30)), 0n)) });
+      const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+      if (fail) throw new Error(`spawn_agent failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
+      return r.transaction.hash;
+    },
     stake: (clanId, account) => view("get_stake", { clan_id: clanId, account }),
     // Florins: trades move them, good work mints them, upkeep and Warden fines burn them.
     trade: (buyer, seller, florins, memo) => call("trade", { buyer, seller, amount: toUnits(florins), memo }),

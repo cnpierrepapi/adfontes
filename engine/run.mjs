@@ -385,18 +385,25 @@ for (let n = 0; n < days; n++) {
         for (const a of agents) taken.add(a.name);
         const have = {};
         for (const a of agents) if (a.alive) have[a.role] = (have[a.role] || 0) + 1;
+        const team = [];
         for (const role of CFG.team) {
           if (have[role] > 0) { have[role]--; continue; }
           const name = newName(taken);
           taken.add(name);
-          await chain.spawn(oc.id, name, role);
+          team.push({ name, role });
           c.skills[name] = {};
         }
+        // One transaction for the whole team where the chain can (10 Nov); one call each otherwise.
+        if (team.length && chain.spawnMany) await chain.spawnMany(oc.id, team);
+        else for (const t of team) await chain.spawn(oc.id, t.name, t.role);
         for (const a of agents) c.skills[a.name] ||= {};
         c.teamDone = true;
         agents = await chain.agents(oc.id);
         log({ kind: "team", clan: oc.id, agents: agents.map((a) => `${a.name} (${a.role})`) });
       }
+      // Born (10 Nov): its reverence starts now and the founding, team and reverence go out at once, so
+      // the page can raise the island with its people on it. Wallets and the named account follow.
+      if (isNew) { RV.ensure(s, oc, day, { fresh: true }); await checkpoint(); }
       const able = (role) => agents.filter((a) => a.role === role && a.alive && a.stunted_until <= day);
       // Their Broker and Patron get their own NEAR wallets on first sight (once per nation).
       // Version 2 (9 Nov): the Broker's market wallet, trader<id>; a nation set up before it gets one now.
