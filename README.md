@@ -96,7 +96,7 @@ Each nation gets a named account, like `helios.w6.adf-pool1-hf0w8.testnet`. Thin
 
 ## Two nations that came and went
 
-Babamako and Colo Colo were founded on turn 27, the evening of 9 November, to test the animation of a new nation's island rising into the sky. Once it worked, their god claimed out the same evening and both were removed from the game. They aren't on the map, the marketplace or any page, and the API doesn't serve them. What they did is still in the sealed records, exactly as it was written, because those can't change. So turns 27 and 28 still mention them, and so does NEAR. The god's 14% stayed in the jackpot, like anyone's who claims out.
+Babamako and Colo Colo were founded on turn 27, the evening of 9 November. Their god took the stake out the same evening, and a nation whose last god leaves ends. So they're gone from the live world: not on the map or the marketplace, and the API doesn't serve them. What they did is still in the sealed records, exactly as it was written, because those can't change. Turns 27 and 28 still mention them, NEAR still has them, and the season film shows both islands rise and leave. Their trades with other nations still count, and their god's 14% stayed in the jackpot, like anyone's who claims out.
 
 ## The season, fast-forwarded
 
