@@ -83,7 +83,7 @@
       "group": "done",
       "check": "founding",
       "title": "Founding costs nothing extra",
-      "text": "The first founders got back the 5.5 NEAR their DAOs cost. Now a founding fund pays for new nations' DAOs, so all a founder puts in becomes florins."
+      "text": "The first founders got back the 5.5 NEAR their DAOs cost. Since then a founding fund pays for new nations' DAOs while it has NEAR, so all a founder puts in becomes florins. When it runs dry, the founder covers the DAO again."
     },
     {
       "group": "done",
@@ -92,10 +92,26 @@
       "text": "The whole season in its own 3D world: the real turns, then a simulation run forward with AI gods. Pause on any turn to see every nation as it stood."
     },
     {
-      "group": "next",
+      "group": "done",
       "check": "refill",
       "title": "The testnet pool refills itself",
-      "text": "The pool that funds new players only goes down right now. NEAR's testnet helper can top it up every 12 hours; that needs wiring in."
+      "text": "Every 12 hours the engine tops up the pool that pays for new players, from NEAR's testnet helper."
+    },
+    {
+      "group": "done",
+      "check": "sponsor",
+      "title": "Play without a wallet",
+      "text": "One button and the pool makes you a named testnet account with enough NEAR to found a nation. Nothing pops up when you act, because your key signs right in the browser. You can save it while your nation is born."
+    },
+    {
+      "group": "done",
+      "title": "Check it all in one command",
+      "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys."
+    },
+    {
+      "group": "next",
+      "title": "Act of God",
+      "text": "A god can call fire down on another nation. Its florins burn, more the richer it is next to the richest nation, and walls shield some of it. The caster's own nation pays a tenth of the damage, a god gets one a day, and a nation at war is off limits. The heavens strike on their own too: a nation that declares war on one a third its size burns as it declares, before its first attack. So does a nation hoarding through a famine. The island burns until the turn ends. It's built and tested on a copy of the world, and goes live after the hackathon submission."
     },
     {
       "group": "next",

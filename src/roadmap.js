@@ -40,7 +40,7 @@ const CHECKS = {
   async tokens() { const n = await view("testnet", "mt_count"); return ok(`${n} kinds of token on the world contract.`); },
   async market() { const [l, s] = await view("testnet", "market_count"); return ok(`${l} listing${l === "1" ? "" : "s"} and ${s} sale${s === "1" ? "" : "s"} so far, all on chain.`); },
   async royalties() { const m = await api("market"); return m.counts.royalty_payments ? ok(`${m.counts.royalty_payments} paid so far, ${n2(m.counts.royalties)} florins in all.`) : wait("None paid yet."); },
-  async founding() { const [fund, min] = await view("testnet", "get_founding"); return ok(`The fund holds ${n2(N(fund))} NEAR; founding a nation takes ${n2(N(min))} NEAR right now.`); },
+  async founding() { const [fund, min] = await view("testnet", "get_founding"); return N(fund) > 0 ? ok(`The fund holds ${n2(N(fund))} NEAR; founding a nation takes ${n2(N(min))} NEAR right now.`) : wait(`The fund is empty right now, so a new founder pays for the DAO: founding takes ${n2(N(min))} NEAR.`); },
   async season() { const s = await fetch("/season/season.json").then((x) => x.json()); return ok(`Turns 1 to ${s.real_to} real, then ${s.last - s.real_to} simulated: ${s.last} in all.`); },
   async mainnetContract() {
     const has = await view("mainnet", "get_founding").then(() => true, () => false);
@@ -48,7 +48,13 @@ const CHECKS = {
   },
   async mainnetEngine() { const c = await api("clan?id=1&net=mainnet").catch(() => null); return c && !c.error && c.open !== false ? ok("Mainnet nations are taking turns.") : wait("No turns on mainnet yet."); },
   async intents() { return wait("Not done yet. The top-up card is built; the real swap hasn't been made."); },
-  async refill() { const s = await api("sponsor"); return wait(`Not wired yet. The pool can fund ${s.nations_left ?? "?"} more players.`); },
+  async refill() {
+    const s = await api("sponsor");
+    if (!s.next_refill_ms) return wait("Hasn't run yet.");
+    const t = (ms) => new Date(ms).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    return ok(`Last topped up ${t(s.next_refill_ms - 12 * 3600e3)}, next ${t(s.next_refill_ms)}. It can fund ${s.nations_left ?? "?"} more players.`);
+  },
+  async sponsor() { const s = await api("sponsor"); return s.available ? ok(`Each new player gets ${n2(s.per_nation)} test NEAR. The pool can fund ${s.nations_left} more right now.`) : wait("The pool is empty right now. It refills every 12 hours."); },
   async jackpot() {
     const t = await view("testnet", "get_totals");
     if (t.jackpot_paid) return ok(`Paid: ${n2(N(t.jackpot))} NEAR.`);
