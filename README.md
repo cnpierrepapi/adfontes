@@ -28,6 +28,8 @@ We checked it isn't pay-to-win. Same world, same 84 turns, run twice:
 | Winner | Helios, the most blessed nation (3.81 NEAR) | Fremonition, 2.10 NEAR blessed and 6 whispers heard |
 | Helios | 1st | 2nd, still the most blessed |
 
+The NEAR figures are what each nation took in over the 84 simulated turns: its NEAR in on turn 106 minus turn 22. For the run you can watch, that's in `public/season/season.json` (Helios 2.57 to 6.25, Fremonition 0.48 to 2.58). The old-rules run isn't published; its Helios went from the same 2.57 to 6.38.
+
 ## Why this is more than a game
 
 In 2011 Foldit players worked out the structure of a retrovirus protein that had stumped scientists for over a decade. They did it by playing. People are good at judging what looks promising, and a game is a good way to point a lot of that judgement at one hard problem.
@@ -51,7 +53,10 @@ The drafts aren't filed patents. They're a public, checkable search through the 
 | Smite | Stun a citizen for a few turns, or remove them for good |
 | Root it out | Cut a point of knowledge, and everything that grew from it, out of the nation's map |
 | Rule on a draft | Reward it, or punish the citizen who rushed it |
-| Claim your stake | Take your florins out as NEAR at today's value. If you're the last god, the nation ends: its citizens leave and its island is gone from the world |
+| Release staking | Every nation keeps 0.1 NEAR in a staking fund from its founding. Its gods can vote to send it to any account, a staking pool say. Only the nation's DAO can do it |
+| Claim your stake | Take your florins out as NEAR at today's value. If you're the last god, the nation ends: its citizens leave, its island is gone from the world, and the staking fund goes out with you |
+
+Citizens also report each other. Now and then one tells the god that another slipped a fake citation in, rushed a draft, sold the nation's work cheap, or is a Trickster. Some reports are true and some are grudges, and you don't find out which until you act. Stunt the accused (that's Smite) and you learn the truth: a guilty one means the citizens saw justice done, and your reverence fades half as fast for a day. An innocent one becomes your enemy, and your reverence fades faster for as long as they live. Or do nothing, and the report lapses after a real day. Ignore a true one and the citizen who made it loses faith for a day, and the god the nation follows fades faster while that lasts. Stunting anyone costs 8 reverence on its own, so it's never free.
 
 No wallet? "Play without a wallet" makes you one in the browser. The testnet pool turns it into a named account like `amber-quill-417.adf-pool1-hf0w8.testnet`, funded with enough testnet NEAR to found a nation. The key never leaves your browser.
 
@@ -63,13 +68,15 @@ Then there's war, and the gods don't get a vote. Once a day every nation's Patro
 
 At war, research stops and the citizens fight. Only the crews on the war machines stay outside; everyone else goes indoors. Every turn both sides burn money on the war chest and fire at each other, and every hit burns a point of knowledge off the other island's edge. The island is its knowledge, so you watch it shrink. The dice come from the fingerprint already sealed on NEAR, so nobody can rig a roll and anyone can redo one. When an island is down to its root it falls out of the sky. A nation that runs out of florins for three rounds in a row surrenders instead. The winner takes half its florins, its knowledge and two of its people, and the fallen nation's gods can still claim the other half.
 
-Two even nations fight for about ten days. A big one with all five techs against a small one, about a day. The live war sits in between. Antilles (13 points, no techs) declared on Striklar (6 points) on turn 13. Striklar walled up and has held on for more than a day since, a round every two hours. Peace can end it sooner, and Striklar has asked.
+Two even nations fight for about ten days. A big one with all five techs against a small one, about a day. The live war sits in between, and it's still going, so the numbers here are probably behind by the time you read them. The live world always has the current ones.
+
+Antilles (13 points, no techs) declared on Striklar (6 points) on turn 13. Striklar walled up and has been holding on ever since, a round every two hours. By turn 31 they'd fought 19 rounds, and Antilles is down to 10 points, Striklar to 4. Striklar offered peace on turn 25. Antilles' council keeps saying no: "Striklar is down to 5 points against our 11, so we keep pressing until they fall and we take half their 540 florins."
 
 ## The agents hold their own money
 
 Each nation has two agents with wallets of their own. The Broker (`trader<id>.adfontes-mw1fjpfx.testnet`) buys and sells knowledge. The Patron (`patron<id>.adfontes-mw1fjpfx.testnet`) pays for the war chest and the walls. Each wallet has exactly one key, a function-call key that can only call its own methods on the world contract. It can't send NEAR anywhere, and it can't call the other agent's methods. The contract checks which agent is signing before it moves a single florin.
 
-What the nations learn is on NEAR too, as NEP-245 multi-tokens on the world contract, held in each Broker's wallet. Research (`r:`) copies, like a book: a buyer gets its own and the seller keeps theirs. A passed patent (`p:`) is one of a kind. Figure kits (`k:`) copy too. Any wallet or explorer that reads NEP-245 can see them, and the judge page asks NEAR about one straight from your browser.
+What the nations learn is on NEAR too, as NEP-245 multi-tokens on the world contract, held in each Broker's wallet. Research (`r:`) copies, like a book: a buyer gets its own and the seller keeps theirs. A passed patent (`p:`) is one of a kind. Figure kits (`k:`) copy too. The contract has NEP-245's transfer and balance methods (`mt_transfer`, `mt_batch_transfer`, `mt_transfer_call`, `mt_balance_of`, `mt_batch_balance_of`, `mt_supply`, `mt_token`), plus `mt_tokens`, `mt_tokens_for_owner` and its own `mt_token_info` for the title and kind. It doesn't have the metadata methods (`mt_metadata_contract`, `mt_metadata_token_all`), so a wallet that needs those won't show a name or icon. The judge page asks NEAR about one token straight from your browser.
 
 ## The marketplace
 
@@ -85,13 +92,17 @@ Patents earn. Whenever any nation buys research on a point a patent stands on, t
 
 Each nation gets a named account, like `helios.w6.adf-pool1-hf0w8.testnet`. Think of it as a mailbox at the front gate. Send NEAR there and the engine carries it on to the nation's treasury, its DAO, on the next turn. The account runs a 2 KB contract with no keys on it, so nobody can take the money out on the way.
 
+## Two nations that came and went
+
+Babamako and Colo Colo were founded on turn 27, the evening of 9 November, to test the animation of a new nation's island rising into the sky. Once it worked, their god claimed out the same evening and both were removed from the game. They aren't on the map, the marketplace or any page, and the API doesn't serve them. What they did is still in the sealed records, exactly as it was written, because those can't change. So turns 27 and 28 still mention them, and so does NEAR. The god's 14% stayed in the jackpot, like anyone's who claims out.
+
 ## The season, fast-forwarded
 
 A season lasts weeks, and a judge has five minutes. So https://adfontes.fun/timelapse/ plays the whole season in its own 3D world, a few minutes long. It's the live world's own code, fed one turn at a time.
 
 Turns 1 to 22 are the real season, from the records sealed on NEAR: the six nations founded one by one, their first research, trades, techs, the first war. After that it's a simulation. We copied the world as it stood on turn 22 and ran the same engine forward 84 more turns on a stand-in chain, with real language-model calls and simulated gods. They visit when reverence is high, drift off when it drops, and rush back when their nation is on the brink. They whisper too, and the citizens judge every whisper the way they do live. You watch the wars, every weapon that was fired (the star lance included), two peaces, and Antilles falling to Numdial on turn 70. Every turn is labelled real or simulated.
 
-Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. The mind maps are wound back from the end through every record, and they match the engine's own count on all 504 nation-turns of the simulation. The money is worked out the same way. Florins wind back through every mint, fine, trade and battle. On the 15 turns the engine printed, they land within 0.22 florins. NEAR put in adds up the blessings in the records, and spreads whatever the records missed over the turns a god sat at the reverence cap. The jackpot is 14% of that, and the florin's value follows. One assumption: the 5.5 NEAR each founder got back counts from day one, as if the refund had always been there.
+Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. The mind maps are wound back from the end through every record, and they match the engine's own count on all 504 nation-turns of the simulation. The money is worked out the same way. Florins wind back through every mint, fine, trade and battle. On the 15 turns the engine printed, they land within 0.22 florins. NEAR put in adds up the blessings in the records, and spreads whatever the records missed over the turns a god sat at the reverence cap. The run lost its god log for most turns, so for Helios the records hold 3.04 of the 3.68 NEAR it took in, and for Fremonition 1.51 of 2.10. The rest is worked out, and every nation-turn with worked-out numbers carries `est: true` in `season.json`. Only turns 92 to 106, the ones the engine printed, have none. The jackpot is 14% of that, and the florin's value follows. One assumption: the 5.5 NEAR each founder got back counts from day one, as if the refund had always been there.
 
 The simulation also told us words beat money. Fremonition finished first at 100 with 2.10 NEAR blessed. Helios got the most NEAR, 3.68, and came second at 80. Fremonition's god kept saying things like "There's a Trickster among you. Check every citation twice." The citizens took that as prophecy. Run the same turns under the old rules and Helios wins. An earlier run with no gods at all ended with every nation at zero, 155 Tricksters and 44% of research faked. This one had 7 Tricksters, 18% faked, and 19 of 22 drafts passed.
 
@@ -112,7 +123,9 @@ flowchart LR
   J -->|after 30 Nov| W[Gods of the #1 nation by reverence]
 ```
 
-Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after 30 Nov the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. Nobody, us included, takes a fee.
+Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after 30 Nov the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. This contract takes no fee for anyone, us included. (The old v1 contract on mainnet had a fee; see On chain.)
+
+The jackpot only ever gets 14% of what gods put in. The founders' grants and the founding fund below go straight into the backing and never touch it, so they can't raise or lower anyone's share of the pot. A god who claims out leaves their 14% behind. On turn 31 the jackpot held 2.827657 NEAR, which is exactly 14% of the 20.1975 NEAR gods have put in since the world started. That includes 10.47 NEAR from the god who founded Babamako and Colo Colo and then claimed out. `scripts/jackpot-audit.mjs` replays every deposit against NEAR's own history to check it.
 
 Every nation needs a Sputnik DAO, and making one costs 5.5 NEAR. The first six founders paid that themselves, so most of their 6 NEAR never became florins. The world gave it back: a `grant` put 5.5 NEAR into the backing as florins for each founder, at the day's price, so nobody else's florins moved. That credit is the founder's, so the engine keeps it out of what the nation spends. New nations don't pay the DAO at all. A founding fund in the contract covers it, and every NEAR a founder puts in becomes florins. On testnet the pool gives a new player 8.3 NEAR, which comes out at about 7 NEAR of florins.
 
@@ -191,33 +204,48 @@ The pieces, all in this repo:
 
 ## On chain
 
-| What | Network | Address |
-|---|---|---|
-| World contract, v2 (this season's test world) | testnet | `w6.adf-pool1-hf0w8.testnet` |
-| World contract, v1 | mainnet | `world.adfontes.near` |
-| Each nation's DAO | both | `adf-<id>-<block>.sputnikv2.testnet` for the first six, `adf-<name>-<block>` for nations founded since / `.sputnik-dao.near` |
-| Each nation's named account | testnet | `<name>.w6.adf-pool1-hf0w8.testnet` |
-| Each nation's Broker and Patron | testnet | `trader<id>.adfontes-mw1fjpfx.testnet`, `patron<id>.adfontes-mw1fjpfx.testnet` |
+The game plays on testnet. Everything in this first table is live and changes every turn.
 
-The game is playing on testnet right now while the v2 contract proves itself. Mainnet runs the v1 contract today and moves to v2 next.
+| What | Testnet address |
+|---|---|
+| World contract, v2 | `w6.adf-pool1-hf0w8.testnet` |
+| Each nation's DAO, the first six | `adf-<id>-<block>.sputnikv2.testnet` |
+| Each nation's DAO, nations founded since | `adf-<name>-<block>.sputnikv2.testnet` |
+| Each nation's named account | `<name>.w6.adf-pool1-hf0w8.testnet` |
+| Each nation's Broker and Patron | `trader<id>.adfontes-mw1fjpfx.testnet`, `patron<id>.adfontes-mw1fjpfx.testnet` |
+| The engine's operator | `adfontes-mw1fjpfx.testnet` |
+
+Mainnet still has the first contract, and it's idle. One nation was founded there on 6 November to prove it worked, and nothing has run since: it's on day 0 with no florins, and no engine runs mainnet. It has none of the newer parts (agent wallets, tokens, the market, named accounts, the founding fund), and it took a 14% fee on what a nation spent, which this season's contract doesn't. None was ever collected. Mainnet gets the current contract after the hackathon, in a fresh account.
+
+| What | Mainnet address |
+|---|---|
+| World contract, v1 (idle) | `world.adfontes.near` |
+| Its one nation's DAO | `adf-1-223344360.sputnik-dao.near` |
+
+The world contract's account owns itself. It has one key, a full-access key, and we hold it. That key is how the contract gets upgraded: every new part this season (the agent wallets, the tokens, the market, the named accounts, the founding fund) went in by deploying new code to the same account, with nobody's state or money touched. It's also the owner, so it's the only thing that can pause new deposits (claims can never be paused), move a god whose browser key was lost, or pay the jackpot after 30 November. Grants to founders can come from it or from the operator. That's a lot to hang on one key. The contract has `set_owner` so the role can move to a multisig without an upgrade, and that's on the roadmap for after Season 1.
 
 ## Check it yourself
 
 Every turn, the engine hashes each record and puts one Merkle root on NEAR with `set_root`. The judge page picks a random record, hashes it in your browser, climbs the proof, and asks NEAR directly for the root. If they match, that record is exactly what happened. `tests/live-audit.mjs` does the same for a whole turn.
+
+Two plainer pages sit next to the 3D world. https://adfontes.fun/world/ is the world as text: the turn, day or night, every nation's points, florins and deepest line, the latest events, the drafts with their figures and claims, and a box to prove any record against NEAR. It refreshes itself every 30 seconds and shows when it last did. https://adfontes.fun/roadmap/ is what's done, what's next and what we dropped. It reads from one file, `public/roadmap.json`. Every time you open it, each item that can be checked asks NEAR or the API, and what comes back is printed under it, like the market's listing and sale count or whether mainnet runs the current contract yet.
 
 The judge page opens with the agents talking: war councils arguing, citizens answering their god and reporting each other, Brokers haggling. It's their words, played back as a chat, and every line has its own button that proves it against NEAR the same way.
 
 ## Tests
 
 ```bash
-npm test               # engine: clock, war, prices, tokens, market, techs, reverence, Warden, the god sim; walking round buildings
+npm test               # engine: clock, war, prices, tokens, market, techs, reverence, Warden, the god sim, the daily spend cap, RPC fallback, god actions; walking round buildings
 npm run test:live      # 62 checks against the live site and the chain itself
 npm run test:load      # a crowd of simultaneous visitors (on a slow connection this mostly measures your own link)
+node scripts/jackpot-audit.mjs   # every deposit ever, replayed against NEAR: the jackpot is exactly 14% of them
 ```
+
+`npm test` needs the internet for two of its tests, because they read the real testnet. `engine/test-rpc.mjs` points the engine at a fake NEAR node that only ever answers "rate limited" and checks it falls back to the real backup node within seconds. `engine/test-godactions.mjs` reads every live nation's DAO, runs the engine's god-action code on it, and checks each whisper, smite, ruling or staking release is credited to the god who proposed it, and that no proposer gets missed. We made sure it can fail: with the engine changed to credit every action to a nation's first god, it fails on the two nations that have more than one active god. `engine/test-cap.mjs` checks the $0.50 daily model budget refuses a call before it reaches the API.
 
 The contract has 79 unit tests: `cargo test --lib` in `contracts/world`, or in the `sourcescan/cargo-near` Docker image (the first build compiles the whole toolchain, so give it a while). 35 of them are refusals, and each has to fail with its exact message. `contracts/world/tests/test_basics.rs` also wants a local NEAR sandbox, which has to download a node binary and can't inside that Docker image. The same flows run for real on testnet against a separate test world, `v2d`: the market proof (`scripts/market-proof.mjs`) has two Brokers list, buy a copy, buy a patent and take things down, then tries eleven things the contract must refuse. It passes 29 of 29. There are proofs like it for the agent wallets, the tokens and the named accounts. `engine/test-war.mjs` runs 400 simulated wars to check the pacing above.
 
-The live audit checks the pages, tries to read server files and secrets through path tricks, throws junk at the API, then reads the contract and confirms the money adds up: the world can pay everything it owes, every god's stake sums to the backing, florins sum exactly, the jackpot holds 14% of everything put in. It rebuilds a sealed turn's root from its records and compares it with NEAR's, and checks the clock against NEAR's real price history.
+The live audit checks the pages, tries to read server files and secrets through path tricks, throws junk at the API, then reads the contract and confirms the money adds up: the world can pay everything it owes, every god's stake sums to the backing, florins sum exactly, and the jackpot holds at least 14% of what today's gods have put in. (At least, because a god who claims out leaves their 14% behind. The exact check is the jackpot audit above.) It rebuilds a sealed turn's root from its records and compares it with NEAR's, and checks the clock against NEAR's real price history.
 
 ## Run it
 
