@@ -403,7 +403,8 @@ for (let n = 0; n < days; n++) {
       }
       // Born (10 Nov): its reverence starts now and the founding, team and reverence go out at once, so
       // the page can raise the island with its people on it. Wallets and the named account follow.
-      if (isNew) { RV.ensure(s, oc, day, { fresh: true }); await checkpoint(); }
+      // (and the founder is the god it follows from the first moment, not from the end of the first turn)
+      if (isNew) { RV.ensure(s, oc, day, { fresh: true }); RV.follow(s, oc.id, []); await checkpoint(); }
       const able = (role) => agents.filter((a) => a.role === role && a.alive && a.stunted_until <= day);
       // Their Broker and Patron get their own NEAR wallets on first sight (once per nation).
       // Version 2 (9 Nov): the Broker's market wallet, trader<id>; a nation set up before it gets one now.

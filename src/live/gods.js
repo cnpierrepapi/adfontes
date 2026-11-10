@@ -333,7 +333,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     // Reverence and reports (SPEC §12m): everyone sees them; a god can answer a report.
     const rev = el("div", { className: "reverence" });
     async function drawReverence(me, seated, clan) {
-      const info = await api(`clan?id=${c.id}`).catch(() => null);
+      // Fresh (10 Nov): the 20-second cache could show a newborn nation's reverence before it existed.
+      const info = await api(`clan?id=${c.id}&fresh=1`).catch(() => null);
       rev.replaceChildren();
       const R = info?.reverence;
       if (!R) return;
