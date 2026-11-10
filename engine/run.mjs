@@ -420,6 +420,9 @@ for (let n = 0; n < days; n++) {
         try { const f = await chain.forwardAlias(c.alias); if (f) log({ kind: "forwarded", clan: oc.id, account: c.alias, dao: oc.dao, near: f.near, tx: f.hash }); }
         catch (e) { log({ kind: "error", clan: oc.id, error: `forward: ${String(e.message || e).slice(0, 160)}` }); }
       }
+      // A new nation's founding, citizens, wallets and named account go out now (10 Nov: they used to wait
+      // for the first research, ~1.5 min, so the island stood empty for two minutes after founding).
+      if (isNew) await checkpoint();
 
       // Reverence (SPEC §12m): read what the gods did since last time, then let it shape today.
       // A reverence bug must never cost the nation its day: on any error it falls back to the old
