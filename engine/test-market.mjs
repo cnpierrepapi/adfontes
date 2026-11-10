@@ -39,3 +39,7 @@ MK.applySale(s, { buyer: 2, seller: 1, token_id: "p:d5" });
 ok(MK.holderOfPatent(s, "d5") === 2 && MK.royaltiesFor(s, ["cathodes"], 3)[0].clan === 2, "a sold patent takes its royalties to the new holder");
 s.clans[2].fallen = { day: 10 };
 ok(MK.royaltiesFor(s, ["cathodes"], 1).length === 0, "a fallen nation earns no royalties");
+delete s.clans[2].fallen; s.clans[2].alive = false; // its last god claimed out (10 Nov: Colo Colo)
+ok(MK.royaltiesFor(s, ["cathodes"], 1).length === 0, "an ended nation earns no royalties");
+s.clans[2].alive = true;
+ok(MK.royaltiesFor(s, ["cathodes"], 1).length === 1, "a living holder still does");

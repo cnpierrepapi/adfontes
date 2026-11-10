@@ -102,7 +102,9 @@ export function royaltiesFor(s, points, buyer) {
   for (const d of Object.values(s.drafts || {})) {
     if (!d.passed || !(d.chain || []).some((n) => want.has(n))) continue;
     const holder = holderOfPatent(s, d.id);
-    if (holder != null && holder !== buyer && s.clans[holder] && !s.clans[holder].fallen) out.push({ clan: holder, draft: d.id });
+    // Only a living holder earns: not one that fell in a war, nor one whose last god claimed out (10 Nov:
+    // Colo Colo's patent d224 tried to pay a dead nation and the contract refused).
+    if (holder != null && holder !== buyer && s.clans[holder] && !s.clans[holder].fallen && s.clans[holder].alive !== false) out.push({ clan: holder, draft: d.id });
   }
   return out;
 }
