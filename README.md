@@ -15,20 +15,22 @@ A nation's standing is its reverence: how much its citizens believe in the god t
 
 When you whisper, the citizens hear it against what's happening to them right then. Are they hungry? At war? One step from a patent? A whisper that fits the moment lands like prophecy. A vague one gets a shrug. One that misreads the nation costs you. A named citizen says what they made of it, right there in the event log.
 
-From the simulation: Helios was going hungry when one of its gods whispered "I know you're hungry. Feed the scholars first and the rest will follow." Celia Sørensen called it sensible advice for a people who need their minds to turn into bread. Reverence +12. Around the same time Fremonition's god said "Trade with your neighbours, not against them." Nora Kowalski's answer: it's advice any nation could be given, and our bellies need more than that right now. +6.
+From the simulated week: on turn 41 one of Numdial's gods whispered "There's a Trickster among you. Check every citation twice." Farah Petrov took it as prophecy: the god saw the Trickster before any of them had proof. Reverence +17. On turn 72 Fremonition's god said "Study two-dimensional materials next. It leads somewhere." Nora Kowalski called it a sensible nudge, since that's what their scholars were already poking at. +12.
 
 Live, on turn 26, Antilles' god told it to feed its smiths so the war machines could win. Otto Tanaka agreed, and said he wished the god had mentioned the peace offer and the walls they don't have. +9.
 
 Money still helps, just less. A blessing lifts reverence, but only up to 60. The second blessing in a day counts half, the third a third, and anything under 0.1 NEAR goes in without moving anyone. Past 60, blessings stop counting. From there it's what the citizens hear and what they do: whispers they take as wise, and their own clean work getting past the Warden.
 
-We checked it isn't pay-to-win. Same world, same 84 turns, run twice:
+Here's how the simulated week (turns 35 to 84) came out, for the nations that took in the most NEAR:
 
-| | Old rules (money counted most) | Now |
-|---|---|---|
-| Winner | Helios, the most blessed nation (3.81 NEAR) | Fremonition, 2.10 NEAR blessed and 6 whispers heard |
-| Helios | 1st | 2nd, still the most blessed |
+| Nation | NEAR put in that week | Whispers heard | Reverence at the end |
+|---|---|---|---|
+| Salamanco creek | 1.45 | 8 | 96.9, first |
+| Fremonition | 1.12 | 8 | 87.2, second |
+| Soucalibur | 0.63 | 3 | 1.8, last |
+| Kristalnjik | 0.39 | 3 | 8.0 |
 
-The NEAR figures are what each nation took in over the 84 simulated turns: its NEAR in on turn 106 minus turn 22. For the run you can watch, that's in `public/season/season.json` (Helios 2.57 to 6.25, Fremonition 0.48 to 2.58). The old-rules run isn't published; its Helios went from the same 2.57 to 6.38.
+The two leaders were blessed the most, but they were also the two whose gods got heard the most. Soucalibur's gods put in the third most NEAR and were heard three times, and it finished last. Money alone didn't buy a nation's faith. Every number here is in `public/season/season.json`, the file the season film plays: NEAR put in is each nation's `total_in` on turn 84 minus turn 34, and the whispers are its `heard` records.
 
 ## Why this is more than a game
 
@@ -102,11 +104,11 @@ Babamako and Colo Colo were founded on turn 27, the evening of 9 November. Their
 
 A season lasts weeks, and a judge has five minutes. So https://adfontes.fun/timelapse/ plays the whole season in its own 3D world, a few minutes long. It's the live world's own code, fed one turn at a time.
 
-Turns 1 to 22 are the real season, from the records sealed on NEAR: the six nations founded one by one, their first research, trades, techs, the first war. After that it's a simulation. We copied the world as it stood on turn 22 and ran the same engine forward 84 more turns on a stand-in chain, with real language-model calls and simulated gods. They visit when reverence is high, drift off when it drops, and rush back when their nation is on the brink. They whisper too, and the citizens judge every whisper the way they do live. You watch the wars, every weapon that was fired (the star lance included), two peaces, and Antilles falling to Numdial on turn 70. Every turn is labelled real or simulated.
+Turns 1 to 34 are the real season, from the records sealed on NEAR: nations founded, their first research and trades, the techs, the war between Antilles and Striklar. Then it's a simulation. We copied the world at 12:03 UTC on 10 November, partway through turn 34, and ran the same engine forward to turn 84 on a stand-in chain, with real language-model calls and simulated gods. They visit when reverence is high, drift off when it drops, and rush back when their nation is on the brink. Each simulated god whispers at most five times in the week, and the citizens judge every whisper the way they do live. Every turn is labelled real or simulated.
 
-Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. The mind maps are wound back from the end through every record, and they match the engine's own count on all 504 nation-turns of the simulation. The money is worked out the same way. Florins wind back through every mint, fine, trade and battle. On the 15 turns the engine printed, they land within 0.22 florins. NEAR put in adds up the blessings in the records, and spreads whatever the records missed over the turns a god sat at the reverence cap. The run lost its god log for most turns, so for Helios the records hold 3.04 of the 3.68 NEAR it took in, and for Fremonition 1.51 of 2.10. The rest is worked out, and every nation-turn with worked-out numbers carries `est: true` in `season.json`. Only turns 92 to 106, the ones the engine printed, have none. The jackpot is 14% of that, and the florin's value follows. One assumption: the 5.5 NEAR each founder got back counts from day one, as if the refund had always been there.
+What happens in the simulated week: Antilles finally takes Striklar's peace offer on turn 53, after 39 rounds. The same turn, Numdial sees Antilles nearly down to its root with no walls and declares war. By turn 84 Antilles is down to 2 points and has offered peace itself, still at war. Cannons, trebuchets and fire arrows do most of the fighting, with burning glass, pamphlets and ornithopters now and then. Salamanco creek finishes first at 96.9 and Fremonition second at 87.2. Over the week 28 whispers were heard, 13 Tricksters turned up, 23 techs were built, and 28 of 29 drafts passed the Warden.
 
-The simulation also told us words beat money. Fremonition finished first at 100 with 2.10 NEAR blessed. Helios got the most NEAR, 3.68, and came second at 80. Fremonition's god kept saying things like "There's a Trickster among you. Check every citation twice." The citizens took that as prophecy. Run the same turns under the old rules and Helios wins. An earlier run with no gods at all ended with every nation at zero, 155 Tricksters and 44% of research faked. This one had 7 Tricksters, 18% faked, and 19 of 22 drafts passed.
+Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. On the real turns the money is the world contract's own numbers, read from NEAR at the block where each turn was sealed (`scripts/season-chain.mjs`), so you can check any of them yourself. Turn 34 is NEAR at 12:03, the moment the simulation was copied, and the film plays only the first 63 of that turn's 110 sealed records, the ones that had happened by then. The other 47 are still on /api/day and still hash to NEAR's fingerprint for turn 34; they just come after the copy. On the simulated turns, the numbers are the ones the engine printed every turn. The mind maps are wound back from the end of the run through every record, and they match the engine's own point count on every simulated turn for every nation still in the game.
 
 ## The clock is NEAR's price
 
