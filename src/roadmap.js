@@ -32,15 +32,20 @@ const CHECKS = {
     }
     return wait("No sealed turn in the last four.");
   },
+  // Reads the keys themselves: each wallet must have exactly one, a function-call key for the world contract.
   async wallets() {
     const [b, p] = await Promise.all([view("testnet", "get_agent_wallet", { clan_id: 1, role: "Broker" }), view("testnet", "get_agent_wallet", { clan_id: 1, role: "Patron" })]);
-    return b && p ? ok(`Helios's Broker is ${b} and its Patron is ${p}.`) : wait("Not set up yet.");
+    if (!b || !p) return wait("Not set up yet.");
+    const keys = async (a) => (await fetch(RPC.testnet, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "query", params: { request_type: "view_access_key_list", finality: "final", account_id: a } }) }).then((x) => x.json())).result?.keys || [];
+    const [kb, kp] = await Promise.all([keys(b), keys(p)]);
+    const one = (k) => k.length === 1 && k[0].access_key.permission?.FunctionCall?.receiver_id === WORLD.testnet;
+    return one(kb) && one(kp) ? ok(`Helios's Broker ${b} holds one key, which can only call ${kb[0].access_key.permission.FunctionCall.method_names.join(", ")}. Its Patron's can only call ${kp[0].access_key.permission.FunctionCall.method_names.join(", ")}.`) : info("Their keys aren't what we say. Tell us.");
   },
   async aliases() { const w = await world(), live = w.clans.filter((c) => c.alive), named = live.filter((c) => c.alias); return named.length === live.length ? ok(`All ${live.length} nations have one, like ${named[0]?.alias}.`) : wait(`${named.length} of ${live.length} nations so far.`); },
   async tokens() { const n = await view("testnet", "mt_count"); return ok(`${n} kinds of token on the world contract.`); },
   async market() { const [l, s] = await view("testnet", "market_count"); return ok(`${l} listing${l === "1" ? "" : "s"} and ${s} sale${s === "1" ? "" : "s"} so far, all on chain.`); },
   async royalties() { const m = await api("market"); return m.counts.royalty_payments ? ok(`${m.counts.royalty_payments} paid so far, ${n2(m.counts.royalties)} florins in all.`) : wait("None paid yet."); },
-  async founding() { const [fund, min] = await view("testnet", "get_founding"); return N(fund) > 0 ? ok(`The fund holds ${n2(N(fund))} NEAR; founding a nation takes ${n2(N(min))} NEAR right now.`) : wait(`The fund is empty right now, so a new founder pays for the DAO: founding takes ${n2(N(min))} NEAR.`); },
+  async founding() { const [fund, min] = await view("testnet", "get_founding"); return N(fund) > 0 ? ok(`The fund holds ${n2(N(fund))} NEAR; founding a nation takes ${n2(N(min))} NEAR right now.`) : wait(`The fund is empty right now: a founder with their own wallet pays for the DAO (founding takes ${n2(N(min))} NEAR). The next player the pool sets up refills it.`); },
   async season() { const s = await fetch("/season/season.json").then((x) => x.json()); return ok(`Turns 1 to ${s.real_to} real, then ${s.last - s.real_to} simulated: ${s.last} in all.`); },
   async mainnetContract() {
     const has = await view("mainnet", "get_founding").then(() => true, () => false);

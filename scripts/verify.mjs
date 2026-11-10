@@ -38,8 +38,9 @@ const T = await view(WORLD, "get_totals");
 const bal = near(T.balance), owed = near(T.liabilities), store = near(T.storage_locked);
 ok(bal >= owed + store, `the contract holds ${bal.toFixed(4)} NEAR and owes ${owed.toFixed(4)} (gods' backing ${near(T.backing).toFixed(4)}, jackpot ${near(T.jackpot).toFixed(4)}, the rest set aside) plus ${store.toFixed(4)} locked for storage`,
   `margin ${(bal - owed - store).toFixed(4)} NEAR. get_totals on ${WORLD}`);
-const fv = near(T.florin_value), calc = near(T.backing) / (Number(BigInt(T.florins) / 10n ** 16n) / 1e6);
-ok(Math.abs(fv - calc) < 1e-5, `1 florin is worth ${fv.toFixed(6)} NEAR = backing / florins (${calc.toFixed(6)}), so every florin can be paid out`);
+// Exact, in yocto: florin_value = backing x 10^22 / florins (a florin is 10^22 units), rounded down.
+const calc = (BigInt(T.backing) * 10n ** 22n) / BigInt(T.florins);
+ok(calc === BigInt(T.florin_value), `1 florin is worth exactly backing / florins: ${T.florin_value} yoctoNEAR (about ${near(T.florin_value).toFixed(6)} NEAR), so every florin can be paid out`);
 
 // 2. The records: rebuild each of the last three sealed turns' Merkle roots from every record and
 // compare with the root the contract holds.
@@ -60,11 +61,13 @@ if (!checked) ok(false, "no sealed turn found");
 console.log("\n# 3. Do the agents hold their own wallets, with keys that can't move NEAR?");
 const live = W.clans.filter((c) => c.alive && c.wallets?.broker);
 const sample = live[Math.floor(Math.random() * live.length)];
+const METHODS = { broker: ["agent_buy", "market_buy", "market_delist", "market_list"], patron: ["agent_spend"] };
 for (const role of ["broker", "patron"]) {
   const acct = sample.wallets[role];
   const keys = (await rpc({ request_type: "view_access_key_list", account_id: acct })).keys;
-  const fc = keys.every((k) => k.access_key.permission?.FunctionCall?.receiver_id === WORLD);
-  ok(keys.length >= 1 && fc, `${sample.name}'s ${role === "broker" ? "Broker" : "Patron"} ${acct}: ${keys.length} key(s), every one a function-call key for ${WORLD} only`,
+  const fc = keys[0]?.access_key.permission?.FunctionCall;
+  const own = fc && fc.receiver_id === WORLD && [...(fc.method_names || [])].sort().join() === METHODS[role].join();
+  ok(keys.length === 1 && own, `${sample.name}'s ${role === "broker" ? "Broker" : "Patron"} ${acct}: exactly one key, a function-call key for ${WORLD} that can only call ${METHODS[role].join(", ")}`,
     keys.map((k) => { const p = k.access_key.permission; return p === "FullAccess" ? "FULL ACCESS" : `${p.FunctionCall.receiver_id}: ${(p.FunctionCall.method_names || []).join(", ") || "any method"}, allowance ${p.FunctionCall.allowance ? near(p.FunctionCall.allowance) + " NEAR of gas" : "none"}`; }).join("\n      "));
 }
 
