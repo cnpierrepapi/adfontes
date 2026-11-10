@@ -22,10 +22,10 @@ export async function loadSeason() {
     const fl = c.florins, value = turn(d).totals?.florin_value ?? null;
     return {
       id, name: n.name, dao: n.dao, field: n.field, mbti: n.mbti, alias: n.alias,
-      alive: !c.fallen, fallen: c.fallen, seen: true, gods: c.gods, war: c.war,
+      alive: c.alive ?? !c.fallen, fallen: c.fallen, seen: true, gods: c.gods, war: c.war, // alive false + no gods: ended, the island leaves
       florins: fl, worth: fl != null && value != null ? +(fl * value).toFixed(4) : null, total_in: c.total_in,
       clean_gifts: c.clean_gifts, fortune: c.fortune ?? 1, tricksters: c.tricksters, points: c.points, depth: c.depth, line: c.line,
-      reverence: c.reverence, techs: c.techs, mood: c.mood, walls: c.walls, tokens: null, est: !!c.est,
+      reverence: c.reverence, techs: c.techs, mood: c.mood, walls: c.walls, tokens: null,
     };
   }
   function world(d) {
@@ -47,7 +47,7 @@ export async function loadSeason() {
     if (!n || !c) return { error: "no such clan" };
     const points = pointsAt(id, d), have = new Set(points.map((p) => p.point));
     return {
-      id, field: n.field, mbti: n.mbti, fortune: c.fortune ?? 1, alive: !c.fallen, points,
+      id, field: n.field, mbti: n.mbti, fortune: c.fortune ?? 1, alive: c.alive ?? !c.fallen, points,
       frontier: (S.frontier[id] || []).filter(([, parent]) => have.has(parent)).slice(0, 40).map(([point, parent, depth]) => ({ point, parent, depth })),
       frontier_total: 0, line: c.line, depth: c.depth,
       drafts: S.drafts.filter((x) => x.clan === id && x.day <= d).map((x) => ({ id: x.id, day: x.day, passed: x.passed, title: x.title, chain: x.chain })),

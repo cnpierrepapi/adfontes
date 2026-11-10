@@ -10,7 +10,10 @@
 //   mind maps          the sim's final state, rewound turn by turn through the records (research,
 //                      buys and ruins add points; battles and root-outs take them away). Checked:
 //                      the rewound point count must equal the engine's printed count every sim turn.
-//   florins before REAL_TO: not printed by the engine then, so marked unknown (null), never guessed.
+//   money, turns 1..REAL_TO: the world contract's own numbers at the end of each turn, read from NEAR's
+//                      history (scripts/season-chain.mjs); turn REAL_TO is NEAR at the moment the sim was
+//                      seeded. Nations that ended before the sim (their last god claimed out) come from
+//                      their sealed records: their island rises on its founding turn and leaves when it ends.
 //
 //   node scripts/season-build.mjs [simDir=debug/sim-gods] [site=https://adfontes.fun]
 import fs from "node:fs";
@@ -67,6 +70,10 @@ const getJSON = async (path) => {
 // ---- every turn's records ----
 const days = {};
 for (let d = 1; d <= REAL_TO; d++) days[d] = (await getJSON(`day?d=${d}`)).records || [];
+// The sim was copied partway through its seed turn (10 Nov: turn 34 was cut after its first 63 records
+// and finished after the copy). --seed-records N keeps only the first N sealed records of that turn,
+// the ones that had happened when the sim began, so the film's turn REAL_TO is the sim's starting point.
+{ const i = process.argv.indexOf("--seed-records"); if (i > 0) { const n = Number(process.argv[i + 1]); console.log(`turn ${REAL_TO}: the first ${n} of its ${days[REAL_TO].length} sealed records (the sim began after them)`); days[REAL_TO] = days[REAL_TO].slice(0, n); } }
 const simDir = `${SIM}/state/testnet`;
 for (const f of fs.readdirSync(simDir).filter((f) => /^day-\d+\.json$/.test(f))) {
   const d = parseInt(f.slice(4));
@@ -137,11 +144,27 @@ for (const line of fs.readFileSync(`${SIM}/run.log`, "utf8").split("\n")) {
 // ---- the nations ----
 const clanIds = S.clans ? Object.keys(S.clans).map(Number).sort((a, b) => a - b) : [];
 const chainClan = (id) => CH.clans.find((c) => c.id === id);
+const firstOnChain = (id) => { for (let d = 1; d <= REAL_TO; d++) { const f = `${CACHE}/chain-turn-${d}.json`; if (fs.existsSync(f) && JSON.parse(fs.readFileSync(f, "utf8")).clans[id]) return d; } return null; };
+const foundedRec = (id) => Object.entries(days).flatMap(([d, rs]) => rs.filter((r) => r.kind === "founded" && r.clan === id).map((r) => ({ d: Number(d), r })))[0];
 const nations = clanIds.map((id) => {
   const st = S.clans[id], b = before.clans.find((c) => c.id === id) || {};
-  const founded = Object.entries(days).flatMap(([d, rs]) => rs.filter((r) => r.kind === "founded" && r.clan === id).map(() => Number(d)))[0] ?? 1;
+  // No founding record sealed for it: the first turn NEAR lists the nation (checkable at that turn's block).
+  const founded = foundedRec(id)?.d ?? firstOnChain(id) ?? 1;
   return { id, name: chainClan(id)?.name ?? b.name, dao: chainClan(id)?.dao ?? b.dao, field: st.field, mbti: st.mbti, alias: b.alias ?? st.alias ?? null, founded };
 });
+// Nations that came and went before the sim began (their last god claimed out): founded and gone in the
+// real turns. Their island leaves on the first turn NEAR shows them ended.
+for (const c of CH.clans) {
+  if (clanIds.includes(c.id)) continue;
+  const f = foundedRec(c.id);
+  if (!f) continue;
+  let gone = null;
+  for (let d = f.d; d <= REAL_TO && gone == null; d++) { const f2 = `${CACHE}/chain-turn-${d}.json`; if (fs.existsSync(f2) && JSON.parse(fs.readFileSync(f2, "utf8")).clans[c.id]?.alive === false) gone = d; }
+  const alias = Object.values(days).flat().find((r) => r.kind === "alias" && r.clan === c.id)?.account ?? null;
+  nations.push({ id: c.id, name: c.name, dao: c.dao, field: f.r.field, mbti: null, alias, founded: f.d, ended: gone ?? REAL_TO });
+}
+nations.sort((a, b) => a.id - b.id);
+const endedIds = new Set(nations.filter((n) => n.ended).map((n) => n.id));
 
 // ---- what each point looks like (parent, depth, how): the sim's final state, the live world now
 // (points the sim burned are still there), the sim's frontier ----
@@ -151,13 +174,13 @@ const info = {};
 for (const n of nations) {
   const I = (info[n.id] = {});
   for (const p of live[n.id].points || []) I[p.point] = { parent: p.parent, depth: p.depth, how: p.how, corpus: p.corpus?.id ?? null };
-  for (const [k, v] of Object.entries(S.clans[n.id].frontier || {})) I[k] ??= { parent: v.parent, depth: v.depth, how: "researched", corpus: null };
-  for (const [k, v] of Object.entries(S.clans[n.id].owned)) I[k] = { parent: v.parent, depth: v.depth, how: v.how, corpus: v.corpus ?? null, stir: v.stir };
+  for (const [k, v] of Object.entries(S.clans[n.id]?.frontier || {})) I[k] ??= { parent: v.parent, depth: v.depth, how: "researched", corpus: null };
+  for (const [k, v] of Object.entries(S.clans[n.id]?.owned || {})) I[k] = { parent: v.parent, depth: v.depth, how: v.how, corpus: v.corpus ?? null, stir: v.stir };
 }
 
 // ---- rewind the mind maps: owned[d][clan] = the set of points it held at the end of turn d ----
 const owned = {};
-const now = Object.fromEntries(nations.map((n) => [n.id, new Set(Object.keys(S.clans[n.id].owned))]));
+const now = Object.fromEntries(nations.map((n) => [n.id, new Set(Object.keys(S.clans[n.id]?.owned || {}))]));
 const extra = {}; // points that came back on rewind and the sim's final state doesn't describe
 for (let d = LAST; d >= 1; d--) {
   owned[d] = Object.fromEntries(nations.map((n) => [n.id, [...now[n.id]]]));
@@ -172,9 +195,23 @@ for (let d = LAST; d >= 1; d--) {
     else if (r.kind === "founded") now[r.clan] = new Set();
   }
 }
+// The ended nations: nothing to rewind from (they're gone at the end), so their maps are built forward
+// from their own records: the field they were founded on, then each write-up and each bought point.
+for (const n of nations.filter((x) => x.ended)) {
+  let set = new Set();
+  for (let d = 1; d <= LAST; d++) {
+    for (const r of days[d]) {
+      if (r.kind === "founded" && r.clan === n.id) set = new Set([n.field]);
+      else if (r.kind === "corpus" && r.clan === n.id && !r.fake) set.add(r.point);
+      else if (r.kind === "trade" && r.buyer === n.id && !r.tool && r.point) set.add(r.point);
+      else if (r.kind === "market-sale" && r.buyer === n.id && r.learned) set.add(r.learned);
+    }
+    owned[d][n.id] = d >= n.founded && d < n.ended ? [...set] : [];
+  }
+}
 // Check against the engine's own count on every sim turn.
 let bad = 0;
-for (let d = REAL_TO + 1; d <= LAST; d++) for (const n of nations) {
+for (let d = REAL_TO + 1; d <= LAST; d++) for (const n of nations.filter((x) => !x.ended)) {
   const want = status[d]?.[n.id]?.points, got = owned[d][n.id].length;
   if (want != null && want !== got) { bad++; if (bad <= 12) console.log(`MISMATCH turn ${d} ${n.name}: rewound ${got} points, engine printed ${want}`); }
 }
@@ -214,9 +251,11 @@ for (let d = 1; d <= LAST; d++) {
   W[d] = {};
   for (const n of nations) {
     if (d < n.founded) continue;
+    // Ended (its last god claimed out): from that turn on it's gone, and the world takes its island down.
+    if (n.ended && d >= n.ended) { W[d][n.id] = { gone: true, alive: false, gods: 0, points: 0, depth: 0, line: [], florins: 0, total_in: 0, techs: [], tricksters: 0, walls: 0, reverence: null, fallen: null, war: { walls: 0, fairGame: false } }; continue; }
     const id = n.id, pts = owned[d][id];
     const c = { owned: Object.fromEntries(pts.map((p) => [p, { ...(info[id][p] || { parent: n.field, depth: 1 }) }])), field: n.field };
-    if (c.owned[n.field]) c.owned[n.field].depth = 0;
+    if (c.owned[n.field]) { c.owned[n.field].depth = 0; c.owned[n.field].parent = null; } // the root topic hangs off nothing (an ended nation has no saved map, so it must not point at itself)
     const s = status[d]?.[id];
     // The last turn reads the sim's final state: a turn whose research failed (OpenAlex 429) skipped the
     // nation's reverence record, so Helios and Fremonition have none after day 80 in debug/ab-new.
@@ -237,88 +276,42 @@ for (let d = 1; d <= LAST; d++) {
     };
   }
 }
-// ---- backfill (his call 9 Nov): every turn shows a value. Nothing is re-run; it is all arithmetic on
-// the records, anchored on turns whose numbers we have (the live world on turn REAL_TO, the engine's
-// printed turns, the sim's final state). est: true marks what is worked out rather than printed.
+// ---- the money, from NEAR (his call 10 Nov: every number checkable) ----
+// Real turns: what the world contract held at the end of each turn, read at the block where the turn's
+// root was sealed (scripts/season-chain.mjs). The last real turn is the moment the simulation was seeded
+// from (it was copied mid-turn), so turn REAL_TO shows NEAR's state at that moment. Sim turns: the numbers
+// the engine printed every turn of the run. Nothing here is worked out or guessed.
 const totalsOut = {};
 {
-  const known = (d) => status[d] && Object.values(status[d]).some((x) => x.total_in != null);
-  // 1. Florins on the real turns: wound back from the live world on turn REAL_TO through the real
-  //    records. That world already held the founders' refunded 5.5 NEAR as florins (granted 9 Nov), so
-  //    winding back carries those florins to each founding: as if the refund was there from the start.
-  const F = Object.fromEntries(before.clans.map((c) => [c.id, c.florins]));
-  for (let d = REAL_TO - 1; d >= 1; d--) {
-    const e = florinFx(days[d + 1] || []);
-    for (const id of Object.keys(F)) F[id] -= e[id] || 0;
-    for (const n of nations) if (W[d]?.[n.id] && W[d][n.id].florins == null) { W[d][n.id].florins = +Math.max(0, F[n.id]).toFixed(3); W[d][n.id].est = true; }
-  }
-  // 2. NEAR put in. Real turns: wound back from turn REAL_TO by the blessings the records show.
-  const N = Object.fromEntries(before.clans.map((c) => [c.id, c.total_in]));
-  for (let d = REAL_TO - 1; d >= 1; d--) {
-    const b = blessedIn(days[d + 1] || []);
-    for (const id of Object.keys(N)) N[id] = Math.max(0, N[id] - (b[id] || 0));
-    for (const n of nations) if (W[d]?.[n.id] && W[d][n.id].total_in == null) { W[d][n.id].total_in = +N[n.id].toFixed(4); W[d][n.id].est = true; }
-  }
-  //    Sim turns with no printed number: between two known turns, add the blessings the records show;
-  //    whatever the records don't show (a blessing made at the reverence cap leaves none) is spread over
-  //    the turns where one of the nation's gods sat at the cap, or evenly if none did.
-  const knownDays = [REAL_TO, ...Object.keys(status).map(Number).filter((d) => d > REAL_TO && known(d))].sort((a, b) => a - b);
-  const inAt = (d, id) => (d === REAL_TO ? before.clans.find((c) => c.id === id)?.total_in : status[d][id]?.total_in);
-  for (let k = 0; k + 1 < knownDays.length; k++) {
-    const a = knownDays[k], z = knownDays[k + 1];
-    if (z - a < 2) continue;
+  const chainTurn = (d) => { const f = `${CACHE}/chain-turn-${d}.json`; if (!fs.existsSync(f)) throw new Error(`missing ${f}: run node scripts/season-chain.mjs`); return JSON.parse(fs.readFileSync(f, "utf8")); };
+  for (let d = 1; d <= REAL_TO; d++) {
+    const C = chainTurn(d);
+    totalsOut[d] = C.totals;
     for (const n of nations) {
-      const start = inAt(a, n.id), end = inAt(z, n.id);
-      if (start == null || end == null) continue;
-      const seen = {}; let sum = 0;
-      for (let d = a + 1; d <= z; d++) { seen[d] = blessedIn(days[d])[n.id] || 0; sum += seen[d]; }
-      const capped = [];
-      for (let d = a + 1; d <= z; d++) { const g = W[d - 1]?.[n.id]?.reverence?.gods || {}; if (Object.values(g).some((x) => (x.r ?? 0) >= 59.5)) capped.push(d); }
-      const spread = capped.length ? capped : Array.from({ length: z - a }, (_, i) => a + 1 + i);
-      const rest = Math.max(0, end - start - sum);
-      let v = start;
-      for (let d = a + 1; d < z; d++) {
-        v += seen[d] + (spread.includes(d) ? rest / spread.length : 0);
-        if (W[d]?.[n.id] && W[d][n.id].total_in == null) { W[d][n.id].total_in = +v.toFixed(4); W[d][n.id].est = true; }
-      }
+      const x = W[d]?.[n.id], c = C.clans[n.id];
+      if (!x || !c || x.gone) continue;
+      x.florins = c.florins; x.total_in = c.total_in; x.gods = c.gods;
     }
   }
-  // 3. Mood and fortune on the real turns: a new nation starts content with fortune 1; needs records
-  //    change the mood, rulings the fortune.
+  for (let d = REAL_TO + 1; d <= LAST; d++) {
+    totalsOut[d] = totals[d] ?? null;
+    for (const n of nations) { const x = W[d]?.[n.id], s = status[d]?.[n.id]; if (x && s && !x.gone) { x.florins = s.florins; x.total_in = s.total_in; } }
+  }
+  // Mood and fortune on the real turns, forward through the records: a new nation starts content with
+  // fortune 1; needs records change the mood, rulings the fortune.
   const mood = {}, fortune = {};
   for (let d = 1; d <= REAL_TO; d++) {
     for (const r of days[d]) { if (r.kind === "founded") { mood[r.clan] = "content"; fortune[r.clan] = 1; } if (r.kind === "needs" && r.mood) mood[r.clan] = r.mood; if (r.kind === "ruling" && r.fortune != null) fortune[r.clan] = r.fortune; }
-    for (const n of nations) { const x = W[d]?.[n.id]; if (!x) continue; if (x.mood == null) { x.mood = mood[n.id] ?? "content"; x.est = true; } if (x.fortune == null) { x.fortune = fortune[n.id] ?? 1; x.est = true; } }
+    for (const n of nations) { const x = W[d]?.[n.id]; if (!x || x.gone) continue; x.mood ??= mood[n.id] ?? "content"; x.fortune ??= fortune[n.id] ?? 1; }
   }
-  // 4. The world's totals. Checked on every printed turn: jackpot = 14% of all NEAR put in; backing =
-  //    86% of it plus the founders' grants (a constant); florin value = backing / florins. All florins
-  //    (gods' and fallen nations' included) wind back by what each turn made and destroyed.
-  const T = (d) => totals[d] ?? (d === REAL_TO ? before.totals : null);
-  const sumIn = (d) => Object.values(W[d] || {}).reduce((a, x) => a + (x.total_in || 0), 0);
-  const grants = before.totals.backing - 0.86 * sumIn(REAL_TO);
-  let fl = null, minted = null, burned = null;
-  for (let d = LAST; d >= 1; d--) {
-    if (T(d) && d === REAL_TO && fl != null) console.log(`backfill: all florins wound back to turn ${REAL_TO}: ${fl.toFixed(1)}, the live world had ${T(d).florins.toFixed(1)}`);
-    if (T(d)) { fl = T(d).florins; minted = T(d).minted; burned = T(d).burned; totalsOut[d] = T(d); }
-    else if (fl != null) {
-      const jackpot = +(0.14 * sumIn(d)).toFixed(6), backing = +(0.86 * sumIn(d) + grants).toFixed(6);
-      totalsOut[d] = { balance: null, owed: null, backing, florins: +fl.toFixed(3), florin_value: +(backing / fl).toFixed(6), minted: +minted.toFixed(3), burned: +burned.toFixed(3), jackpot, est: true };
-    }
-    const mb = mintBurn(days[d] || []);
-    // A blessing mints its god shares: 86% of the NEAR, at that turn's florin value.
-    const blessFl = d > 1 && fl != null ? (0.86 * Math.max(0, sumIn(d) - sumIn(d - 1))) / ((0.86 * sumIn(d) + grants) / fl) : 0;
-    if (fl != null) { fl -= mb.minted - mb.burned + blessFl; minted -= mb.minted; burned -= mb.burned; }
-  }
-  // Checks: the backing constant on every printed turn, and every value filled.
-  let worst = 0;
-  for (const d of knownDays) if (d > REAL_TO && T(d)) worst = Math.max(worst, Math.abs(T(d).backing - (0.86 * sumIn(d) + grants)), Math.abs(T(d).jackpot - 0.14 * sumIn(d)));
+  // Every value filled?
   let gaps = 0;
-  for (let d = 1; d <= LAST; d++) { if (!totalsOut[d]) gaps++; for (const x of Object.values(W[d] || {})) for (const k of ["florins", "total_in", "mood", "fortune"]) if (x[k] == null) gaps++; }
-  console.log(`backfill: totals formula off by at most ${worst.toFixed(4)} NEAR on printed turns; ${gaps} values still empty; founding florins ${nations.map((n) => `${n.name} ${Math.round(W[n.founded]?.[n.id]?.florins ?? NaN)}`).join(", ")}`);
+  for (let d = 1; d <= LAST; d++) { if (d > 1 && !totalsOut[d]) gaps++; for (const x of Object.values(W[d] || {})) if (!x.gone) for (const k of ["florins", "total_in", "mood", "fortune"]) if (x[k] == null) gaps++; }
+  console.log(`money: turns 1-${REAL_TO} from NEAR, ${REAL_TO + 1}-${LAST} as the engine printed them; ${gaps} values empty`);
 }
 
 // Walls check: the rebuilt walls against the sim's final state.
-for (const n of nations) { const want = +(S.clans[n.id].walls || 0).toFixed(1), got = W[LAST][n.id]?.walls; if (Math.abs(want - got) > 0.5) console.log(`walls: ${n.name} rebuilt ${got}, final state ${want}`); }
+for (const n of nations.filter((x) => !x.ended)) { const want = +(S.clans[n.id].walls || 0).toFixed(1), got = W[LAST][n.id]?.walls; if (Math.abs(want - got) > 0.5) console.log(`walls: ${n.name} rebuilt ${got}, final state ${want}`); }
 
 // ---- each point's life: [point, parent, depth, how, from, to] (to = null: still held at the end) ----
 const lives = {};
@@ -336,7 +329,7 @@ const pointInfo = Object.fromEntries(nations.map((n) => [n.id, Object.fromEntrie
 // ---- the citizens, the drafts, the sky's faint edge ----
 const agents = Object.fromEntries(nations.map((n) => [n.id, (CH.agents[n.id] || []).map((a) => ({ name: a.name, role: a.role, born_day: a.born_day ?? 0, alive: a.alive !== false, stunted_until: a.stunted_until ?? 0 }))]));
 const drafts = Object.values(S.drafts || {}).map((x) => ({ id: x.id, clan: x.clan, day: x.day, passed: !!x.passed, title: x.title || x.draft?.title || null, chain: x.chain || [] }));
-const frontier = Object.fromEntries(nations.map((n) => [n.id, Object.entries(S.clans[n.id].frontier || {}).slice(0, 80).map(([k, v]) => [k, v.parent, v.depth])]));
+const frontier = Object.fromEntries(nations.map((n) => [n.id, Object.entries(S.clans[n.id]?.frontier || {}).slice(0, 80).map(([k, v]) => [k, v.parent, v.depth])]));
 
 // ---- the turns: clock, totals, records (trimmed to what the world plays and the captions say) ----
 const KEEP = new Set(["clock", "corpus", "trade", "gift", "warden", "trickster", "absorb", "tech", "founded", "rooted", "ruling", "tool", "war", "battle", "fortify", "peace-offer", "peace", "fallen", "council", "bless", "report", "report-settled", "needs", "listed", "market-buy", "royalty", "market-sale", "delisted", "broker", "heard"]); // the last four feed the plain view (market, gods)
