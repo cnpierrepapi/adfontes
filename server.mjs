@@ -4,6 +4,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import zlib from "node:zlib";
+import crypto from "node:crypto";
 import path from "node:path";
 import { JsonRpcProvider } from "near-api-js";
 import { NETWORKS, florinRates } from "./engine/config.mjs";
@@ -192,6 +193,8 @@ function makeApi(NET) {
               total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
               field: st.field ?? null, mbti: st.mbti ?? null, fortune: st.fortune ?? 1,
               seen: !!s.clans[c.id], tricksters: st.tricksters ?? 0,
+              // Born (10 Nov): the engine has made its people, so the page can raise the island with them on it.
+              ready: !!st.teamDone,
               points: Object.keys(st.owned || {}).length, depth: st.owned ? chainDepth(st) : 0,
               line: st.owned ? deepestChain(st) : [],
               reverence: revOf(s, c.id),
@@ -215,7 +218,10 @@ function makeApi(NET) {
       const id = whole(q, "id", 1);
       // ?d=<day> only splits the cache, so the live world can ask for the map right after a new day.
       const d = Number(q.get("d")) || 0;
-      return cachedN(`clan:${id}:${d}`, 20_000, async () => {
+      // ?fresh=1 (10 Nov): a nation being born asks for its people as they arrive; a 2-second bucket
+      // instead of the 20-second cache, so "no citizens yet" never sticks around.
+      const fresh = q.get("fresh") ? `:f${Math.floor(Date.now() / 2000)}` : "";
+      return cachedN(`clan:${id}:${d}${fresh}`, fresh ? 2_000 : 20_000, async () => {
         const [s, agents, drafts] = await Promise.all([stateNow(), view("list_agents", { clan_id: id, limit: 100 }), store.listDrafts(NET, 12, id)]);
         const st = s.clans[id];
         if (!st) return { error: "no such clan" };
@@ -484,7 +490,12 @@ function serveStatic(req, res, url) {
   // Held in memory (and gzipped once) instead of read from disk on every request: load test 8 Nov.
   const f = fileOf(p);
   const gz = f.gz && /gzip/.test(req.headers["accept-encoding"] || "");
-  res.writeHead(200, { "content-type": TYPES[path.extname(p)] || "application/octet-stream", "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache", vary: "accept-encoding", ...(gz ? { "content-encoding": "gzip" } : {}), "content-length": (gz ? f.gz : f.raw).length });
+  // Every file carries an ETag (10 Nov), so a reload asks "changed?" and gets a tiny 304 instead of
+  // the whole file. The citizen models (6.2 MB) are kept a day without even asking: they used to be
+  // downloaded again on every reload, which is why the plaza showed dots for a couple of seconds.
+  const cache = immutable ? "public, max-age=31536000, immutable" : p.endsWith(".glb") ? "public, max-age=86400" : "no-cache";
+  if (req.headers["if-none-match"] === f.etag) { res.writeHead(304, { etag: f.etag, "cache-control": cache }); return res.end(); }
+  res.writeHead(200, { etag: f.etag, "content-type": TYPES[path.extname(p)] || "application/octet-stream", "cache-control": cache, vary: "accept-encoding", ...(gz ? { "content-encoding": "gzip" } : {}), "content-length": (gz ? f.gz : f.raw).length });
   res.end(req.method === "HEAD" ? undefined : gz ? f.gz : f.raw);
 }
 const files = new Map(); // path -> { raw, gz, mtime }
@@ -493,7 +504,7 @@ function fileOf(p) {
   if (hit && hit.mtime === mtime) return hit;
   const raw = fs.readFileSync(p);
   const gz = /\.(js|css|html|svg|json|txt)$/.test(p) && raw.length > 1024 ? zlib.gzipSync(raw, { level: 9 }) : null;
-  const f = { raw, gz, mtime };
+  const f = { raw, gz, mtime, etag: `"${crypto.createHash("sha1").update(raw).digest("base64url").slice(0, 22)}"` };
   if (raw.length < 20e6) files.set(p, f);
   return f;
 }
