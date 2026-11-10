@@ -235,6 +235,11 @@ for (let n = 0; n < days; n++) {
       s.walked[wk] = { at: Date.now(), price: ask.price };
       return { walked: true, ask };
     }
+    // The buyer already holds this on NEAR (10 Nov: "You already have that"): no deal, nothing to pay.
+    if (token[0] !== "p") {
+      const mine = await chain.mtBalances(chain.agentId(buyer, "Broker"), [token]).catch(() => null);
+      if (mine && BigInt(mine[0] || 0) > 0n) return { walked: true, quiet: true, ask };
+    }
     let listTx = null;
     if (!shelf) {
       // Its own token, made now if it isn't on NEAR yet (research written earlier this same turn is
@@ -274,7 +279,18 @@ for (let n = 0; n < days; n++) {
         all.push({ id: L.value, seller, token_id: token, price: ask.price, kind: token[0] === "p" ? "sale" : "copy", open: true, reason: ask.why, sold: 0 });
       }
     }
-    const b = await chain.marketBuy(buyer, ask.listing, buyerWhy);
+    let b;
+    try { b = await chain.marketBuy(buyer, ask.listing, buyerWhy); }
+    catch (e) {
+      // Bought it before (the contract remembers every buyer of a copy): skip quietly, and don't ask
+      // again for a day.
+      if (!/You already have that/i.test(String(e.message || e))) throw e;
+      (s.walked ||= {})[wk] = { at: Date.now(), price: ask.price };
+      if (listTx) { // listed just for this deal: take it back down
+        try { await chain.marketDelist(seller, ask.listing); const x = all.find((y) => y.id === ask.listing); if (x) x.open = false; } catch {}
+      }
+      return { walked: true, quiet: true, ask };
+    }
     const l = all.find((x) => x.id === ask.listing);
     if (l) { l.sold = (l.sold || 0) + 1; if (l.kind === "sale") l.open = false; }
     if (!shelf && token[0] !== "p") {
