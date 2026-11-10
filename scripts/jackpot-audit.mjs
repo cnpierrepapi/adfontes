@@ -34,8 +34,13 @@ do {
   const u = new URL(NB);
   u.searchParams.set("limit", "100");
   if (next) u.searchParams.set("next", next);
-  const j = await (await fetch(u, { headers: { "user-agent": "adfontes-audit" } })).json();
-  if (!j.data) throw new Error(`NearBlocks: ${JSON.stringify(j).slice(0, 200)}`);
+  // NearBlocks' free API has a request limit: wait and try again rather than give up.
+  let j = null;
+  for (let t = 0; t < 8 && !j?.data; t++) {
+    j = await (await fetch(u, { headers: { "user-agent": "adfontes-audit" } })).json().catch(() => null);
+    if (!j?.data) { console.log(`NearBlocks said "${String(j?.message ?? "no answer").slice(0, 60)}"; waiting ${15 * (t + 1)} s`); await sleep(15000 * (t + 1)); }
+  }
+  if (!j?.data) throw new Error(`NearBlocks: ${JSON.stringify(j).slice(0, 200)}`);
   for (const t of j.data) if (t.outcomes?.status && t.actions.some((a) => a.method === "found_clan" || a.method === "bless")) deposits.push(t);
   next = j.meta?.next_page || null;
   await sleep(1100);
