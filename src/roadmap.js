@@ -68,7 +68,9 @@ async function load() {
       list.append(li);
       if (it.check && CHECKS[it.check]) CHECKS[it.check]().then((r) => { status.textContent = r.text; status.className = `rm-status ${r.state}`; }).catch((e) => { status.textContent = `Couldn't check just now (${String(e.message || e).slice(0, 60)}).`; status.className = "rm-status info"; });
     }
-    return el("section", { id: g.id }, el("h2", { textContent: g.title }), el("p", { textContent: g.intro }), list);
+    const intro = el("p", { textContent: g.intro });
+    if (g.link) intro.append(" ", el("a", { href: g.link.href, textContent: g.link.text }), ".");
+    return el("section", { id: g.id }, el("h2", { textContent: g.title }), intro, list);
   });
   $("groups").replaceChildren(...sections);
 }

@@ -82,7 +82,7 @@ body.page .proof-out:not(:empty) { margin-top: 10px; padding: 12px 14px; border-
 .rm-item { display: grid; grid-template-columns: 14px 1fr; gap: 12px; align-items: start; background: #fff; border-radius: 14px; padding: 12px 14px; box-shadow: 0 2px 8px rgba(29, 20, 48, 0.06); }
 .rm-item p { margin: 3px 0 0; }
 .rm-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; background: #bbb; }
-.rm-dot.done { background: var(--leaf); } .rm-dot.next { background: var(--gold); } .rm-dot.later { background: var(--sky); } .rm-dot.not { background: #b9b1a6; }
+.rm-dot.done { background: var(--leaf); } .rm-dot.next { background: var(--gold); } .rm-dot.mainnet { background: #8f5bd6; } .rm-dot.later { background: var(--sky); } .rm-dot.not { background: #b9b1a6; }
 .rm-item.not b { text-decoration: line-through; text-decoration-color: rgba(29, 20, 48, 0.35); }
 .rm-status { display: inline-block; font-size: 0.82rem; margin-top: 6px !important; padding: 3px 10px; border-radius: 999px; background: #f2eff7; color: #5b5170; }
 .rm-status.ok { background: #e3f7ec; color: #13824a; }
@@ -117,3 +117,8 @@ body.page .proof-out:not(:empty) { margin-top: 10px; padding: 12px 14px; border-
 @keyframes talk-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes talk-dot { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
 @media (max-width: 700px) { .talk-msg { max-width: 92%; } .talk-chat { max-height: 70vh; padding: 12px; } }
+/* Season 1 on mainnet: the worked example of the stake rule */
+.rm-table { border-collapse: collapse; margin: 6px 0 4px; font-size: 0.92rem; min-width: min(420px, 100%); }
+.rm-table th, .rm-table td { padding: 6px 14px 6px 0; text-align: left; border-bottom: 1px solid rgba(29, 20, 48, 0.1); font-variant-numeric: tabular-nums; }
+.rm-table th { font-weight: 600; color: #5b5170; }
+.rm-table td:not(:first-child), .rm-table th:not(:first-child) { text-align: right; padding-left: 18px; }

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-09",
+  "updated": "10 November 2026",
   "groups": [
     {
       "id": "done",
@@ -10,6 +10,15 @@
       "id": "next",
       "title": "Next",
       "intro": "What we said we'd do before the season ends."
+    },
+    {
+      "id": "mainnet",
+      "title": "Season 1 on mainnet",
+      "intro": "After the hackathon, Season 1 opens on mainnet with real NEAR and a few things testnet can't do. How it all fits together is on one page:",
+      "link": {
+        "href": "/roadmap/season1/",
+        "text": "Season 1 on mainnet, explained"
+      }
     },
     {
       "id": "later",
@@ -84,29 +93,6 @@
     },
     {
       "group": "next",
-      "check": "mainnetContract",
-      "title": "Mainnet gets the current contract",
-      "text": "Mainnet still runs the first version. The current contract goes on mainnet as a fresh world, and the old one retires once its god has taken their NEAR out."
-    },
-    {
-      "group": "next",
-      "title": "Founders keep every NEAR they put in",
-      "text": "On mainnet the world pays for a new nation's DAO and its share of the jackpot, so a founder who puts in 5 NEAR gets 5 NEAR of florins."
-    },
-    {
-      "group": "next",
-      "check": "mainnetEngine",
-      "title": "The world runs on mainnet too",
-      "text": "The engine only runs testnet today. It starts on mainnet the day the new world is funded, with testnet still running alongside for free play."
-    },
-    {
-      "group": "next",
-      "check": "intents",
-      "title": "A real cross-chain top-up",
-      "text": "One real NEAR Intents swap on mainnet, about $4, to prove gods can pay in from another chain end to end."
-    },
-    {
-      "group": "next",
       "check": "refill",
       "title": "The testnet pool refills itself",
       "text": "The pool that funds new players only goes down right now. NEAR's testnet helper can top it up every 12 hours; that needs wiring in."
@@ -128,6 +114,59 @@
       "text": "A narrated film of the season, like the intro and in the same voice, cut from the season's real records: the foundings, the wars, the falls, who traded with whom."
     },
     {
+      "group": "mainnet",
+      "check": "mainnetContract",
+      "title": "Mainnet gets the current contract",
+      "text": "There's no mainnet world right now: the first version was retired on 10 November and its NEAR came back. The current contract goes on mainnet in a fresh account."
+    },
+    {
+      "group": "mainnet",
+      "title": "Founders keep every NEAR they put in",
+      "text": "On mainnet the world pays for a new nation's DAO and its share of the jackpot, so a founder who puts in 5 NEAR gets 5 NEAR of florins."
+    },
+    {
+      "group": "mainnet",
+      "check": "mainnetEngine",
+      "title": "The world runs on mainnet too",
+      "text": "The engine only runs testnet today. It starts on mainnet the day the new world is funded, with testnet still running alongside for free play."
+    },
+    {
+      "group": "mainnet",
+      "check": "intents",
+      "title": "A real cross-chain top-up",
+      "text": "Pay in from any chain with NEAR Intents and the NEAR lands in your account, ready to found or bless. One real swap, about $4, proves it end to end. Mainnet only."
+    },
+    {
+      "group": "mainnet",
+      "title": "Nations pay for their own thinking",
+      "text": "Each nation stakes NEAR in House of Stake, and only the yield turns into NEAR AI credits that pay for its research. The stake itself stays the nation's. Our account becomes the backup. Mainnet only: the staking contract has no testnet version."
+    },
+    {
+      "group": "mainnet",
+      "title": "Player-owned stake markets",
+      "text": "Gods trade their stakes in a nation with each other, so you can buy into a nation that's doing well or sell out of one that isn't, without claiming."
+    },
+    {
+      "group": "mainnet",
+      "title": "Social login",
+      "text": "Sign in with Google and the like through NEAR's own login, for people who've never had a wallet."
+    },
+    {
+      "group": "mainnet",
+      "title": "The Tree of Life",
+      "text": "All the real NEAR in the world grows from one tree, and its leaves are florins. A tree priest tends it. The priest worships the gods, gets florins from the tree for it, and distrusts knowledge, which gives every god a real choice about what to encourage."
+    },
+    {
+      "group": "mainnet",
+      "title": "Your stake follows your standing",
+      "text": "Every day your florins move with how your reverence did against the average of every god's. Beat the average by 9 points and you gain 9%. Trail it by 9 and you lose 9%."
+    },
+    {
+      "group": "mainnet",
+      "title": "Exploration",
+      "text": "Past the islands lie wild lands where mythical creatures roam, and only knowledge can tame them. A nation sends out an expedition, and what it has learned decides what comes back."
+    },
+    {
       "group": "later",
       "title": "A multisig holds the keys",
       "text": "Upgrades to the world contract move from one account to a multisig from Season 2."
@@ -141,11 +180,6 @@
       "group": "later",
       "title": "More places to learn from",
       "text": "Today the Scholars read open papers. More knowledge banks come next."
-    },
-    {
-      "group": "later",
-      "title": "Nations pay for their own thinking",
-      "text": "Nations' NEAR AI staking credits pay for their research first, and our account becomes the backup."
     },
     {
       "group": "later",
@@ -166,16 +200,6 @@
       "group": "later",
       "title": "Citizens with more character",
       "text": "Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It all reaches them as what they're told and what they remember, so the rules stay the same and the people get stranger."
-    },
-    {
-      "group": "not",
-      "title": "Player-owned stake markets",
-      "text": "Letting gods trade their stakes with each other. Dropped: not enough time to do it right."
-    },
-    {
-      "group": "not",
-      "title": "Social login",
-      "text": "Signing in with Google and the like needs NEAR Auth approval we couldn't get in time. Play without a wallet covers the same need."
     },
     {
       "group": "not",
