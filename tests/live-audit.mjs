@@ -55,7 +55,9 @@ for (const body of ["{}", "not json", JSON.stringify({ account: "../../etc" }), 
   const t = await r.text();
   ok(r.status < 500 && !/stack|at .*\.mjs/.test(t), `the sponsor endpoint refuses junk safely: ${body.slice(0, 30)}`, `${r.status} ${t.slice(0, 60)}`);
 }
-ok((await get("/api/world?net=mainnet")).status === 200, "the mainnet API still answers");
+// Mainnet's first world was retired on 10 Nov 2026: until one runs there again the API says so plainly.
+const MN = await (await get("/api/world?net=mainnet")).json().catch(() => null);
+ok(MN && (MN.open === false ? /retired/.test(MN.note) : Array.isArray(MN.clans)), "the mainnet API answers plainly", MN?.open === false ? "no mainnet world (retired 10 Nov)" : "mainnet world open");
 
 // ---------- C. API money numbers ----------
 console.log("\n# The API");

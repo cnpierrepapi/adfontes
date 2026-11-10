@@ -403,6 +403,22 @@ function makeApi(NET) {
 }
 const APIS = { testnet: makeApi("testnet"), mainnet: makeApi("mainnet") };
 
+// Mainnet's first world (world.adfontes.near) was retired on 10 Nov 2026: its account was deleted and the NEAR
+// returned. Until a world runs there again, every mainnet endpoint gives this one plain answer instead of
+// stale or broken data. Checked against NEAR once a minute, so it opens by itself when the account exists.
+const MAINNET_CLOSED = { net: "mainnet", open: false, world: null, note: "No mainnet world right now. The first version was retired on 10 November 2026; mainnet reopens with the current contract after the hackathon." };
+let mainnetSeen = { at: 0, open: false };
+async function mainnetOpen() {
+  if (Date.now() - mainnetSeen.at < 60_000) return mainnetSeen.open;
+  try {
+    const r = await fetch(NETWORKS.mainnet.rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "query", params: { request_type: "view_account", finality: "final", account_id: NETWORKS.mainnet.world } }), signal: AbortSignal.timeout(8000) });
+    const j = await r.json();
+    if (j.result) mainnetSeen = { at: Date.now(), open: true };
+    else if (/UNKNOWN_ACCOUNT|does not exist/i.test(JSON.stringify(j.error ?? {}))) mainnetSeen = { at: Date.now(), open: false };
+  } catch {} // RPC down: keep the last answer
+  return mainnetSeen.open;
+}
+
 // Ended nations (his call 10 Nov) are removed, not reworded: out of the world's nation list, their
 // clan page gone, and every listing, sale, patent, royalty, trade route, draft, stake and gift of
 // theirs dropped. Sealed records (/api/day, /api/proof, /api/live and the world's `recent`) stay
@@ -570,6 +586,7 @@ http
       const net = url.searchParams.get("net") === "mainnet" ? "mainnet" : url.searchParams.get("net") === "testnet" ? "testnet" : DEFAULT_NET;
       const fn = Object.hasOwn(APIS[net], m[1]) ? APIS[net][m[1]] : null;
       if (!fn) return send(res, 404, "application/json", JSON.stringify({ error: "unknown endpoint" }));
+      if (net === "mainnet" && !(await mainnetOpen())) return send(res, 200, "application/json", JSON.stringify(MAINNET_CLOSED));
       try {
         let out = await fn(url.searchParams);
         // Ended nations are removed from everything but the sealed records (dropEnded above).

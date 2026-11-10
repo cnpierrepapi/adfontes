@@ -2,7 +2,10 @@ import { setEnded } from "./says.js";
 // Which world you're looking at (SPEC §12m B): testnet (practice, free test NEAR) or mainnet (real
 // NEAR). ?net= in the address wins, then your last choice on this device, then testnet.
 const q = new URLSearchParams(location.search).get("net");
-export const NET = q === "mainnet" || q === "testnet" ? q : localStorage.getItem("adf-net") === "mainnet" ? "mainnet" : "testnet";
+// Mainnet's first world was retired on 10 Nov 2026; until the current contract opens there after the
+// hackathon, every page stays on testnet whatever the address or a past choice says.
+export const MAINNET_OPEN = false;
+export const NET = !MAINNET_OPEN ? "testnet" : q === "mainnet" || q === "testnet" ? q : localStorage.getItem("adf-net") === "mainnet" ? "mainnet" : "testnet";
 if (q === "mainnet" || q === "testnet") localStorage.setItem("adf-net", q);
 /** GET /api/<path> for this world. */
 // The season world (/timelapse/) sets globalThis.__adfApi to answer from the season data instead.

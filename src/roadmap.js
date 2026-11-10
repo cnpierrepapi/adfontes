@@ -44,9 +44,9 @@ const CHECKS = {
   async season() { const s = await fetch("/season/season.json").then((x) => x.json()); return ok(`Turns 1 to ${s.real_to} real, then ${s.last - s.real_to} simulated: ${s.last} in all.`); },
   async mainnetContract() {
     const has = await view("mainnet", "get_founding").then(() => true, () => false);
-    return has ? ok(`${WORLD.mainnet} runs the current contract.`) : wait(`${WORLD.mainnet} still runs the first version.`);
+    return has ? ok(`${WORLD.mainnet} runs the current contract.`) : wait("No mainnet world right now. The first version was retired on 10 November, and its NEAR returned.");
   },
-  async mainnetEngine() { const c = await api("clan?id=1&net=mainnet").catch(() => null); return c && !c.error ? ok("Mainnet nations are taking turns.") : wait("No turns on mainnet yet."); },
+  async mainnetEngine() { const c = await api("clan?id=1&net=mainnet").catch(() => null); return c && !c.error && c.open !== false ? ok("Mainnet nations are taking turns.") : wait("No turns on mainnet yet."); },
   async intents() { return wait("Not done yet. The top-up card is built; the real swap hasn't been made."); },
   async refill() { const s = await api("sponsor"); return wait(`Not wired yet. The pool can fund ${s.nations_left ?? "?"} more players.`); },
   async jackpot() {

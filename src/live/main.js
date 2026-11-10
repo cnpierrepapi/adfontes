@@ -1,6 +1,6 @@
 import { startLive } from "./live.js";
 import { createWeatherSound, weatherKind } from "./sound.js";
-import { switchNet } from "../net.js";
+import { switchNet, MAINNET_OPEN } from "../net.js";
 import { endedName } from "../says.js";
 import { createRoute } from "./route.js";
 import { playCinematic } from "./intro.js";
@@ -114,7 +114,10 @@ $("home").addEventListener("click", () => live.home());
 const netBtn = $("net");
 netBtn.innerHTML = W.net === "mainnet" ? `◉ <span class="word">Mainnet</span>` : `○ <span class="word">Testnet</span>`;
 netBtn.classList.toggle("main", W.net === "mainnet");
-netBtn.addEventListener("click", () => switchNet(W.net === "mainnet" ? "testnet" : "mainnet"));
+netBtn.addEventListener("click", () => {
+  if (!MAINNET_OPEN) return toast("Mainnet opens after the hackathon. The first version was retired on 10 November; this season plays on testnet.");
+  switchNet(W.net === "mainnet" ? "testnet" : "mainnet");
+});
 setTimeout(() => ($("hint").style.opacity = 0), 9000);
 // A short line at the bottom for wallet news (a refused connection, nothing to smite).
 function toast(text) {
