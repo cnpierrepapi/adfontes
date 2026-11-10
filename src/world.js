@@ -1,4 +1,4 @@
-import { says as saysWith, tipOf } from "./says.js";
+import { says as saysWith, tipOf, endedName } from "./says.js";
 // The live world page. Reads the read-only API, and does the record check itself:
 // it hashes the record in the browser, walks the proof path, and asks NEAR for the root.
 const $ = (id) => document.getElementById(id);
@@ -11,14 +11,15 @@ import { api } from "./net.js"; // this world's API (testnet or mainnet)
 const n2 = (x) => (Math.round(x * 1000) / 1000).toString();
 
 let W = null;
-const clanName = (id) => W?.clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
+const clanName = (id) => W?.clans.find((c) => c.id === Number(id))?.name ?? endedName(id) ?? `nation ${id}`;
 
 const says = (r) => saysWith(r, clanName);
 
 async function loadWorld() {
   W = await api("world");
   const net = W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet, the practice world";
-  $("where").textContent = `${W.season} · turn ${W.day} · ${net}`;
+  const phase = W.clock?.phase ? ` · ${W.clock.phase}` : "";
+  $("where").textContent = `${W.season} · turn ${W.day}${phase} · ${net} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   if (W.weather) {
     const w = W.weather;
     const mood = w.change > 0.1 ? "hot" : w.change < -0.05 ? "cold" : "mild";
@@ -143,4 +144,5 @@ $("prove-form").addEventListener("submit", async (e) => {
 });
 
 loadWorld().then(loadDrafts).catch(() => ($("where").textContent = "The world didn't answer. Try again in a minute."));
-setInterval(() => loadWorld().catch(() => {}), 60_000);
+// Keeps itself current (10 Nov): the nations, the event feed and the drafts every 30 s, like /judge.
+setInterval(() => loadWorld().then(loadDrafts).catch(() => {}), 30_000);
