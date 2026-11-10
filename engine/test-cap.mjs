@@ -15,3 +15,4 @@ for (const [name, fn] of [["scholarTurn", () => scholarTurn({ field: "batteries"
   catch (e) { check(`${name} over the cap: refused locally (${e instanceof BudgetError ? "cap" : "reached the API: " + String(e.message).slice(0, 40)})`, e instanceof BudgetError); }
 }
 console.log(bad ? `${bad} FAILED` : "ALL PASS");
+if (bad) process.exitCode = 1;

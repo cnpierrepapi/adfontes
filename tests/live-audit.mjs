@@ -89,7 +89,9 @@ ok(BigInt(T2.backing) - stakes >= 0n && BigInt(T2.backing) - stakes < 10n ** 21n
 ok(clans.reduce((a, c) => a + BigInt(c.florins), 0n) === BigInt(T.florins), "florins held by nations = florins in existence, exactly");
 ok(BigInt(T.florin_value) === (BigInt(T.florins) ? (10n ** 22n * BigInt(T.backing)) / BigInt(T.florins) : 10n ** 22n), "florin value on chain = backing ÷ florins");
 const putIn = clans.reduce((a, c) => a + BigInt(c.total_in), 0n);
-ok(BigInt(T.jackpot) * 10000n >= putIn * 1399n, "the jackpot holds 14% of everything put in", `${near(T.jackpot)} vs 14% of ${near(putIn)}`);
+// A god who claims out takes their florins but leaves their 14% in the jackpot, so the jackpot is at
+// least 14% of what today's gods have in. The exact check, every deposit ever: scripts/jackpot-audit.mjs.
+ok(BigInt(T.jackpot) * 10000n >= putIn * 1399n, "the jackpot holds at least 14% of what today's gods have put in", `${near(T.jackpot)} vs 14% of ${near(putIn)}`);
 const cfg = await view(W.world, "get_config");
 ok(BigInt(cfg.season_end_ns) / 1000000n === BigInt(CLOCK.seasonEnd), "the contract's season end = the clock's season end (30 Nov, midnight Malta)");
 ok(cfg.operator === "adfontes-mw1fjpfx.testnet" && cfg.owner === W.world, "operator and owner are what we say");
