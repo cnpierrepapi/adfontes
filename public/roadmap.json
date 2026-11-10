@@ -14,7 +14,7 @@
     {
       "id": "mainnet",
       "title": "Season 1 on mainnet",
-      "intro": "After the hackathon, Season 1 opens on mainnet with real NEAR and a few things testnet can't do. How it all fits together is on one page:",
+      "intro": "After the hackathon, Season 1 opens on mainnet with real NEAR and a second way to be a god: found a nation, or join the council in the Tree of Life. How it fits together is on one page:",
       "link": {
         "href": "/roadmap/season1/",
         "text": "Season 1 on mainnet, explained"
@@ -154,12 +154,22 @@
     {
       "group": "mainnet",
       "title": "The Tree of Life",
-      "text": "All the real NEAR in the world grows from one tree, and its leaves are florins. A tree priest tends it. The priest worships the gods, gets florins from the tree for it, and distrusts knowledge, which gives every god a real choice about what to encourage."
+      "text": "Instead of founding a nation, a god can put NEAR into the tree and join its council of gods, a DAO that holds florins and the compute nations run short of. A priest tends the tree, worships the council and distrusts knowledge. Council gods see every citizen in the world, sorted by how likely each is to lose faith, and can whisper to them or bless them."
     },
     {
       "group": "mainnet",
-      "title": "Your stake follows your standing",
-      "text": "Every day your florins move with how your reverence did against the average of every god's. Beat the average by 9 points and you gain 9%. Trail it by 9 and you lose 9%."
+      "title": "Citizens with more character",
+      "text": "Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It ships with the Tree of Life, because it's what makes some citizens waver and others stay loyal."
+    },
+    {
+      "group": "mainnet",
+      "title": "Rebellions",
+      "text": "Citizens the tree wins over can rise against their old gods. It takes a lot of them together to take over a nation, ideally without dragging it into a war. When they do, the council gods who won them over become its gods."
+    },
+    {
+      "group": "mainnet",
+      "title": "Quiet gods lose ground",
+      "text": "A god who does nothing for a whole real day loses florins, by how far their reverence fell behind the average that day: trail it by 9 points and you lose 9%. Do anything once a day and you never lose to this. It only takes; it never pays out."
     },
     {
       "group": "mainnet",
@@ -195,11 +205,6 @@
       "group": "later",
       "title": "Seasons carry over",
       "text": "Nations, their grudges and the winner's choice of field carry into the next season, so a season's history matters in the one after it."
-    },
-    {
-      "group": "later",
-      "title": "Citizens with more character",
-      "text": "Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It all reaches them as what they're told and what they remember, so the rules stay the same and the people get stranger."
     },
     {
       "group": "not",

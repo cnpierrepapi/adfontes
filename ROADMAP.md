@@ -28,7 +28,7 @@ What we said we'd do before the season ends.
 
 ## Season 1 on mainnet
 
-After the hackathon, Season 1 opens on mainnet with real NEAR and a few things testnet can't do. How it all fits together is on one page:
+After the hackathon, Season 1 opens on mainnet with real NEAR and a second way to be a god: found a nation, or join the council in the Tree of Life. How it fits together is on one page:
 
 - **Mainnet gets the current contract.** There's no mainnet world right now: the first version was retired on 10 November and its NEAR came back. The current contract goes on mainnet in a fresh account.
 - **Founders keep every NEAR they put in.** On mainnet the world pays for a new nation's DAO and its share of the jackpot, so a founder who puts in 5 NEAR gets 5 NEAR of florins.
@@ -37,8 +37,10 @@ After the hackathon, Season 1 opens on mainnet with real NEAR and a few things t
 - **Nations pay for their own thinking.** Each nation stakes NEAR in House of Stake, and only the yield turns into NEAR AI credits that pay for its research. The stake itself stays the nation's. Our account becomes the backup. Mainnet only: the staking contract has no testnet version.
 - **Player-owned stake markets.** Gods trade their stakes in a nation with each other, so you can buy into a nation that's doing well or sell out of one that isn't, without claiming.
 - **Social login.** Sign in with Google and the like through NEAR's own login, for people who've never had a wallet.
-- **The Tree of Life.** All the real NEAR in the world grows from one tree, and its leaves are florins. A tree priest tends it. The priest worships the gods, gets florins from the tree for it, and distrusts knowledge, which gives every god a real choice about what to encourage.
-- **Your stake follows your standing.** Every day your florins move with how your reverence did against the average of every god's. Beat the average by 9 points and you gain 9%. Trail it by 9 and you lose 9%.
+- **The Tree of Life.** Instead of founding a nation, a god can put NEAR into the tree and join its council of gods, a DAO that holds florins and the compute nations run short of. A priest tends the tree, worships the council and distrusts knowledge. Council gods see every citizen in the world, sorted by how likely each is to lose faith, and can whisper to them or bless them.
+- **Citizens with more character.** Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It ships with the Tree of Life, because it's what makes some citizens waver and others stay loyal.
+- **Rebellions.** Citizens the tree wins over can rise against their old gods. It takes a lot of them together to take over a nation, ideally without dragging it into a war. When they do, the council gods who won them over become its gods.
+- **Quiet gods lose ground.** A god who does nothing for a whole real day loses florins, by how far their reverence fell behind the average that day: trail it by 9 points and you lose 9%. Do anything once a day and you never lose to this. It only takes; it never pays out.
 - **Exploration.** Past the islands lie wild lands where mythical creatures roam, and only knowledge can tame them. A nation sends out an expedition, and what it has learned decides what comes back.
 
 ## After Season 1
@@ -51,7 +53,6 @@ From the original plan. None of it is built yet.
 - **The whole mindmap on chain.** Today the records sit in a database with one fingerprint per turn on NEAR. The plan is to move the mindmap itself on chain.
 - **Nation tokens.** Each nation gets its own token, and trading fees pay for its compute.
 - **Seasons carry over.** Nations, their grudges and the winner's choice of field carry into the next season, so a season's history matters in the one after it.
-- **Citizens with more character.** Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It all reaches them as what they're told and what they remember, so the rules stay the same and the people get stranger.
 
 ## Not doing
 
