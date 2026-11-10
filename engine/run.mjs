@@ -217,7 +217,7 @@ for (let n = 0; n < days; n++) {
     // Every trade goes through the market (his call 9 Nov): a nation whose trader wallet isn't made yet
     // (its first turn) waits a turn rather than paying outside it.
     if (s.clans[buyer]?.agentWallets !== 2 || s.clans[seller]?.agentWallets !== 2) return { walked: true, quiet: true, ask: { price: fair } };
-    const shelf = all.find((l) => l.open && l.seller === seller && l.token_id === token);
+    let shelf = all.find((l) => l.open && l.seller === seller && l.token_id === token);
     // Walked away from this one already today: no new ask, no new line (a real buyer remembers).
     const wk = `${buyer}|${seller}|${token}`, prev = s.walked?.[wk];
     if (!shelf && prev && Date.now() - prev.at < CFG.draftEveryMs) return { walked: true, quiet: true, ask: { price: prev.price } };
@@ -247,9 +247,32 @@ for (let n = 0; n < days; n++) {
         if (!(s.mtDone ||= []).includes(key)) s.mtDone.push(key);
         log({ kind: "tokens", minted: 1, research: +(token[0] === "r"), patents: 0, kits: +(token[0] === "k"), for: seller, tx: m.hash });
       }
-      const L = await chain.marketList(seller, token, ask.price, ask.why);
-      ask.listing = L.value; listTx = L.hash;
-      all.push({ id: L.value, seller, token_id: token, price: ask.price, kind: token[0] === "p" ? "sale" : "copy", open: true, reason: ask.why, sold: 0 });
+      // A full shelf (10 open listings, the contract's limit): the seller's Broker takes down its oldest
+      // listing to make room for this sale (10 Nov: 33 deals in the sim failed on a full shelf).
+      const makeRoom = async () => {
+        const open = all.filter((l) => l.open && l.seller === seller && l.token_id !== token).sort((x, y) => x.id - y.id);
+        if (open.length < 10) return;
+        const old = open[0], r = await chain.marketDelist(seller, old.id);
+        old.open = false;
+        log({ kind: "delisted", clan: seller, listing: old.id, token: old.token_id, title: MK.fairOf(s, old.token_id, FL)?.title ?? null, why: `made room for a sale to ${nameOfClan(buyer)}`, tx: r.hash, signer: r.signer });
+      };
+      await makeRoom();
+      let L = null;
+      try { L = await chain.marketList(seller, token, ask.price, ask.why); }
+      catch (e) {
+        // The turn's view was out of date after all: read the shelf from NEAR once and go again.
+        if (!/already listed|at most 10 open listings/i.test(String(e.message || e))) throw e;
+        const fresh = await chain.marketListings(0);
+        if (!fresh) throw e;
+        all.splice(0, all.length, ...fresh);
+        shelf = all.find((l) => l.open && l.seller === seller && l.token_id === token);
+        if (shelf) { ask.listing = shelf.id; ask.price = shelf.price; ask.why = shelf.reason; ask.standing = true; }
+        else { await makeRoom(); L = await chain.marketList(seller, token, ask.price, ask.why); }
+      }
+      if (L) {
+        ask.listing = L.value; listTx = L.hash;
+        all.push({ id: L.value, seller, token_id: token, price: ask.price, kind: token[0] === "p" ? "sale" : "copy", open: true, reason: ask.why, sold: 0 });
+      }
     }
     const b = await chain.marketBuy(buyer, ask.listing, buyerWhy);
     const l = all.find((x) => x.id === ask.listing);
@@ -284,6 +307,9 @@ for (let n = 0; n < days; n++) {
       const price = clampPrice(L.price, x.price);
       const r = await chain.marketList(oc.id, x.token_id, price, L.why);
       openN++;
+      // Keep this turn's view of the market true (10 Nov: a trade later in the same turn missed this
+      // listing, so it listed the same thing twice or one past the 10-listing limit).
+      all.push({ id: r.value, seller: oc.id, token_id: x.token_id, price, kind: x.token_id[0] === "p" ? "sale" : "copy", open: true, reason: String(L.why).slice(0, 200), sold: 0 });
       log({ kind: "listed", clan: oc.id, listing: r.value, token: x.token_id, title: x.title, price, fair: +x.price.toFixed(4), priceWhy: x.why, why: String(L.why).slice(0, 200), tx: r.hash, signer: r.signer });
     }
     const o = offers.find((y) => y.id === m.buy);
