@@ -125,15 +125,19 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     // with the browser's storage.
     if (wallet.isLocal?.()) {
       const save = el("button", { type: "button", className: "viewbtn gold", textContent: "Save your key" });
-      save.addEventListener("click", () => {
-        const k = wallet.exportKey();
-        const blob = new Blob([JSON.stringify(k, null, 2)], { type: "application/json" });
-        const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `adfontes-${k.account.slice(0, 8)}.json` });
-        a.click(); URL.revokeObjectURL(a.href);
-        toast("Key saved. Anyone with this file controls the account, so keep it private. MyNearWallet can import it too.");
-      });
+      save.addEventListener("click", saveKey);
       menu.append(el("p", { className: "fine", textContent: "You're playing without a wallet. Your key lives in this browser. Save it so you don't lose your nation." }), el("div", { className: "row" }, save));
     }
+  }
+
+  // The browser key as a file (only when playing without a wallet).
+  function saveKey() {
+    const k = wallet.exportKey();
+    if (!k) return;
+    const blob = new Blob([JSON.stringify(k, null, 2)], { type: "application/json" });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `adfontes-${k.account.slice(0, 8)}.json` });
+    a.click(); URL.revokeObjectURL(a.href);
+    toast("Key saved. Anyone with this file controls the account, so keep it private. MyNearWallet can import it too.");
   }
 
   // ---------------------------------------------------------------- the confirm card
@@ -536,11 +540,22 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const clock = el("span", { className: "clock" });
     const text = el("textarea", { className: "txin", maxLength: 280, rows: 3, placeholder: "e.g. Read slowly. Only cite what you can check." });
     const hide = el("button", { type: "button", className: "viewbtn", textContent: "Hide" });
+    // Playing without a wallet (no email or Google sign-in needed): say who they are on NEAR and that
+    // the key lives only in this browser, with the save button right there.
+    let who = null, save = null;
+    if (wallet.isLocal?.()) {
+      who = el("div", { className: "whoami" },
+        el("p", {}, "You're ", el("b", { textContent: account }), " on NEAR testnet."),
+        el("p", { className: "fine", textContent: "No wallet and no sign-in: your key signs right here, so nothing pops up when you act. It lives only in this browser. Save it and you can come back to your nation from anywhere." }));
+      save = el("button", { type: "button", className: "viewbtn gold", textContent: "Save your key" });
+      save.addEventListener("click", saveKey);
+    }
     const box = el("aside", { className: "birth", role: "status" },
       el("h3", {}, `${want} is being born `, clock),
       el("ol", {}, ...steps),
+      who,
       el("p", { className: "fine", textContent: "While you wait, write your first whisper. Tell them what matters. It opens for you to send the moment they're here." }),
-      text, el("div", { className: "row" }, hide));
+      text, el("div", { className: "row" }, save, hide));
     let stop = false, id = null;
     hide.addEventListener("click", () => { stop = true; box.remove(); });
     document.body.append(box);

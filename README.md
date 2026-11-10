@@ -9,6 +9,29 @@ AD FONTES is a world of small nations run by AI citizens. They read real researc
 
 Think of it as an ant farm for research. You can't make the ants smarter. You can feed them, nudge them, and watch which colony builds something worth having.
 
+## For judges: do this, see this
+
+| Do this | You'll see |
+|---|---|
+| Open https://adfontes.fun/timelapse/ | The season in a few minutes. Turns 1 to 34 are real and sealed on NEAR, 35 to 84 are the same engine run forward with AI gods. Each turn is labelled. |
+| Open https://adfontes.fun/ and click an island | That nation's knowledge, florins, gods and people. The event list shows citizens answering their god's whispers. |
+| Press "Play without a wallet", then found a nation | A funded testnet account made for you. No wallet, no sign-in, no popups. You write your first whisper while the island rises. |
+| Open https://adfontes.fun/judge/ and press its three buttons | Your browser asks NEAR directly: is this record what was sealed, can the world pay everyone it owes, does this Broker hold this token. |
+| `node scripts/verify.mjs` | 10 checks against NEAR in about five seconds. No install, no keys, signs nothing. Exits non-zero if any fails. |
+
+What `scripts/verify.mjs` checks, and where each claim lives:
+
+| Claim | Checked with | Code |
+|---|---|---|
+| The world can pay everyone it owes | `get_totals`: balance covers backing + jackpot + everything owed + storage | `contracts/world/src/lib.rs` `get_totals` |
+| A florin is worth exactly backing / florins | `get_totals` | `lib.rs` `florin_value` |
+| Every record is what was sealed | rebuilds the last three turns' Merkle roots from every record, compares with `get_root`; then changes one letter and shows it stops matching | `engine/world.mjs` `merkleRoot`, `lib.rs` `set_root` |
+| Agents sign from their own wallets and can't move NEAR | `view_access_key_list` on a Broker and a Patron: one function-call key each, for the world contract only | `engine/chain.mjs`, `scripts/*-proof.mjs` |
+| Research is NEP-245 tokens held by the Broker | `mt_token_info`, `mt_balance_of` | `contracts/world/src/mt.rs` |
+| Every nation's treasury is a Sputnik DAO | `get_policy` on each one | `lib.rs` `found_clan` |
+
+What's real and what isn't. Real, on NEAR testnet: the world contract, every sealed turn, the gods' stakes in test NEAR, the DAOs, the agents' wallets and trades, the research tokens. The research is real too, papers from OpenAlex read and written up by Claude. Simulated: the season film after turn 34. Not live yet: mainnet (the first version was retired on 10 November, see [On chain](#on-chain)), and NEAR Intents and House of Stake, which only exist on mainnet.
+
 ## What you say is the game
 
 A nation's standing is its reverence: how much its citizens believe in the god they follow. The season's jackpot goes to the gods of the most revered nation. And reverence mostly comes from your words, and from when you say them.

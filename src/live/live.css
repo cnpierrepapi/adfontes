@@ -360,6 +360,8 @@ body.night .standings .events li .evtx { background: #fff; color: var(--ink); }
 .birth li.todo::before { content: "○"; animation: birthpulse 1.4s ease-in-out infinite; }
 .birth li.done::before { content: "✓"; color: #2f8f5b; font-weight: 700; }
 .birth .fine { margin: 0; font-size: 0.78rem; line-height: 1.45; color: #5b5170; }
-.birth .row { display: flex; justify-content: flex-end; }
+.birth .row { display: flex; justify-content: flex-end; gap: 8px; }
+.birth .whoami { display: grid; gap: 4px; padding: 8px 10px; border-radius: 8px; background: #f6f1e4; }
+.birth .whoami p { margin: 0; font-size: 0.86rem; line-height: 1.4; overflow-wrap: anywhere; }
 @keyframes birthpulse { 50% { opacity: 0.35; } }
 @media (max-width: 700px) { .birth { left: 8px; right: 8px; bottom: 8px; width: auto; } }

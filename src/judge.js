@@ -44,14 +44,14 @@ async function load() {
   );
   // Every nation's accounts: its named account (forwards to the DAO) and the DAO itself.
   const link = (a) => el("a", { href: `${W.explorer}/address/${a}`, target: "_blank", rel: "noopener", textContent: a });
-  $("accounts").replaceChildren(...live.map((x) => el("li", {},
+  $("accounts")?.replaceChildren(...live.map((x) => el("li", {},
     el("div", {}, el("b", { textContent: x.name }), " · ", x.alias ? link(x.alias) : "named account coming on its next turn", " → treasury ", link(x.dao)),
     x.wallets?.broker || x.wallets?.patron ? el("div", { className: "jsub" }, "Broker ", x.wallets.broker ? link(x.wallets.broker) : "–", " · Patron ", x.wallets.patron ? link(x.wallets.patron) : "–") : null)));
   showStakes().catch(() => ($("stakes-table").replaceChildren(el("tr", {}, el("td", { textContent: "The stakes didn't load. Try again in a minute." })))));
   // Research as NEP-245 tokens: what each nation's DAO holds, and a live check against NEAR.
   const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-  $("tokens").replaceChildren(...live.filter((x) => x.tokens).map((x) => el("li", {}, el("b", { textContent: x.name }), ` · ${pl(x.tokens.research, "research token")}, ${pl(x.tokens.patents, "patent")}, ${pl(x.tokens.kits, "kit")}`)));
-  if (!live.some((x) => x.tokens?.sample)) $("tokens").replaceChildren(el("li", { textContent: "The first tokens are minted on the next turn." }));
+  $("tokens")?.replaceChildren(...live.filter((x) => x.tokens).map((x) => el("li", {}, el("b", { textContent: x.name }), ` · ${pl(x.tokens.research, "research token")}, ${pl(x.tokens.patents, "patent")}, ${pl(x.tokens.kits, "kit")}`)));
+  if (!live.some((x) => x.tokens?.sample)) $("tokens")?.replaceChildren(el("li", { textContent: "The first tokens are minted on the next turn." }));
   sealed = await lastSealed();
   const txs = (sealed?.records || []).filter((r) => r.tx && saysWith(r, clanName)).slice(-12).reverse();
   $("chain-intro").replaceChildren("The world contract is ", el("a", { href: `${W.explorer}/address/${W.world}`, target: "_blank", rel: "noopener", textContent: W.world }), sealed ? `. Below: transactions from turn ${sealed.day}, the last one sealed on NEAR.` : ". No turn is sealed yet.");
@@ -116,7 +116,7 @@ setInterval(() => { if (!document.hidden) load().catch(() => {}); }, 30_000);
 
 // Pick a nation and one of its tokens, then ask NEAR directly what it is and who holds it.
 $("tokcheck")?.addEventListener("click", async () => {
-  const out = $("tokcheck-out");
+  const out = $("tokcheck-out") ?? $("check-out");
   const pool = (W?.clans || []).filter((x) => x.alive && x.tokens?.sample);
   if (!pool.length) { out.replaceChildren(el("div", { textContent: "No tokens yet. They're minted on the next turn." })); return; }
   const x = pool[Math.floor(Math.random() * pool.length)], t = x.tokens.sample, rpc = RPC[W.net] || RPC.testnet;
@@ -129,4 +129,23 @@ $("tokcheck")?.addEventListener("click", async () => {
       el("div", { className: "verdict", textContent: `${x.name}'s Broker holds ${bal} of it in its own wallet, straight from NEAR.` }),
     );
   } catch (e) { out.replaceChildren(el("div", { textContent: `NEAR didn't answer: ${String(e.message || e).slice(0, 120)}` })); }
+});
+
+// Can the world pay everyone it owes? get_totals straight from NEAR: the contract's own balance against the
+// gods' backing, the jackpot, the rest it owes, and the NEAR locked for its storage.
+$("solvent")?.addEventListener("click", async () => {
+  const out = $("check-out");
+  if (!W) return void (out.textContent = "The world hasn't loaded yet. Try again in a second.");
+  out.textContent = "Asking NEAR…";
+  const Y = (y) => Number(BigInt(y) / 10n ** 18n) / 1e6;
+  try {
+    const t = await viewOnNear(RPC[W.net] || RPC.testnet, W.world, "get_totals", {});
+    const bal = Y(t.balance), owed = Y(t.liabilities), store = Y(t.storage_locked), back = Y(t.backing), jp = Y(t.jackpot);
+    const okay = bal >= owed + store;
+    out.replaceChildren(
+      el("div", { className: `verdict ${okay ? "yes" : "no"}`, textContent: okay ? `Yes. The world holds ${n(bal, 4)} NEAR and owes ${n(owed + store, 4)}, with ${n(bal - owed - store, 4)} to spare.` : `No. The world holds ${n(bal, 4)} NEAR but owes ${n(owed + store, 4)}.` }),
+      el("div", { textContent: `Owed: ${n(back, 4)} NEAR behind the gods' florins, ${n(jp, 4)} in the season jackpot, ${n(owed - back - jp, 4)} set aside (founding fund, staking, payouts due), and ${n(store, 4)} locked for the contract's storage.` }),
+      el("div", {}, "get_totals on ", el("a", { href: `${W.explorer}/address/${W.world}`, target: "_blank", rel: "noopener", textContent: W.world }), ", asked directly from your browser."),
+    );
+  } catch (e) { out.textContent = `NEAR didn't answer (${String(e.message || e).slice(0, 80)}). Try again.`; }
 });

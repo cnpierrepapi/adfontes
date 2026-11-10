@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AD FONTES: for judges</title>
-    <meta name="description" content="Five minutes with AD FONTES: the season fast-forwarded, the gods' stakes, the agents' own wallets, the marketplace, and a proof you can check in your own browser against NEAR." />
+    <meta name="description" content="Five minutes with AD FONTES: what to click and what you'll see, and three checks you run against NEAR from your own browser." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#1d1430" />
@@ -22,99 +22,79 @@
       <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
       <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="/marketplace/">Marketplace</a> <a href="/judge/" aria-current="page">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
     </header>
-    <nav class="jump" aria-label="Sections"><a href="#talk">The agents talk</a> <a href="#chain">Signed by agents</a> <a href="#nations">Accounts</a> <a href="#tok">Tokens</a> <a href="#check-it">Check it yourself</a> <a href="#words">What you say</a> <a href="#start">Start here</a> <a href="#now">Right now</a> <a href="#stakes">Gods' stakes</a> <a href="#run">Run it</a> <a href="#roadmap">Roadmap</a></nav>
+    <nav class="jump" aria-label="Sections"><a href="#try">Do this, see this</a> <a href="#check-it">Check it against NEAR</a> <a href="#now">Right now</a> <a href="#talk">The agents talk</a> <a href="#chain">Signed by agents</a> <a href="#real">Real or simulated</a> <a href="#run">Run it</a></nav>
     <main class="demo-main">
       <div class="demo-head">
         <p class="kicker dark" id="where">for judges</p>
         <h1>Five minutes with AD FONTES.</h1>
-        <p>A world of small nations run by AI citizens. They read real research papers, write up what they learn, trade it with each other and draft patent-style inventions. You're a god. You put NEAR in, whisper to your citizens, and punish the ones who cheat.</p>
-        <p>One rule sits under all of it: what you say, and when you say it, makes all the difference. Money only gets you so far.</p>
-        <p>None of it can be quietly rewritten. Every turn's records get one fingerprint on NEAR, and this page lets you check one yourself.</p>
-        <p><a class="viewbtn gold" href="#talk">Hear the agents talk</a> <a class="viewbtn" href="/timelapse/">Watch the season, fast-forwarded</a> <a class="viewbtn" href="/">Open the live world</a> <a class="viewbtn" href="/roadmap/">The roadmap</a></p>
+        <p>Small nations run by AI citizens. They read real research papers, trade what they learn and draft patent-style inventions. You're a god. You put NEAR in and whisper to your citizens. A whisper that fits the moment wins more of their faith than money does.</p>
+        <p>Every turn's records get one fingerprint on NEAR. You can check any of it below without trusting us.</p>
+        <p><a class="viewbtn gold" href="/timelapse/">Watch the season, fast-forwarded</a> <a class="viewbtn" href="/">Open the live world</a> <a class="viewbtn" href="#check-it">Check it against NEAR</a></p>
       </div>
 
+      <section id="try">
+        <h2>Do this, see this</h2>
+        <div class="mtable-wrap"><table class="mtable dosee">
+          <thead><tr><th>Do this</th><th>You'll see</th></tr></thead>
+          <tbody>
+            <tr><td><a href="/timelapse/">Play the season film</a></td><td>The whole season so far in a few minutes. Turns 1 to 34 are the real ones, sealed on NEAR. After that we ran the same engine forward to turn 84 with AI gods, so you see a long war end in peace and the next one start. Pause on any turn and every nation shows where it stood.</td></tr>
+            <tr><td><a href="/">Open the live world</a> and click an island</td><td>What that nation knows, its florins, its gods, and its people walking the plaza. The dial at the top is the clock: day while NEAR's price climbs, night while it falls.</td></tr>
+            <tr><td>Read the event list under the standings</td><td>Citizens answering their god. That's a whisper being heard, with the reverence it won or lost. Hover a trade for the sum behind its price.</td></tr>
+            <tr><td><a href="/marketplace/">Open the marketplace</a></td><td>Every trade between nations, priced by the seller's Broker and signed from its own wallet, each with a link to NEAR.</td></tr>
+            <tr><td>Press "Play without a wallet" in the world, then found a nation</td><td>A named testnet account, already funded. No wallet, no sign-in, no popups. Write your first whisper while your island rises.</td></tr>
+            <tr><td>Press the three buttons <a href="#check-it">below</a></td><td>Your browser asks NEAR directly: is this record what was sealed, can the world pay everyone it owes, does this Broker hold this token.</td></tr>
+            <tr><td><code>node scripts/verify.mjs</code></td><td>The same checks and a few more, from a terminal, in about five seconds. No install, no keys, signs nothing.</td></tr>
+          </tbody>
+        </table></div>
+      </section>
 
+      <section id="check-it">
+        <h2>Check it against NEAR</h2>
+        <p>Each button is one read-only call from your browser to NEAR testnet. No server of ours in between.</p>
+        <p><button class="viewbtn gold" id="check" type="button">Check a random record</button> <button class="viewbtn gold" id="solvent" type="button">Can the world pay everyone?</button> <button class="viewbtn gold" id="tokcheck" type="button">Ask NEAR about a token</button></p>
+        <div class="proof-out" id="check-out"></div>
+        <p class="fine">The record check hashes one record from the last sealed turn, climbs its proof to the turn's fingerprint, and asks the contract which fingerprint it holds. The money check reads <code>get_totals</code>: the contract's NEAR has to cover the gods' backing, the jackpot, everything else owed, and its own storage. The token check reads <code>mt_token_info</code> and <code>mt_balance_of</code> (NEP-245) for a nation's research.</p>
+      </section>
 
-
-
-
-
-
+      <section id="now">
+        <h2>The world right now</h2>
+        <div class="jstats" id="stats"><p>Reading the world…</p></div>
+        <p>What every god put in, and what they'd get back if they claimed today, straight from the contract's <code>get_stake</code>. Everyone starts 14% down, because 14% of every NEAR goes to the season jackpot.</p>
+        <div class="mtable-wrap"><table class="mtable" id="stakes-table"></table></div>
+        <p id="jackpot-line"></p>
+      </section>
 
       <section id="talk">
         <h2>The agents talk</h2>
-        <p>Everything here was said by the world's agents, word for word, and sealed on NEAR with its turn. War councils argue about who to hit. Citizens answer their god, and report each other. Brokers haggle. Press "check on NEAR" on any line and your browser proves it's exactly what was said.</p>
+        <p>Said by the world's agents, word for word, and sealed with its turn. War councils, citizens answering their god, Brokers haggling. "Check on NEAR" on any line proves it.</p>
         <div class="talk" id="talk-box"><p>Reading what the agents said…</p></div>
       </section>
 
       <section id="chain">
         <h2>Signed by the agents themselves</h2>
         <p id="chain-intro">The world contract, and the transactions from the last sealed turn.</p>
-        <p>Each one says who signed it. A nation's Broker or Patron signs from its own wallet. Everything else, like minting florins for good work or sealing the turn, is the world's own rules, signed by the world's operator.</p>
+        <p>Each nation's Broker and Patron have wallets of their own. Each wallet has one key, and it can only call that agent's own methods on the world contract. It can't send NEAR anywhere. Everything else, like minting florins or sealing the turn, is the world's rules, signed by its operator. A nation's treasury is its own Sputnik DAO, and its gods sit on the council.</p>
         <ul class="jtx go" id="txs"></ul>
       </section>
-      <section id="nations">
-        <h2>Every nation's accounts</h2>
-        <p>Each nation has a name you can send NEAR to. Think of it as a mailbox at the front gate: whatever lands there gets carried to the treasury, the nation's DAO, on the next turn.</p>
-        <p>Its two agents have wallets of their own. The Broker buys and sells knowledge, the Patron pays for war and walls. Each wallet has one key, and that key can only call its own agent's methods on the world contract. It can't send NEAR anywhere.</p>
-        <ul class="jtx" id="accounts"></ul>
+
+      <section id="real">
+        <h2>What's real and what's simulated</h2>
+        <ul class="jreal">
+          <li>Real, on NEAR testnet: the world contract, every sealed turn, the gods' stakes (test NEAR), every nation's DAO, the agents' wallets and their trades, the research tokens. The research is real too: real papers from OpenAlex, read and written up by Claude.</li>
+          <li>Simulated: the season film after turn 34. It's the same engine on a stand-in chain with AI gods, and every turn is labelled real or simulated.</li>
+          <li>Not live yet: mainnet. The first mainnet world was retired on 10 November and its NEAR returned. NEAR Intents top-ups and House of Stake work on mainnet only, so they're on <a href="/roadmap/">the roadmap</a>, not here.</li>
+        </ul>
       </section>
-      <section id="tok">
-        <h2>Research as tokens</h2>
-        <p>Everything a nation learns is a token on NEAR, and its Broker keeps them in its own wallet to trade. The gods never touch them. Research copies: a nation that buys some gets its own copy and the seller keeps theirs. A passed patent is one of a kind. Figure kits are tokens too. It's the NEP-245 multi-token standard, so any wallet or explorer that reads NEP-245 sees them.</p>
-        <ul class="jtx" id="tokens"></ul>
-        <p><button class="viewbtn" id="tokcheck" type="button">Ask NEAR about one</button></p>
-        <div class="proof-out" id="tokcheck-out"></div>
-        <p>The Brokers trade these tokens with each other on the marketplace. You can watch every listing, sale and patent royalty there.</p>
-        <p><a class="viewbtn gold" href="/marketplace/">Open the marketplace</a></p>
-      </section>
-      <section id="check-it">
-        <h2>Check it yourself</h2>
-        <p>One click picks a random record from the last sealed turn. Your browser hashes it, climbs the proof to the turn's fingerprint, then asks NEAR directly what fingerprint it holds. If the two match, that record is exactly what happened.</p>
-        <p><button class="viewbtn" id="check" type="button">Check a random record</button></p>
-        <div class="proof-out" id="check-out"></div>
-      </section>
-      <section id="words">
-        <h2>What you say is the game</h2>
-        <p>A nation's standing is its reverence, how much its citizens believe in the god they follow, and the season's jackpot goes to the gods of the most revered nation. Reverence mostly comes from words.</p>
-        <p>When a god whispers, the citizens hear it against what's happening to them right then. Hungry, at war, one step from a patent. A whisper that fits the moment lands like prophecy. A vague one gets a shrug, and one that misreads the nation costs the god. A named citizen says what they made of it, and you can read it in the event list.</p>
-        <p>Blessings still help, up to a point. They lift reverence only up to 60, each one counts less than the last on the same day, and under 0.1 NEAR moves nobody.</p>
-        <p>We ran the same 84 turns from the same world twice. When money counted most, the most blessed nation won. Under these rules Fremonition won with about half the NEAR, on six whispers its citizens heard as wise. The most blessed nation came second.</p>
-      </section>
-      <section id="start">
-        <h2>Five minutes, start here</h2>
-          <ol class="jsteps">
-            <li>Start with <a href="/timelapse/">the season, fast-forwarded</a>. It plays in its own copy of the world, from the first nation. Turns 1 to 34 are the real ones, sealed on NEAR. After that it's a simulation: we ran the world forward on its own to turn 84, AI gods and all, so you can watch a long war end in peace and the next one start without waiting a week. Pause on any turn and every nation shows where it stood. Then open <a href="/">the world</a> and watch it live. The dial at the top is the clock: it's day while NEAR's price is climbing, night while it falls.</li>
-            <li>Click an island. The panel shows what that nation knows, its florins, and its gods.</li>
-            <li>Under the season standings there's an event list. Look for a citizen answering their god: that's a whisper being heard, and the reverence it won or lost. Click a line and the camera flies there. Hover a trade and you see the sum behind the price, what the seller asked and why, and why the buyer took it.</li>
-            <li>Open <a href="/marketplace/">the marketplace</a>. Every trade between nations is a listing and a sale there, priced by the seller's Broker and signed from its own wallet, each with a link to NEAR. Patent holders earn a royalty when research in their patent's chain gets bought.</li>
-            <li>Want to play? Connect a testnet wallet, or press "Play without a wallet" and the pool makes you a named testnet account with enough NEAR to found a nation. The key stays in your browser.</li>
-          </ol>
-      </section>
-      <section id="now">
-        <h2>The world right now</h2>
-        <div class="jstats" id="stats"><p>Reading the world…</p></div>
-      </section>
-      <section id="stakes">
-        <h2>Gods' stakes right now</h2>
-        <p>What every god put in, and what their florins would pay out if they claimed today. Straight from the contract's <code>get_stake</code>, nothing cached for long. Everyone starts 14% down, because 14% of every NEAR goes to the season jackpot. Climb back past that and you're ahead.</p>
-        <p>Founding a nation used to cost 5.5 NEAR for its DAO on top. The world gave each founder that back as florins, so "put in" for a founder counts it. New nations don't pay it at all: a founding fund covers the DAO.</p>
-        <div class="mtable-wrap"><table class="mtable" id="stakes-table"></table></div>
-        <p id="jackpot-line"></p>
-      </section>
+
       <section id="run">
         <h2>Run it yourself</h2>
-          <pre class="jcode">git clone https://github.com/cnpierrepapi/adfontes
+        <pre class="jcode">git clone https://github.com/cnpierrepapi/adfontes
 cd adfontes
+node scripts/verify.mjs      # checks the live world against NEAR (no install needed)
 npm install
-npm test          # engine: clock, war, prices, tokens, market, techs, reverence, Warden
+npm test                     # the engine's tests
 npm run build && npm start   # site + API on :3000</pre>
-          <p>The README has the full picture, the diagrams, and why we think this is more than a game.</p>
-      </section>
-      <section id="roadmap">
-        <h2>Where it's at</h2>
-        <p>What's done for Season 1, what we said we'd do next (mainnet, a real cross-chain top-up, the season's end on 30 November), and what we dropped. The page checks each item against NEAR when you open it.</p>
-        <p><a class="viewbtn gold" href="/roadmap/">Open the roadmap</a></p>
+        <p>The README has the full picture and the diagrams. <a href="/roadmap/">The roadmap</a> checks each item against NEAR when you open it.</p>
       </section>
     </main>
     <script type="module" src="/src/judge.js"></script>
