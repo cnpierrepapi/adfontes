@@ -286,7 +286,9 @@ function makeApi(NET) {
   async live(q) {
     const since = Number(q.get("since")) || 0;
     const pending = await cachedN("live", 2_500, async () => (await stateNow()).pending || []);
-    return { now_ms: Date.now(), records: pending.filter((r) => (r.at || 0) > since).slice(-80) };
+    // An Act of God burns until the turn ends, so a fire always comes along, however busy the turn.
+    const recent = pending.filter((r) => (r.at || 0) > since), last = recent.slice(-80);
+    return { now_ms: Date.now(), records: [...recent.filter((r) => r.kind === "fire" && !last.includes(r)), ...last] };
   },
 
   // The testnet sponsor pool (SPEC §12m C): how many new testnet nations it can still pay for.

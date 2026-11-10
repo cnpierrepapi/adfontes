@@ -444,7 +444,7 @@ export async function startLive(canvas, hud, opts = {}) {
   // Every world event that plays while you aren't watching that nation up close (or from before
   // you arrived) is kept per nation. Fly in and they play again in order, with the Scholars firing
   // their star-guns, under a strip that says what's replaying and lets you skip.
-  const REPLAY = new Set(["corpus", "gift", "warden", "ruling", "trade", "tool", "trickster", "absorb", "report", "report-settled", "overtake"]);
+  const REPLAY = new Set(["fire", "corpus", "gift", "warden", "ruling", "trade", "tool", "trickster", "absorb", "report", "report-settled", "overtake"]);
   const missed = new Map(), missedKeys = new Set();
   let nearNow = 0, replaying = false, replay = null;
   const ownerOf = (r) => (r.kind === "trade" ? r.buyer : r.clan);
@@ -544,7 +544,7 @@ export async function startLive(canvas, hud, opts = {}) {
       W.jackpot = now.jackpot;
       standings.update(now);
       opts.onPoll?.(now); // the world clock: day or night now
-      if (now.day > lastDay) { lastDay = now.day; opts.onDay?.(now); }
+      if (now.day > lastDay) { lastDay = now.day; fx.endTurn(); opts.onDay?.(now); }
       return now;
     } catch { return null; }
   }

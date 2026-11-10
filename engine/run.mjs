@@ -23,6 +23,7 @@ import * as W from "./world.mjs";
 import { researchPrice, kitPrice } from "./prices.mjs";
 import * as TK from "./tokens.mjs";
 import * as MK from "./market.mjs";
+import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
 const MARKET_ON = process.env.ADF_MARKET === "1"; // the Brokers' market days (settling sales and royalties always run)
 import * as store from "./store.mjs";
@@ -1024,6 +1025,48 @@ for (let n = 0; n < days; n++) {
       const n = (p) => part.filter((m) => m.token_id.startsWith(p)).length;
       log({ kind: "tokens", minted: part.length, research: n("r:"), patents: n("p:"), kits: n("k:"), tx: r.hash });
     }
+  }
+
+  // Act of God (engine/fire.mjs): fire the gods called this turn, then (scheduled turns only) the
+  // heavens' own. Any failure is logged and skipped; it never stops the turn.
+  try { await firePhase(); } catch (e) { log({ kind: "error", error: `act of god: ${String(e.message || e).slice(0, 200)}` }); }
+  async function firePhase() {
+    const queue = (s.fire ||= {}).queue || [];
+    s.fire.queue = [];
+    if (!queue.length && (INSTANT || !FIRE.AOG.on)) return;
+    const chainNow = await chain.clans();
+    const standing = chainNow.filter((x) => x.alive && s.clans[x.id] && !s.clans[x.id].fallen);
+    const fl = Object.fromEntries(standing.map((x) => [x.id, spendable(x.id, x.florins)]));
+    const nameOf = (id) => chainNow.find((x) => x.id === id)?.name ?? `nation ${id}`;
+    const hit = new Set(); // one fire per nation per turn
+    const burnFire = async (target, memo) => {
+      const dmg = FIRE.damage(fl, target, s.clans[target]?.walls || 0);
+      if (dmg.florins <= 0) return null;
+      const r = await chain.burn(target, dmg.florins, memo.slice(0, 200));
+      const burned = r?.value != null ? toFlorins(r.value) : dmg.florins;
+      fl[target] = Math.max(0, (fl[target] || 0) - burned);
+      hit.add(target);
+      return { ...dmg, florins: +burned.toFixed(4), tx: r?.hash ?? null };
+    };
+    for (const q of queue) {
+      const last = (s.fire.last ||= {})[q.god] || 0;
+      const ok = FIRE.mayCast({ last, caster: q.caster, target: q.target, standing: standing.map((x) => x.id) });
+      if (!ok.ok || hit.has(q.target)) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: ok.ok ? "that nation is already burning this turn" : ok.why }); continue; }
+      const f = await burnFire(q.target, `act of god: fire called by the gods of ${nameOf(q.caster)}`);
+      if (!f) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: "that nation has nothing left to burn" }); continue; }
+      s.fire.last[q.god] = Date.now();
+      // The caster's nation pays a tenth of the damage it did.
+      let cost = null;
+      try { const c = await chain.burn(q.caster, +(f.florins * FIRE.AOG.casterCost).toFixed(4), `act of god: the price of calling fire on ${nameOf(q.target)}`); cost = { florins: c?.value != null ? +toFlorins(c.value).toFixed(4) : null, tx: c?.hash ?? null }; } catch {}
+      log({ kind: "fire", clan: q.target, cause: "god", from: q.caster, by: q.god, proposal: q.proposal, ...f, cost, signer: "operator" });
+    }
+    if (INSTANT || !FIRE.AOG.on || hit.size) return;
+    // The heavens' own fire: at most one a turn, from what happened this turn.
+    const wars = rec.filter((r) => r.kind === "war"); // wars declared this turn
+    const strike = FIRE.worldFire(standing.map((x) => ({ id: x.id, name: x.name, florins: fl[x.id] || 0, mood: s.clans[x.id].mood })), wars);
+    if (!strike) return;
+    const f = await burnFire(strike.target, `act of god: ${strike.cause}`);
+    if (f) log({ kind: "fire", clan: strike.target, cause: strike.cause, why: strike.why, ...f, signer: "operator" });
   }
 
   // Gods' rulings -> fortune

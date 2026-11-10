@@ -6,6 +6,7 @@
 // Pure logic: run.mjs gathers the god actions from the chain and calls in here. No NEAR moves.
 
 import { rootOut } from "./world.mjs";
+import { castTarget } from "./fire.mjs";
 
 export const REV = {
   start: 50, // gods already in a nation when reverence arrives
@@ -314,6 +315,11 @@ export async function godActions({ chain, s, oc, rv, day, changes, hear = null }
       if (hear && !OLD) { try { heard = await hear(String(args.text || "")); if (!heard?.says || !heard?.verdict) throw new Error("empty answer"); } catch (e) { heard = null; console.log(`  whisper to nation ${oc.id} not heard (old rule used): ${String(e.message || e).slice(0, 160)}`); } }
       act(rv, god, "whisper", day, changes, { text: args.text, heard });
       if (heard?.says) out.push({ kind: "heard", clan: oc.id, god, text: String(args.text || "").slice(0, 200), delta: Math.max(REV.heardMin, Math.min(REV.heardMax, Number(heard.delta) || 0)), verdict: heard.verdict ?? null, citizen: heard.citizen ?? null, says: String(heard.says).slice(0, 220) });
+    }
+    else if (method === "root_out" && castTarget(args.point) != null) {
+      // Act of God (engine/fire.mjs): the nation's gods voted to call fire on another nation. Queued
+      // here, burned at the turn's end by run.mjs.
+      ((s.fire ||= {}).queue ||= []).push({ caster: oc.id, god, target: castTarget(args.point), proposal: p.id, day });
     }
     else if (method === "root_out") {
       const c = s.clans?.[oc.id];
