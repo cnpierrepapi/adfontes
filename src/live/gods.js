@@ -434,7 +434,6 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           power("Smite a citizen", () => smiteCard(clan), "smite", "Stun a cheat, or remove them.");
           power("Root it out", () => rootCard(clan), "root", "Cut knowledge that unsettles them.");
           power("Act of God", () => fireCard(clan), "fire", "Rain fire on another nation's florins.");
-          if (BigInt(clan.staking_fund) > 0n) power("Release staking", () => stakingCard(clan), "staking", "Send the staking fund out.");
         }
         power("Claim your stake", () => withdrawCard(clan, me), "claim", "Take your florins out as NEAR.");
       }
@@ -718,23 +717,6 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         if (choice.value === "punish") live.smite(clan.id, sel.value, v.value);
         live.fx.play({ kind: "ruling", clan: clan.id, text: choice.value === "reward" ? `The gods rewarded gift #${gift.id}` : `The gods punished ${sel.value} for gift #${gift.id}` });
         return `Ruled: gift #${gift.id} is ${choice.value === "reward" ? "rewarded" : "punished"}.`;
-      },
-    });
-  }
-  async function stakingCard(clan) {
-    const p = await prepDao(clan);
-    const to = input({ placeholder: "the staking account, e.g. pool.poolv1.near" });
-    card({
-      title: "Release the staking fund",
-      fields: [label("Send it to", to)],
-      words: () => `${near(clan.staking_fund)} NEAR set aside for ${clan.name}'s staking goes to ${to.value.trim() || "the account you name"}. Check the account: NEAR sent to the wrong one can't be pulled back. It goes to the DAO as a proposal with your yes vote.`,
-      check: () => (/^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/.test(to.value.trim()) && to.value.trim().length >= 2 ? null : "Name a NEAR account."),
-      calls: () => p.build("release_staking", { clan_id: clan.id, to: to.value.trim() }, `AD FONTES: release ${clan.name}'s staking fund to ${to.value.trim()}`).calls,
-      after: async (outs) => {
-        const r = await daoResult(clan, C.returned(outs[0]));
-        if (!r.passed) return waiting(r.left);
-        live.fx.play({ kind: "staking", clan: clan.id, text: `${clan.name}'s staking fund went to ${to.value.trim()}` });
-        return `Released: ${near(clan.staking_fund)} NEAR sent to ${to.value.trim()}.`;
       },
     });
   }
