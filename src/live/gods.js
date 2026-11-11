@@ -688,13 +688,13 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         const x = pick(), e = est(x);
         const fenced = Math.round((x.florins || 0) - sp(x));
         return `Fire rains on ${x.name}. About ${Math.round(e.pct * 100)}% of the florins it can spend burn (${Math.round(e.fl)}), more the richer it is${sp(x) >= top ? " (it's the richest)" : ""}${x.war?.walls ? ", less for its walls" : ""}.${fenced > 1 ? ` Its gods' ${fenced} ring-fenced florins can't burn.` : ""} Burnt florins are gone, so every other florin in the world is worth a little more. ` +
-          `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, never on your own nation, and never on a nation at war. It goes to ${clan.name}'s DAO as a proposal with your yes vote, and burns within moments of the vote passing.`;
+          `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, never on your own nation, and never on a nation at war. It goes to ${clan.name}'s DAO as a proposal with your yes vote, and burns on the world's next turn.`;
       },
       calls: () => p.build("root_out", { clan_id: clan.id, point: `act of god: ${sel.value}` }, `AD FONTES: an Act of God. ${clan.name}'s gods rain fire on ${pick().name}`).calls,
       after: async (outs) => {
         const r = await daoResult(clan, C.returned(outs[0]));
         if (!r.passed) return waiting(r.left);
-        return `Done. Fire falls on ${pick().name} within moments, and it burns there until the turn ends.`;
+        return `Done. Fire falls on ${pick().name} on the world's next turn, and it burns there until that turn ends.`;
       },
     });
   }

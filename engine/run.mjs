@@ -872,9 +872,6 @@ for (let n = 0; n < days; n++) {
 
   // An instant turn ends here: no rulings sweep, fees, root or new day (the next day does those).
   if (INSTANT) {
-    // A god's Act of God burns now, in the instant turn their vote started (11 Nov: it used to wait
-    // for the next scheduled turn). The heavens' own fire still waits for a scheduled turn.
-    try { await firePhase(); } catch (e) { log({ kind: "error", error: `act of god: ${String(e.message || e).slice(0, 200)}` }); }
     s.spend.usd = spendBase + meter.usd;
     await store.saveState(net, s);
     console.log(`  instant turn for ${INSTANT.join(",")} done: ${rec.length} pending records | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);

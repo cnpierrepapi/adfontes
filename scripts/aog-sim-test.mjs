@@ -49,13 +49,15 @@ if (fighting && other) ((C.daos[other.dao] ||= [])).push({ id: C.daos[other.dao]
 fs.writeFileSync(`${DIR}/chain.json`, JSON.stringify(C));
 const before = { rich: fl(C, rich.id), poor: fl(C, poor.id), mid: fl(C, mid.id) };
 
-// The live engine runs an instant turn for a nation seconds after its gods' vote passes: the fire
-// must burn in that instant turn, not wait for the next scheduled one (missed on live 11 Nov).
-const lines2 = turn(2, {}, ["--instant", [poor.id, ...(fighting && other ? [other.id] : [])].join(",")]);
+// The live engine runs an instant turn for a nation seconds after its gods' vote passes. The vote is
+// read there and the fire waits for the next scheduled turn (his call 11 Nov: Act of God is turn based).
+const inst = turn(2, {}, ["--instant", [poor.id, ...(fighting && other ? [other.id] : [])].join(",")]);
+ok(!inst.some((l) => /\[fire/.test(l)), "the instant turn after the vote reads it but burns nothing");
+const lines2 = turn(3);
 console.log(lines2.map((l) => "   " + l.trim().slice(0, 200)).join("\n"));
 C = chain();
 const fire = lines2.find((l) => /\[fire\]/.test(l) && l.includes(`"clan":${rich.id}`));
-ok(!!fire, `turn 2: fire fell on ${rich.name}, the richest`);
+ok(!!fire, `turn 3, the next scheduled turn: fire fell on ${rich.name}, the richest`);
 const f = fire ? { pct: Number(/"pct":([\d.]+)/.exec(fire)?.[1]) } : null; // the engine prints records cut at 220 characters
 ok(f && f.pct > 0.05 && f.pct <= 0.25, `it burned ${f ? (f.pct * 100).toFixed(1) : "?"}% (5% plus up to 20% by its florins next to the richest, which may be at war; less for walls)`);
 ok(fl(C, rich.id) < before.rich - 1, `${rich.name}'s florins on the stand-in chain: ${before.rich.toFixed(1)} -> ${fl(C, rich.id).toFixed(1)}`);
@@ -65,11 +67,9 @@ ok(lines2.some((l) => /fire-refused/.test(l) && /own nation/.test(l)), "a call o
 if (fighting && other) ok(lines2.some((l) => /fire-refused/.test(l) && /at war/.test(l)), `a call on ${fighting.name}, which is at war, was refused`);
 ok(Math.abs(fl(C, mid.id) - before.mid) < 60, `${mid.name} wasn't burned (only upkeep moved it)`);
 
-// Seal the instant turn's day first: the heavens never strike on a day something already burned.
-turn(3);
 const lines3 = turn(4, { ADF_AOG_HOARD: "0.05" });
 console.log(lines3.map((l) => "   " + l.trim().slice(0, 200)).join("\n"));
-ok(lines3.some((l) => /\[fire\]/.test(l) && /"cause":"hoard"/.test(l)), "turn 3: with the hoarding line lowered, the heavens struck on their own");
+ok(lines3.some((l) => /\[fire\]/.test(l) && /"cause":"hoard"/.test(l)), "turn 4: with the hoarding line lowered, the heavens struck on their own");
 ok(lines3.filter((l) => /\[fire\]/.test(l)).length === 1, "and only once");
 const lines4 = turn(5);
 const log = fs.readFileSync(`${DIR}/aog.log`, "utf8");
