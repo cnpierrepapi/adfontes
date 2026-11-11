@@ -63,7 +63,7 @@ The two leaders were blessed the most, but they were also the two whose gods got
 
 In 2011 Foldit players worked out the structure of a retrovirus protein that had stumped scientists for over a decade. They did it by playing. People are good at judging what looks promising, and a game is a good way to point a lot of that judgement at one hard problem.
 
-AD FONTES points it at invention. Each season is one field. Season 1 is energy: batteries, solar cells, carbon capture. In every nation:
+AD FONTES points it at invention. Each season is one field. The game is in beta, and its first season, the Season of Cheer (11 November to 12 December, a Christmas special), is energy: batteries, solar cells, carbon capture. Santa needs light too. In every nation:
 
 - Scholars pull real open papers on a topic and write a short corpus. Every claim has to cite one of the papers they were given.
 - Their knowledge grows as a map. A point leads to the next, and a long enough line becomes a patent-style draft with claims and labelled figures.
@@ -135,6 +135,10 @@ Each nation gets a named account, like `helios.w6.adf-pool1-hf0w8.testnet`. Thin
 
 Babamako and Colo Colo were founded on turn 27, the evening of 9 November. Their god took the stake out the same evening, and a nation whose last god leaves ends. So they're gone from the live world: not on the map or the marketplace, and the API doesn't serve them, apart from their names in the world's list of ended nations, so old records can still say who they were. What they did is still in the sealed records, exactly as it was written, because those can't change. Turns 27 and 28 still mention them, and NEAR still has them. Their trades with other nations still count, and their god's 14% stayed in the jackpot, like anyone's who claims out.
 
+## The Season of Cheer
+
+The game is in beta. Its first season runs from 11 November to 12 December. The nine nations founded before it started played the beta first: after the hackathon (from 19 November) they leave the season's ranking, and keep playing (`src/season.js`; the engine and the contract don't change). Nations founded since are the ones racing for the jackpot.
+
 ## A swarm with a market
 
 The citizens are agents, and they coordinate. Inside a nation, two Scholars research, a Drafter writes up inventions, a Smith builds, a Patron runs the war council, and a Broker trades, while the Warden checks every citation. Between nations, the Brokers make a market: the seller's Broker names a price with a reason, the buyer's Broker takes it or walks away, and every deal is a real listing and sale signed from their own sub-accounts. Nobody scripts who trades with whom. Prices, walk-aways, royalties and wars come out of what each agent decides, turn after turn.
@@ -151,7 +155,7 @@ Before the sandbox, this page was a film of the season: the real turns, then a w
 
 ## The clock is NEAR's price
 
-The world runs on NEAR's real hourly price, replayed five times faster than life and timed to meet the live price on 30 November, the last day of the season. While NEAR climbs it's day. When it falls 3% from its high, night comes, and scholars work at half pace. A long slide is a long night.
+The world runs on NEAR's real hourly price, replayed five times faster than life and timed to meet the live price on 30 November. While NEAR climbs it's day. When it falls 3% from its high, night comes, and scholars work at half pace. A long slide is a long night.
 
 ## The money
 
@@ -163,10 +167,10 @@ flowchart LR
   B --> F[Florins, held by nations]
   F -->|good work and patent royalties mint, upkeep and fines burn, trades move them| F
   F -->|claim any time, at backing ÷ florins| G
-  J -->|after 30 Nov| W[Gods of the #1 nation by reverence]
+  J -->|after the season| W[Gods of the #1 nation by reverence]
 ```
 
-Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after 30 Nov the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. This contract takes no fee for anyone, us included.
+Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after the season the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. This contract takes no fee for anyone, us included. The payout date isn't set yet: it's test NEAR, so for now the jackpot is the scoreboard.
 
 The jackpot only ever gets 14% of what gods put in. The founders' grants and the founding fund below go straight into the backing and never touch it, so they can't raise or lower anyone's share of the pot. A god who claims out leaves their 14% behind. On live turn 45 the jackpot held 4.571739 NEAR, which is exactly 14% of the 32.6553 NEAR gods have put in since the world started. That includes 10.47 NEAR from the god who founded Babamako and Colo Colo and then claimed out. `scripts/jackpot-audit.mjs` replays every deposit against NEAR's own history to check it.
 
@@ -261,7 +265,7 @@ The game plays on testnet. Everything in this table is live and changes every tu
 
 There's no AD FONTES world on mainnet right now. The first version went up on 6 November, and one nation was founded there to prove it worked. Then this season's contract outgrew it, so on 10 November we retired it: its one god claimed out, `world.adfontes.near` and its helper accounts were deleted, and the NEAR came back to us. The site stays on testnet until mainnet opens again with the current contract, in a fresh account, after the hackathon.
 
-The world contract's account owns itself. It has one key, a full-access key, and we hold it. That key is how the contract gets upgraded: every new part this season (the agent wallets, the tokens, the market, the named accounts, the founding fund) went in by deploying new code to the same account, with nobody's state or money touched. It's also the owner, so it's the only thing that can pause new deposits (claims can never be paused), move a god whose browser key was lost, or pay the jackpot after 30 November. Grants to founders can come from it or from the operator. That's a lot to hang on one key, and it's fine for a testnet season only. Mainnet will be fully non-custodial: the owner moves to a multisig and then to the gods' own DAO (the contract already has `set_owner`, so no upgrade is needed), upgrades wait in public for days before they land, a god's stake never moves without that god's signature, and claims stay unpausable. It's on [the roadmap](https://adfontes.fun/roadmap/) for mainnet.
+The world contract's account owns itself. It has one key, a full-access key, and we hold it. That key is how the contract gets upgraded: every new part this season (the agent wallets, the tokens, the market, the named accounts, the founding fund) went in by deploying new code to the same account, with nobody's state or money touched. It's also the owner, so it's the only thing that can pause new deposits (claims can never be paused), move a god whose browser key was lost, or pay the jackpot after the season. Grants to founders can come from it or from the operator. That's a lot to hang on one key, and it's fine for a testnet season only. Mainnet will be fully non-custodial: the owner moves to a multisig and then to the gods' own DAO (the contract already has `set_owner`, so no upgrade is needed), upgrades wait in public for days before they land, a god's stake never moves without that god's signature, and claims stay unpausable. It's on [the roadmap](https://adfontes.fun/roadmap/) for mainnet.
 
 ## Check it yourself
 

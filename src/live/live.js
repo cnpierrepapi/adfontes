@@ -2,6 +2,7 @@
 // floating god's camera. Zoom levels become information levels in later steps.
 import { createStandings } from "./standings.js";
 import { createFeed } from "./feed.js";
+import { isNorthPole } from "../season.js";
 import { api as netApi } from "../net.js";
 import { endedName } from "../says.js";
 import * as THREE from "three";
@@ -153,7 +154,8 @@ export async function startLive(canvas, hud, opts = {}) {
     const cell = cellOf(c);
     const r = 1.8 + Math.min(2.6, Math.sqrt(c.points || 1) * 0.24);
     // A little drift inside the cell so the grid doesn't read as a grid.
-    const pos = new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
+    // North Pole (the Season of Cheer's demo nation) takes the empty centre of the map (HEX skips it).
+    const pos = isNorthPole(c) ? new THREE.Vector3(0, 0.5, 0) : new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
     // From the game (SPEC §14): a Trickster moved in or the citizens are hungry = neglected;
     // sated (more NEAR than they need) = rich and a bit lazy.
     const status = !c.alive ? "dead" : c.seen === false ? "new" : (c.tricksters || 0) > 0 || c.mood === "hungry" ? "neglected" : c.mood === "sated" ? "rich" : "ok";
@@ -950,12 +952,33 @@ export async function startLive(canvas, hud, opts = {}) {
 }
 
 // A clan's island: size from its mindmap, town from its state.
+// The pole at the North Pole: red and white stripes wound round it, a gold ball on top.
+function northPole(r) {
+  const cv = document.createElement("canvas"); cv.width = 64; cv.height = 256;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#ffffff"; g.fillRect(0, 0, 64, 256);
+  g.fillStyle = "#d8202a";
+  for (let y = -64; y < 320; y += 48) { g.beginPath(); g.moveTo(0, y); g.lineTo(64, y - 32); g.lineTo(64, y - 8); g.lineTo(0, y + 24); g.fill(); }
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, 2);
+  const h = r * 1.5;
+  const grp = new THREE.Group();
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, h, 20), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35 }));
+  stick.position.y = h / 2;
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.32, 20, 14), new THREE.MeshStandardMaterial({ color: 0xffc83a, metalness: 0.6, roughness: 0.25, emissive: 0x6a3a00, emissiveIntensity: 0.35 }));
+  ball.position.y = h + 0.2;
+  grp.add(stick, ball);
+  grp.position.set(-r * 0.78, 0, -r * 0.42); // near the rim, clear of the plaza's buildings
+  return grp;
+}
 function buildClanIsland(c, r, status, sprays) {
   const dead = status === "dead";
-  const isl = island(r, dead ? { grass: 0xb9b1a6, rock: 0x8f857c } : { grass: status === "neglected" ? 0xc8b46a : pick(PAL.grass), rock: pick(PAL.rock) });
+  const pole = isNorthPole(c);
+  // North Pole: snow on top, ice below, red roofs, and the pole itself.
+  const isl = island(r, dead ? { grass: 0xb9b1a6, rock: 0x8f857c } : pole ? { grass: 0xf4f8ff, rock: 0x9fb6cc } : { grass: status === "neglected" ? 0xc8b46a : pick(PAL.grass), rock: pick(PAL.rock) });
   const town = new THREE.Group();
   isl.add(town);
-  const accent = FIELD_COLOR[c.field] ?? pick(PAL.dome);
+  const accent = pole ? 0xd8202a : FIELD_COLOR[c.field] ?? pick(PAL.dome);
+  if (pole && !dead) isl.add(northPole(r)); // on the island itself: the plaza's close-up town replaces `town`
   if (dead) {
     // Broken pillars: what's left of the temple.
     for (let i = 0; i < 6; i++) {

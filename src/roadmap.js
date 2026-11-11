@@ -2,6 +2,7 @@
 // against NEAR or the site's API for every item that can be checked. Nothing here is hand-ticked
 // when the chain can say it instead.
 import { api } from "./net.js";
+import { SEASON } from "./season.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null)); return e; };
@@ -14,14 +15,14 @@ async function view(net, method, args = {}, contract = WORLD[net]) {
   if (r.error || r.result?.error) throw new Error(JSON.stringify(r.error || r.result.error).slice(0, 120));
   return JSON.parse(new TextDecoder().decode(new Uint8Array(r.result.result)));
 }
-const SEASON_END = Date.UTC(2026, 10, 30, 23, 0); // 30 Nov 23:00 UTC
+const SEASON_END = SEASON.to; // the Season of Cheer ends 12 Dec (src/season.js)
 const ok = (text) => ({ state: "ok", text }), wait = (text) => ({ state: "wait", text }), info = (text) => ({ state: "info", text });
 
 let W = null;
 const world = async () => (W ??= await api("world"));
 // Each check returns { state: ok | wait | info, text }: what NEAR or the site says right now.
 const CHECKS = {
-  async world() { const c = await view("testnet", "get_config"); return ok(`${WORLD.testnet} answers: turn ${c.day}, ${c.season}.`); },
+  async world() { const c = await view("testnet", "get_config"); return ok(`${WORLD.testnet} answers: turn ${c.day}.`); },
   async sealed() {
     const w = await world();
     for (let d = w.day; d >= w.day - 3; d--) {
@@ -64,7 +65,7 @@ const CHECKS = {
     const t = await view("testnet", "get_totals");
     if (t.jackpot_paid) return ok(`Paid: ${n2(N(t.jackpot))} NEAR.`);
     const days = Math.max(0, Math.ceil((SEASON_END - Date.now()) / 86400e3));
-    return wait(`${n2(N(t.jackpot))} NEAR in the jackpot. ${days} day${days === 1 ? "" : "s"} to go.`);
+    return wait(`${n2(N(t.jackpot))} NEAR in the jackpot. ${days} day${days === 1 ? "" : "s"} left in the Season of Cheer.`);
   },
 };
 

@@ -4,6 +4,7 @@ import { says as saysWith, tipOf, endedName } from "./says.js";
 import { sectionNav } from "./pagenav.js";
 import { verifyRecord } from "./proof.js";
 import { startTalk } from "./talk.js";
+import { seasonLabel } from "./season.js";
 sectionNav();
 
 const $ = (id) => document.getElementById(id);
@@ -32,7 +33,7 @@ async function lastSealed() {
 async function load() {
   W = await api("world");
   const c = W.clock, live = W.clans.filter((x) => x.alive);
-  $("where").textContent = `${W.season} · ${W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${W.day} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  $("where").textContent = `${seasonLabel()} · ${W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${W.day} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   const stat = (v, l) => el("div", {}, el("b", { textContent: v }), el("small", { textContent: l }));
   $("stats").replaceChildren(
     stat(c ? `Turn ${W.day}, ${c.phase === "day" ? "day" : "night"}` : `Turn ${W.day}`, c ? `NEAR $${c.price.toFixed(2)}, ${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}% since ${c.phase === "day" ? "dawn" : "dusk"}` : "the world clock"),
@@ -88,7 +89,7 @@ async function showStakes() {
   ));
   $("stakes-table").replaceChildren(el("thead", {}, head), el("tbody", {}, ...rows));
   const ahead = S.stakes.filter((x) => x.pct > 0).length;
-  $("jackpot-line").textContent = `${ahead ? `${ahead} god${ahead === 1 ? " is" : "s are"} in profit right now.` : "No god is in profit right now."} The jackpot holds ${n(S.jackpot)} NEAR${S.leader ? `. If the season ended today it would go to the gods of ${S.leader.name}, top of the standings at ${S.leader.standing} reverence` : ""}. It pays out after 30 November.`;
+  $("jackpot-line").textContent = `${ahead ? `${ahead} god${ahead === 1 ? " is" : "s are"} in profit right now.` : "No god is in profit right now."} The jackpot holds ${n(S.jackpot)} NEAR${S.leader ? `. If the season ended today it would go to the gods of ${S.leader.name}, top of the standings at ${S.leader.standing} reverence` : ""}. The Season of Cheer runs to 12 December; the payout date comes later.`;
 }
 
 $("check").addEventListener("click", async () => {

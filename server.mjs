@@ -15,6 +15,7 @@ import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, fundFounding, PUBLIC_KEY } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
 import { standings } from "./engine/reverence.mjs";
+import { inRanking } from "./src/season.js";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
 // each network has its own chain connection, world contract and cache. SITE_NET is the default.
@@ -401,7 +402,7 @@ function makeApi(NET) {
         }
       }));
       rows.sort((a, b) => (b.pct ?? -1e9) - (a.pct ?? -1e9));
-      const top = standings(s, clans)[0] ?? null;
+      const top = standings(s, clans).find((r) => inRanking(r)) ?? null; // the beta's first nine leave the ranking after the hackathon (src/season.js)
       return { day: s.day, net: NET, explorer: EXPLORER, florin_value: near(totals.florin_value), jackpot: near(totals.jackpot), jackpot_share: 14, leader: top ? { id: top.id, name: top.name, standing: Math.round(top.standing * 10) / 10 } : null, stakes: rows };
     });
   },

@@ -214,7 +214,9 @@ function plainRole(h) {
  */
 export async function makeCitizen(kit, roleName, name, opts = {}) {
   const L = looksFor(name || roleName);
-  const role = opts.plain ? plainRole(h32(name || "folk")) : ROLES[roleName] ?? ROLES.Scholar;
+  const base = opts.plain ? plainRole(h32(name || "folk")) : ROLES[roleName] ?? ROLES.Scholar;
+  // North Pole's small people: the role's outfit in red and white, a dark belt, no hood.
+  const role = opts.elf ? { ...base, hood: false, tints: { Body: 0xd8202a, Arms: 0xffffff, Legs: 0xd8202a, Pauldron: 0xffffff, Belt: 0x1d1d22, Bracer: 0xffffff } } : base;
   const g = L.female ? "female" : "male";
   const root = clone(kit.G[`${g}_${role.outfit}`].scene);
   if (role.hood === false) { const drop = []; root.traverse((o) => o.isMesh && o.name.includes("Hood") && drop.push(o)); drop.forEach((o) => o.removeFromParent()); }

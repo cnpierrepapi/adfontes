@@ -1,4 +1,5 @@
 import { says as saysWith, tipOf, endedName } from "./says.js";
+import { seasonLabel } from "./season.js";
 // The live world page. Reads the read-only API, and does the record check itself:
 // it hashes the record in the browser, walks the proof path, and asks NEAR for the root.
 const $ = (id) => document.getElementById(id);
@@ -19,7 +20,7 @@ async function loadWorld() {
   W = await api("world");
   const net = W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet, the practice world";
   const phase = W.clock?.phase ? ` · ${W.clock.phase}` : "";
-  $("where").textContent = `${W.season} · turn ${W.day}${phase} · ${net} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  $("where").textContent = `${seasonLabel()} · turn ${W.day}${phase} · ${net} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   if (W.weather) {
     const w = W.weather;
     const mood = w.change > 0.1 ? "hot" : w.change < -0.05 ? "cold" : "mild";

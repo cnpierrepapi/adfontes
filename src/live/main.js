@@ -6,6 +6,7 @@ import { createRoute } from "./route.js";
 import { playCinematic } from "./intro.js";
 import { runTutorial } from "./tutorial.js";
 import { playTimelapse, offerTimelapse } from "./timelapse.js";
+import { seasonLabel } from "../season.js";
 
 // The cinematic intro starts at once on a first visit and covers the world loading underneath.
 const cinema = new URLSearchParams(location.search).has("stills") ? Promise.resolve(false) : playCinematic();
@@ -97,12 +98,12 @@ function showDial(W) {
     const pct = `${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}%`;
     $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
     if (phone()) { $("dial").textContent = `turn ${W.day} · ${c.phase === "day" ? "☀" : "☾"} · NEAR $${c.price.toFixed(2)} (${pct})`; return; } // one short line on phones
-    $("dial").textContent = `${W.season} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"} · NEAR $${c.price.toFixed(2)} (${pct})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
+    $("dial").textContent = `${seasonLabel()} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"} · NEAR $${c.price.toFixed(2)} (${pct})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
     return;
   }
   const w = W.weather, mood = w ? weatherKind(w.change) : "";
   $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
-  $("dial").textContent = `${W.season} · turn ${W.day}${w ? ` · ${MOOD_WORD[mood]} week, NEAR $${w.price.toFixed(2)} (${w.change > 0 ? "+" : ""}${(w.change * 100).toFixed(1)}%)` : ""}${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : " · testnet"}`;
+  $("dial").textContent = `${seasonLabel()} · turn ${W.day}${w ? ` · ${MOOD_WORD[mood]} week, NEAR $${w.price.toFixed(2)} (${w.change > 0 ? "+" : ""}${(w.change * 100).toFixed(1)}%)` : ""}${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : " · testnet"}`;
 }
 const W = live.world;
 showDial(W);

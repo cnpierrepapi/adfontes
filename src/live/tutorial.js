@@ -13,7 +13,7 @@ export function runTutorial({ force = false } = {}) {
     { text: "This panel is the nation: what it knows, its florins, and the gods who back it.", target: () => $("#panel"), next: "Got it" },
     { text: "Every star in its sky is something its people found out. Click Sky.", target: () => [...document.querySelectorAll("#panel button")].find((b) => b.textContent.trim() === "Sky"), click: true },
     { text: "What's coming next turn shows here, with a button to answer it while you wait.", target: () => $(".standings .feed-head"), next: "Got it" },
-    { text: "The season race. The most revered nation on 30 November wins the jackpot.", target: () => $(".standings ol"), next: "Got it" },
+    { text: "The season race. The most revered nation at the end of the Season of Cheer wins the jackpot.", target: () => $(".standings ol"), next: "Got it" },
     { text: "Become a god. Tap here.", target: () => $(".chip.wallet"), click: true },
     { text: "\"Play with email\" gets you started in seconds.", target: () => [...document.querySelectorAll(".walletpick")].find(visible), done: () => !!document.querySelector(".chip.wallet")?.textContent.match(/[0-9a-f]{6}|\.testnet|\.near|@/) }, // an email shows once signed up
     { text: "Last step: found your own nation. It rises out of the clouds.", target: () => $(".chip.wallet"), click: true },

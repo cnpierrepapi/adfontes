@@ -1,28 +1,28 @@
 {
-  "updated": "10 November 2026",
+  "updated": "2026-11-11",
   "groups": [
     {
       "id": "done",
-      "title": "Done in Season 1",
-      "intro": "Running on NEAR testnet now. Where the page can check one against the chain, it does, every time you load it."
+      "title": "Done",
+      "intro": "Running on NEAR testnet now, in the beta. Where the page can check one against the chain, it does, every time you load it."
     },
     {
       "id": "next",
-      "title": "Next",
-      "intro": "What we said we'd do before the season ends."
+      "title": "Next, this season",
+      "intro": "Before the Season of Cheer ends on 12 December."
     },
     {
       "id": "mainnet",
-      "title": "Season 1 on mainnet",
-      "intro": "After the hackathon, Season 1 opens on mainnet with real NEAR and a second way to be a god: found a nation, or join the council in the Tree of Life. How it fits together is on one page:",
+      "title": "On mainnet",
+      "intro": "After the beta, the game opens on mainnet with real NEAR and a second way to be a god: found a nation, or join the council in the Tree of Life. How it fits together is on one page:",
       "link": {
         "href": "/roadmap/season1/",
-        "text": "Season 1 on mainnet, explained"
+        "text": "Mainnet, explained"
       }
     },
     {
       "id": "later",
-      "title": "After Season 1",
+      "title": "Later",
       "intro": "From the original plan. None of it is built yet."
     },
     {
@@ -52,21 +52,15 @@
     },
     {
       "group": "done",
-      "check": "aliases",
-      "title": "Every nation has a name",
-      "text": "Send NEAR to helios.w6… and it goes on to that nation's treasury. The account has no keys at all."
+      "check": "market",
+      "title": "Every trade goes through the market",
+      "text": "The seller's Broker names a price, the buyer takes it or walks away, and the deal is a real listing and sale on chain."
     },
     {
       "group": "done",
       "check": "tokens",
       "title": "Research is a token",
       "text": "Research, figure kits and patents are NEP-245 tokens, minted the moment they're made and kept in the Broker's wallet."
-    },
-    {
-      "group": "done",
-      "check": "market",
-      "title": "Every trade goes through the market",
-      "text": "The seller's Broker names a price, the buyer takes it or walks away, and the deal is a real listing and sale on chain."
     },
     {
       "group": "done",
@@ -81,9 +75,8 @@
     },
     {
       "group": "done",
-      "check": "founding",
-      "title": "Founding costs nothing extra",
-      "text": "The first founders got back the 5.5 NEAR their DAOs cost. Since then a founding fund pays for new nations' DAOs. Every player the testnet pool sets up without a wallet tops the fund up with one DAO's worth, so they never pay it. A founder with their own wallet pays for the DAO when the fund is empty."
+      "title": "Act of God",
+      "text": "A god can call fire down on another nation, once a day, through their nation's vote. It burns a share of the target's florins, bigger the richer it is, and walls take some of the hit. The caster's nation pays a tenth, and nobody at war can be hit. The heavens strike on their own too: at a nation picking a war on one a third its size, at the richest during a famine, and at any nation sitting on twice its fair share of the florins (22% with nine nations)."
     },
     {
       "group": "done",
@@ -93,15 +86,32 @@
     },
     {
       "group": "done",
-      "check": "refill",
-      "title": "The testnet pool refills itself",
-      "text": "Every 12 hours the engine tops up the pool that pays for new players, from NEAR's testnet helper."
+      "check": "sponsor",
+      "title": "Social login, with an email",
+      "text": "Sign up with an email and a passphrase and the pool makes you a named testnet account with enough NEAR to found a nation. Your email is the name you see; the key is locked with your passphrase in your browser before it is saved, so you can log in from any browser and nobody else can open it. Nothing pops up when you act."
     },
     {
       "group": "done",
-      "check": "sponsor",
-      "title": "Play without a wallet",
-      "text": "Sign up with an email and a passphrase and the pool makes you a named testnet account with enough NEAR to found a nation. Your email is the name you see; the key is locked with your passphrase in your browser before it is saved, so you can log in from any browser and nobody else can open it. Nothing pops up when you act."
+      "title": "Citizens speak to you",
+      "text": "A citizen who has something to say to you shows up in a dialogue box, with their own body and a line or two at a time: what they made of your whisper, a report on a neighbour, the Patron's reason for a war. The feed says what lands next turn, with a button to answer it while you wait."
+    },
+    {
+      "group": "done",
+      "check": "aliases",
+      "title": "Every nation has a name",
+      "text": "Send NEAR to helios.w6… and it goes on to that nation's treasury. The account has no keys at all."
+    },
+    {
+      "group": "done",
+      "check": "founding",
+      "title": "Founding costs nothing extra",
+      "text": "The first founders got back the 5.5 NEAR their DAOs cost. Since then a founding fund pays for new nations' DAOs. Every player the testnet pool sets up without a wallet tops the fund up with one DAO's worth, so they never pay it. A founder with their own wallet pays for the DAO when the fund is empty."
+    },
+    {
+      "group": "done",
+      "check": "refill",
+      "title": "The testnet pool refills itself",
+      "text": "Every 12 hours the engine tops up the pool that pays for new players, from NEAR's testnet helper."
     },
     {
       "group": "done",
@@ -109,36 +119,36 @@
       "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys. GitHub runs the same check every 2 hours, just after each turn is sealed."
     },
     {
-      "group": "done",
-      "title": "Act of God",
-      "text": "A god can call fire down on another nation, once a day, through their nation's vote. It burns a share of the target's florins, bigger the richer it is, and walls take some of the hit. The caster's nation pays a tenth, and nobody at war can be hit. The heavens strike on their own too: at a nation picking a war on one a third its size, at the richest during a famine, and at any nation sitting on twice its fair share of the florins (22% with nine nations)."
-    },
-    {
       "group": "next",
       "check": "jackpot",
-      "title": "Season 1 ends and the jackpot pays",
-      "text": "On 30 November at 23:00 UTC the season closes. The jackpot goes to the gods of the most revered nation still standing."
+      "title": "The Season of Cheer ends",
+      "text": "On 12 December the season closes. The jackpot goes to the gods of the most revered nation still standing. The payout date comes later."
     },
     {
       "group": "next",
-      "title": "Treaties and alliances",
-      "text": "Two nations can sign a pact: trade terms, peace, or an alliance in war. It only holds if both nations' gods bless it with a little NEAR. Saying no costs nothing."
+      "title": "Citizens with more character",
+      "text": "Every citizen gets a past, people it trusts or resents, an ambition and its own voice."
+    },
+    {
+      "group": "next",
+      "title": "Religion",
+      "text": "When two nations trade so much that about a tenth of one's mind map came from the other, they share a faith. Either god's whispers are heard in both nations, and the citizens of both answer. The world remembers who they worship."
     },
     {
       "group": "next",
       "title": "The season chronicle",
-      "text": "A narrated film of the season, like the intro and in the same voice, cut from the season's real records: the foundings, the wars, the falls, who traded with whom."
+      "text": "If AD FONTES wins the hackathon: a narrated film of the season, in the intro's voice, cut from the season's real records."
+    },
+    {
+      "group": "mainnet",
+      "title": "Fully non-custodial",
+      "text": "On mainnet nobody on the team holds a key that can touch your NEAR. The world contract's owner becomes a multisig, then the gods' own DAO. Upgrades wait in public for days before they land, a god's stake never moves without that god's signature, and claims can't be paused."
     },
     {
       "group": "mainnet",
       "check": "mainnetContract",
       "title": "Mainnet gets the current contract",
       "text": "There's no mainnet world right now: the first version was retired on 10 November and its NEAR came back. The current contract goes on mainnet in a fresh account."
-    },
-    {
-      "group": "mainnet",
-      "title": "Founders keep every NEAR they put in",
-      "text": "On mainnet the world pays for a new nation's DAO and its share of the jackpot, so a founder who puts in 5 NEAR gets 5 NEAR of florins."
     },
     {
       "group": "mainnet",
@@ -164,18 +174,13 @@
     },
     {
       "group": "mainnet",
-      "title": "Social login",
-      "text": "Sign in with Google and the like through NEAR's own login. On testnet you can already play with only an email and a passphrase."
+      "title": "Treaties and alliances",
+      "text": "Two nations can sign a pact: trade terms, peace, or an alliance in war. It only holds if both nations' gods bless it with a little NEAR. Saying no costs nothing."
     },
     {
       "group": "mainnet",
       "title": "The Tree of Life",
       "text": "Instead of founding a nation, a god can put NEAR into the tree and join its council of gods, a DAO that holds florins and the compute nations run short of. A priest tends the tree, worships the council and distrusts knowledge. Council gods see every citizen in the world, sorted by how likely each is to lose faith, and can whisper to them or bless them."
-    },
-    {
-      "group": "mainnet",
-      "title": "Citizens with more character",
-      "text": "Every citizen gets a past, people it trusts or resents, an ambition and its own voice. It ships with the Tree of Life, because it's what makes some citizens waver and others stay loyal."
     },
     {
       "group": "mainnet",
@@ -193,14 +198,14 @@
       "text": "Past the islands lie wild lands where mythical creatures roam, and only knowledge can tame them. A nation sends out an expedition, and what it has learned decides what comes back."
     },
     {
-      "group": "mainnet",
-      "title": "Fully non-custodial",
-      "text": "On mainnet nobody on the team holds a key that can touch your NEAR. The world contract's owner becomes a multisig, then the gods' own DAO. Upgrades wait in public for days before they land, a god's stake never moves without that god's signature, and claims can't be paused."
+      "group": "later",
+      "title": "The winner picks the next field",
+      "text": "The Season of Cheer is energy. The winning nation chooses what the next season is about."
     },
     {
       "group": "later",
-      "title": "The winner picks the next field",
-      "text": "Season 1 is energy. The winning nation chooses what Season 2 is about."
+      "title": "Seasons carry over",
+      "text": "Nations, their grudges and the winner's choice of field carry into the next season, so a season's history matters in the one after it."
     },
     {
       "group": "later",
@@ -216,11 +221,6 @@
       "group": "later",
       "title": "Nation tokens",
       "text": "Each nation gets its own token, and trading fees pay for its compute."
-    },
-    {
-      "group": "later",
-      "title": "Seasons carry over",
-      "text": "Nations, their grudges and the winner's choice of field carry into the next season, so a season's history matters in the one after it."
     },
     {
       "group": "not",
