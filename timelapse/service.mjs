@@ -79,6 +79,12 @@ function reseed(nations = null) {
       const tmp = BASE + "-new";
       const r = await run(["scripts/sim-seed.mjs", tmp], cleanEnv({}), 300e3);
       if (r.code !== 0) throw new Error(r.err.slice(-300) || r.out.slice(-300));
+      // One quiet turn, once, on the base: the engine takes its first look at each nation's DAO (votes
+      // from before the copy don't count) and sets up what a copy needs (stand-in wallets, names). It's
+      // housekeeping, not the world moving, so its records are dropped and nobody watches it play.
+      await turn(tmp, 1);
+      const quiet = path.join(tmp, "state", "testnet", `day-${stateOf(tmp).day}.json`);
+      fs.rmSync(quiet, { force: true });
       fs.rmSync(BASE + "-old", { recursive: true, force: true });
       if (fs.existsSync(BASE)) fs.renameSync(BASE, BASE + "-old");
       fs.renameSync(tmp, BASE);
@@ -168,12 +174,10 @@ async function create() {
   if (sessions.size >= MAX) throw new Error(`All ${MAX} sandboxes are in use. Try again in a few minutes.`);
   const id = crypto.randomBytes(6).toString("hex"), dir = path.join(SESS, id);
   fs.cpSync(BASE, dir, { recursive: true });
-  const s = { id, dir, k: 0, day: base.day, used: Date.now(), running: false, pending: null, log: [], futures: null, port: null, child: null, error: null };
+  // k = turns run on this copy so far; the base already ran its one quiet turn (reseed).
+  const s = { id, dir, k: 1, day: base.day, used: Date.now(), running: false, pending: null, log: [], futures: null, port: null, child: null, error: null };
   sessions.set(id, s);
   try {
-    // One quiet turn first: the engine takes its first look at each nation's DAO (votes from before the
-    // copy don't count), as it did when the nation was new.
-    await turn(dir, 1); s.k = 1;
     s.port = nextPort++; if (nextPort > PORT0 + 200) nextPort = PORT0;
     s.child = spawn(process.execPath, ["server.mjs"], { env: cleanEnv({ PORT: String(s.port), ADF_SIM_CHAIN: path.join(dir, "chain.json"), ADF_STATE_DIR: path.join(dir, "state") }), stdio: "ignore" });
     s.child.on("exit", () => { s.child = null; });

@@ -21,7 +21,8 @@ async function open() {
   globalThis.__adfApi = (p) => fetch(`/sbx/${id}/api/${p}${p.includes("?") ? "&" : "?"}net=testnet`, { cache: "no-store" }).then((r) => r.json());
   const { startLive } = await import("../live/live.js");
   live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, theme: "night", noReplay: true });
-  live.onRecord((r) => caption(r));
+  live.onRecord((r) => { caption(r); follow(r); });
+  live.fx.gap = 700; // a sandbox fast-forwards: its turns play quicker than the live world's
   for (const n of st.nations) names[n.id] = n.name;
   showBar(); showLab(); tick();
   if (innerWidth < 700) $("lab").classList.add("folded"); // phones: the world first, the lab one tap away
@@ -38,6 +39,12 @@ function caption(r) {
   clearTimeout(capTimer); capTimer = setTimeout(() => cap.classList.remove("in"), 5000);
 }
 
+// ---- the camera goes where the shock lands: fire on an island, a war declared, peace, a fall ----
+function follow(r) {
+  const id = r.kind === "fire" ? r.clan : r.kind === "war" ? r.attacker : r.kind === "peace" ? r.a : r.kind === "fallen" ? r.clan : null;
+  if (id != null) live.flyTo(id);
+}
+
 // ---- keeping up with the server: while turns or futures run, look often ----
 let lastDone = 0, lastTurns = -1;
 async function tick() {
@@ -47,7 +54,9 @@ async function tick() {
     for (const n of st.nations) names[n.id] = n.name;
     const moved = st.turns !== lastTurns || (st.running && st.done !== lastDone);
     lastDone = st.running ? st.done : 0; lastTurns = st.turns;
-    if (moved) await live.poll();
+    // A new turn: whatever the last one hadn't finished playing is dropped, so the turn you just ran
+    // plays now, its big moments (fire, war, peace, a fall) first.
+    if (moved) { live.fx.clear(); await live.poll(); }
     showBar();
     if (moved || !!was?.pending !== !!st.pending || !!was?.running !== !!st.running) showLab();
     else if (JSON.stringify(was?.futures) !== JSON.stringify(st.futures) || was?.log?.length !== st.log.length) showOut();
@@ -127,8 +136,8 @@ function showLab() {
 }
 // The futures and the heavens' log redraw on their own, so a half-made choice in the form stays put.
 function showOut() {
-  $("sb-out")?.replaceChildren(futuresView(),
-    st.log.length ? el("div", { className: "sb-log" }, el("small", { textContent: "What the heavens did" }), ...st.log.slice().reverse().map((r) => el("p", { textContent: `Turn +${r.turn}: ${r.kind === "fire" ? `${r.cause === "god" ? `the gods of ${nameOf(r.from)} rained fire on` : r.cause === "bully" ? "the heavens burned the bully" : "the heavens struck"} ${nameOf(r.clan)}, ${r0(r.florins)} florins burned${r.cost?.florins ? ` (${nameOf(r.from)} paid ${r0(r.cost.florins)})` : ""}` : `refused: ${r.why}`}` }))) : null);
+  $("sb-out")?.replaceChildren(...[futuresView(),
+    st.log.length ? el("div", { className: "sb-log" }, el("small", { textContent: "What the heavens did" }), ...st.log.slice().reverse().map((r) => el("p", { textContent: `Turn +${r.turn}: ${r.kind === "fire" ? `${r.cause === "god" ? `the gods of ${nameOf(r.from)} rained fire on` : r.cause === "bully" ? "the heavens burned the bully" : "the heavens struck"} ${nameOf(r.clan)}, ${r0(r.florins)} florins burned${r.cost?.florins ? ` (${nameOf(r.from)} paid ${r0(r.cost.florins)})` : ""}` : `refused: ${r.why}`}` }))) : null].filter(Boolean));
 }
 async function shock(body) {
   try { st = await post(`${id}/shock`, body); showLab(); showBar(); clearTimeout(tickT); tickT = setTimeout(tick, 800); }
@@ -194,20 +203,23 @@ async function showClan(c) {
   if (!n && !w) { p.hidden = true; return; }
   shown = c.id;
   const fenced = n ? Math.max(0, n.florins - n.spendable) : 0;
-  p.replaceChildren(
-    el("p", { className: "ss-chip sim", textContent: `Sandbox · +${st.turns} turns` }),
+  // What the heavens did to this nation in your copy, newest first.
+  const hits = st.log.filter((r) => r.kind === "fire" && r.clan === c.id).reverse().map((r) => el("p", { className: "line burnt", textContent: `🔥 Turn +${r.turn}: ${r0(r.florins)} florins burned${r.cause === "god" ? ` by the gods of ${nameOf(r.from)}` : r.cause === "bully" ? " for picking on a weaker nation" : ""}.` }));
+  p.replaceChildren(...[
+    el("p", { className: "ss-chip sim", textContent: `Sandbox · +${st.turns} turn${st.turns === 1 ? "" : "s"}` }),
     el("h2", { textContent: n?.name ?? w?.name }),
     el("p", { className: "meta", textContent: [w?.field, w?.mbti, w?.mood, n?.at_war ? "at war" : "at peace"].filter(Boolean).join(" · ") }),
     el("div", { className: "nums" },
       el("div", {}, r0(n?.spendable ?? w?.florins ?? 0), el("small", { textContent: "florins it can spend" })),
       el("div", {}, String(w?.points ?? "–"), el("small", { textContent: "points of knowledge" })),
       el("div", {}, String(w?.clean_gifts ?? "–"), el("small", { textContent: "patents" }))),
+    ...hits,
     fenced > 1 ? el("p", { className: "line", textContent: `Plus ${r0(fenced)} ring-fenced florins: its gods' grant, which it can't spend and fire can't burn.` }) : null,
     el("p", { className: "line", textContent: w?.war?.enemy ? `At war with ${nameOf(w.war.enemy)}, round ${w.war.rounds}.` : "At peace." }),
     el("div", { className: "views" },
       el("button", { type: "button", className: "viewbtn", textContent: "Sky", onclick: () => live.flyTo(c.id) }),
       el("button", { type: "button", className: "viewbtn", textContent: "Plaza", onclick: () => live.viewPlaza(c.id) })),
-  );
+  ].filter(Boolean));
   p.hidden = false;
 }
 

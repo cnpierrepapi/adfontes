@@ -61,3 +61,4 @@ body.sandbox .dial { background: rgba(124, 82, 214, 0.92); color: #fff; }
 
 /* A copy's records have stand-in transaction ids: no links to the NEAR explorer. */
 body.sandbox a[href*="nearblocks"] { display: none !important; }
+.godpanel .line.burnt { color: #ffb37a; font-weight: 600; }

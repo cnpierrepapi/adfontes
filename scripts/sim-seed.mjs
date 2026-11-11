@@ -59,6 +59,12 @@ for (const wc of W.clans) {
 }
 for (const w of W.wars || []) s.wars[w.id] = { id: w.id, a: w.a, b: w.b, status: "on", startedDay: w.since, startedAt: T0 - 6 * H, rounds: w.rounds, ...(w.offer ? { offer: { by: w.offer } } : {}) };
 fs.writeFileSync(`${OUT}/state/testnet.json`, JSON.stringify(s));
+// The last 20 turns' records, as the live world sealed them: the copy's trade routes (the bridges
+// between islands), its event history and its replays start where the live world's are.
+for (let d = Math.max(1, W.day - 19); d <= W.day; d++) {
+  const day = await api(`day?d=${d}`).catch(() => null);
+  if (day?.records?.length) fs.writeFileSync(`${OUT}/state/testnet/day-${d}.json`, JSON.stringify(day.records));
+}
 fs.writeFileSync(`${OUT}/before-world.json`, JSON.stringify(W));
 fs.writeFileSync(`${OUT}/seed.json`, JSON.stringify({ seededAt: T0, day: W.day }));
 console.log(`seeded at turn ${W.day}: ${W.clans.length} nations (${W.clans.map((c) => c.name).join(", ")}), ${Object.keys(s.corpora).length} research pieces, ${Object.keys(s.drafts).length} drafts, ${Object.keys(s.wars).length} war(s)`);
