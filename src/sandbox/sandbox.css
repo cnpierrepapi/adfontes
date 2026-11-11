@@ -1,4 +1,4 @@
-/* The sandbox (/timelapse/): the live world's HUD on a copy, a lab panel on the left (shock it, the
+/* The sandbox (/timelapse/): the live world's HUD on a copy, a lab panel on the right (shock it, the
    futures), and a bar to fast-forward. Night theme only. */
 body.sandbox .dial { background: rgba(124, 82, 214, 0.92); color: #fff; }
 
@@ -9,7 +9,7 @@ body.sandbox .dial { background: rgba(124, 82, 214, 0.92); color: #fff; }
 .sb-ff button:disabled { opacity: 0.45; cursor: progress; }
 .sb-reset { background: #eee8fb; flex: none; }
 
-.sb-lab { position: absolute; left: 18px; top: 88px; z-index: 25; width: min(340px, calc(100vw - 36px)); max-height: calc(100vh - 170px); overflow: auto; border-radius: 22px; padding: 16px 18px;
+.sb-lab { position: absolute; right: 18px; top: 88px; overflow-x: hidden; z-index: 25; width: min(340px, calc(100vw - 36px)); max-height: calc(100vh - 170px); overflow: auto; border-radius: 22px; padding: 16px 18px;
   background: rgba(20, 18, 50, 0.82); backdrop-filter: blur(12px); color: #f1ecff; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35); font-family: var(--body); }
 .sb-lab[hidden] { display: none; }
 .sb-head { display: flex; align-items: center; }
@@ -19,9 +19,9 @@ body.sandbox .dial { background: rgba(124, 82, 214, 0.92); color: #fff; }
 .sb-tabs { display: flex; gap: 4px; margin: 10px 0; }
 .sb-tabs button { flex: 1; font: inherit; font-weight: 600; font-size: 0.84rem; border: 0; border-radius: 999px; padding: 7px 10px; cursor: pointer; background: rgba(255, 255, 255, 0.1); color: #f1ecff; }
 .sb-tabs button.on { background: #f1ecff; color: var(--ink); }
-.sb-form { display: grid; gap: 8px; }
+.sb-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .sb-form label { display: grid; gap: 4px; font-size: 0.78rem; color: #b9b2d9; }
-.sb-form select { font: inherit; font-size: 0.86rem; padding: 7px 9px; border-radius: 10px; border: 0; background: #f6f2ff; color: var(--ink); }
+.sb-form select { width: 100%; min-width: 0; text-overflow: ellipsis; font: inherit; font-size: 0.86rem; padding: 7px 9px; border-radius: 10px; border: 0; background: #f6f2ff; color: var(--ink); }
 .sb-preset { justify-self: start; font: inherit; font-size: 0.82rem; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.3); background: transparent; color: #ffd36b; border-radius: 999px; padding: 5px 11px; cursor: pointer; }
 .sb-cast { justify-self: stretch; }
 .sb-cast:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -69,3 +69,6 @@ body.sandbox .standings { left: auto; right: 18px; top: 84px; }
 /* No standings box in the sandbox (his call 11 Nov): the lab says what's waiting and what happened,
    and the nation panel has the right side to itself. */
 body.sandbox .standings { display: none !important; }
+/* His call 11 Nov: the lab sits on the right so the sandbox banner on the left stays clear; the
+   nation panel takes the left side here, under the banner. Phones keep the bottom-sheet layout. */
+@media (min-width: 701px) { body.sandbox .godpanel { right: auto; left: 18px; top: 118px; max-height: calc(100vh - 200px); } }
