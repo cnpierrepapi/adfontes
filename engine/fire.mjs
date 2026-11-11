@@ -24,7 +24,8 @@ export const AOG = {
   minFlorins: 1, // a target with less than this has nothing to burn
   famineShare: 0.5, // world fire: at least half the standing nations hungry ...
   bullyRatio: 3, // ... or a war declared by a nation 3x the defender's florins ...
-  hoardShare: Number(process.env.ADF_AOG_HOARD) || 0.4, // ... or one nation holding 40% of all spendable florins (tests can lower it)
+  hoardTimes: 2, // ... or one nation holding twice an equal share of all spendable florins (22% with 9 nations)
+  hoardShare: Number(process.env.ADF_AOG_HOARD) || null, // a fixed line instead (tests lower it)
   minNations: 3, // the heavens don't strike a world of one or two nations
   point: /^act of god:\s*(\d+)\s*$/i,
 };
@@ -72,6 +73,7 @@ export function worldFire(nations) {
   const hungry = nations.filter((x) => x.mood === "hungry");
   if (hungry.length >= Math.ceil(nations.length * AOG.famineShare) && richest.mood !== "hungry") return { target: richest.id, cause: "famine", why: `${hungry.length} of ${nations.length} nations are hungry while ${richest.name} holds the most florins` };
   // Hoarding: one nation with too much of the world's florins.
-  if (richest.florins / total >= AOG.hoardShare) return { target: richest.id, cause: "hoard", why: `${richest.name} holds ${Math.round((richest.florins / total) * 100)}% of the world's florins` };
+  const line = AOG.hoardShare ?? AOG.hoardTimes / nations.length;
+  if (richest.florins / total >= line) return { target: richest.id, cause: "hoard", why: `${richest.name} holds ${Math.round((richest.florins / total) * 100)}% of the world's florins` };
   return null;
 }

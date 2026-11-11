@@ -1,7 +1,7 @@
 // Act of God on a copy of the live world (never on testnet): seed a fresh copy, then run the real
 // engine on the stand-in chain with stand-in minds ($0). Turn 1 settles in; then a god of the poorest
 // nation calls fire on the richest (plus two calls the heavens must refuse); turn 2 burns it; turn 3
-// lowers the hoarding line so the heavens strike on their own. Exits 1 on any failure.
+// lowers the hoarding line so the heavens strike on their own; turn 5 plants a bully war. Exits 1 on any failure.
 //   node scripts/aog-sim-test.mjs [dir=debug/sim-aog] [--keep]   (--keep: reuse an existing seed)
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -12,6 +12,7 @@ if (!process.argv.includes("--keep") || !fs.existsSync(`${DIR}/seed.json`)) {
   if (r.status !== 0) { console.log(r.stdout, r.stderr); process.exit(1); }
 }
 const { seededAt } = JSON.parse(fs.readFileSync(`${DIR}/seed.json`, "utf8"));
+const seedDay = Math.max(0, ...fs.readdirSync(`${DIR}/state/testnet`).filter((f) => /^day-\d+\.json$/.test(f)).map((f) => Number(f.match(/\d+/)[0])));
 const env = { ...process.env, ADF_SIM_CHAIN: `${DIR}/chain.json`, ADF_STATE_DIR: `${DIR}/state`, ADF_DAILY_CAP: "50", DATABASE_URL: "", ADF_FAKE_LLM: "1", ADF_MARKET: "1" };
 delete env.SPONSOR_ACCOUNT_ID; delete env.SPONSOR_PRIVATE_KEY; delete env.OPERATOR_PRIVATE_KEY;
 const turn = (k, extra = {}) => {
@@ -70,24 +71,44 @@ const lines4 = turn(4);
 const log = fs.readFileSync(`${DIR}/aog.log`, "utf8");
 const wars = (log.match(/\[war\][^\n]*/g) || []).length, bully = (log.match(/\[fire\][^\n]*"cause":"bully"[^\n]*/g) || []);
 console.log(`wars declared on the copy: ${wars}; bully fires: ${bully.length}${bully.length ? "\n   " + bully.join("\n   ").slice(0, 400) : ""}`);
-ok(!lines4.some((l) => /\[fire\]/.test(l)), "turn 4, normal rules on this world: no fire");
-// Turn 5: every war council meets (they meet once a real day; the copy is only hours old), so a
-// nation can declare. Any declaration on a nation with a third of the attacker's florins or less must
-// bring fire on the attacker before the war's first battle.
+// Turn 4, normal rules: the heavens strike only if a nation at peace holds twice an equal share
+// (22% with 9 nations) or half the world is hungry. Any fire must say which.
+const n4 = chain().clans.filter((c) => c.alive).length, f4 = lines4.filter((l) => /\[fire\]/.test(l));
+ok(f4.every((l) => /"cause":"famine"/.test(l) || (/"cause":"hoard"/.test(l) && Number(/holds (\d+)%/.exec(l)?.[1]) >= Math.floor((200 / n4)))), `turn 4, normal rules: ${f4.length ? "fire only past the line (" + (200 / n4).toFixed(1) + "% with " + n4 + " nations)" : "no fire"}`);
+// Turn 5: a bully, planted. The richest nation at peace (with a passed patent) declares on a nation
+// at peace with a fifth of its florins or less. Only its council meets (the rest met hours ago).
+// The fire must hit the attacker, before the war's first battle, for the right amount.
+// --rule-off: the same turn with Act of God switched off; the bully checks must then FAIL.
 const sp = `${DIR}/state/testnet.json`, S = JSON.parse(fs.readFileSync(sp, "utf8"));
-for (const c of Object.values(S.clans)) c.lastCouncilAt = 0;
-fs.writeFileSync(sp, JSON.stringify(S));
-turn(5);
-const t5 = fs.readFileSync(`${DIR}/aog.log`, "utf8").split("===== turn 5")[1] || "";
-const t5lines = t5.split("\n");
-const decl = t5lines.map((l, i) => ({ l, i })).filter((x) => /\[war\]/.test(x.l));
-console.log(`turn 5: ${decl.length} war(s) declared`);
-for (const d of decl) {
-  const att = Number(/"attacker":(\d+)/.exec(d.l)?.[1]), def = Number(/"defender":(\d+)/.exec(d.l)?.[1]);
-  const fireAt = t5lines.findIndex((l) => /\[fire\]/.test(l) && /"cause":"bully"/.test(l) && l.includes(`"clan":${att},`));
-  const battleAt = t5lines.findIndex((l, i) => i > d.i && /\[battle\]/.test(l));
-  console.log(`   war ${att} on ${def}: bully fire at line ${fireAt}, first battle at line ${battleAt}`);
-  if (fireAt >= 0) ok(battleAt < 0 || fireAt < battleAt, `nation ${att} burned as it declared, before its first battle`);
+const { eligible, warOf: inWar } = await import("../engine/war.mjs");
+const { damage } = await import("../engine/fire.mjs");
+C = chain();
+const free = C.clans.filter((c) => c.alive && eligible(S, c.id) && !inWar(S, c.id)).sort((a, b) => fl(C, b.id) - fl(C, a.id));
+const att = free[0], def = free.filter((c) => fl(C, c.id) * 5 <= fl(C, att.id)).at(-1);
+ok(!!(att && def), att && def ? `planted: ${att.name} (${fl(C, att.id).toFixed(1)}) declares on ${def.name} (${fl(C, def.id).toFixed(1)})` : "no nation 5x poorer than the richest to pick on");
+if (att && def) {
+  S.clans[att.id].lastCouncilAt = 0;
+  fs.writeFileSync(sp, JSON.stringify(S));
+  const flAll = Object.fromEntries(C.clans.filter((c) => c.alive).map((c) => [c.id, fl(C, c.id)]));
+  const attBefore = flAll[att.id];
+  turn(5, { ADF_FAKE_WAR: `${att.id}:${def.id}`, ...(process.argv.includes("--rule-off") ? { ADF_AOG: "off" } : {}) });
+  // The turn's sealed records, in order (the printed lines are cut at 220 characters).
+  const dd5 = `${DIR}/state/testnet`, last = Math.max(...fs.readdirSync(dd5).filter((f) => /^day-\d+\.json$/.test(f)).map((f) => Number(f.match(/\d+/)[0])));
+  const t5 = JSON.parse(fs.readFileSync(`${dd5}/day-${last}.json`, "utf8"));
+  const declAt = t5.findIndex((r) => r.kind === "war" && r.attacker === att.id && r.defender === def.id);
+  const fireAt = t5.findIndex((r) => r.kind === "fire" && r.cause === "bully" && r.clan === att.id);
+  const battleAt = t5.findIndex((r, i) => i > declAt && r.kind === "battle" && r.sides && String(att.id) in r.sides);
+  ok(declAt >= 0, `${att.name} declared war on ${def.name}`);
+  ok(fireAt > declAt && declAt >= 0, `fire fell on ${att.name}, the attacker, as it declared`);
+  ok(!t5.some((r) => r.kind === "fire" && r.clan === def.id), `not on ${def.name}, the defender`);
+  ok(fireAt >= 0 && (battleAt < 0 || fireAt < battleAt), `before the war's first battle (fire record ${fireAt}, battle record ${battleAt})`);
+  const want = damage(flAll, att.id, S.clans[att.id].walls || 0).florins, got = t5[fireAt]?.florins;
+  ok(fireAt >= 0 && Math.abs(got - want) < 0.01, `burned ${got} florins, the rule says ${want.toFixed(4)} (florins at the start of the turn: ${attBefore.toFixed(1)})`);
+  ok(fireAt >= 0 && Math.abs(fl(chain(), att.id) - (attBefore - got)) < attBefore * 0.15, `${att.name} on the stand-in chain: ${attBefore.toFixed(1)} -> ${fl(chain(), att.id).toFixed(1)} (the fire plus the turn's own spending)`);
 }
+// No turn on the copy may log an error.
+const dd = `${DIR}/state/testnet`, errs = fs.readdirSync(dd).filter((f) => /^day-\d+\.json$/.test(f) && Number(f.match(/\d+/)[0]) > seedDay)
+  .flatMap((f) => JSON.parse(fs.readFileSync(`${dd}/${f}`, "utf8")).filter((r) => r.kind === "error"));
+ok(!errs.length, `no errors on any turn of the copy${errs.length ? ": " + errs.slice(0, 3).map((r) => r.error).join(" | ") : ""}`);
 if (bad) process.exitCode = 1;
 console.log(bad ? `${bad} failed` : "all passed");

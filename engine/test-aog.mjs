@@ -41,7 +41,12 @@ const famWar = worldFire(N({ 1: { atWar: true }, 2: { mood: "hungry" }, 3: { moo
 ok(famWar?.target === 4 || famWar === null, "a famine never burns a nation at war (the richest is fighting, so it falls on the richest at peace, or nobody)");
 ok(worldFire(N({ 1: { florins: 9000, atWar: true } }))?.target !== 1, "a hoarder at war isn't struck");
 const hoard = worldFire(N({ 1: { florins: 9000 } }));
-ok(hoard?.cause === "hoard" && hoard.target === 1, "one nation with over 40% of the florins: it burns");
+ok(hoard?.cause === "hoard" && hoard.target === 1, "one nation with most of the florins: it burns");
+// The hoarding line is twice an equal share: 22.2% with 9 nations, 50% with 4.
+const nine = (big) => Array.from({ length: 9 }, (_, i) => ({ id: i + 1, name: `N${i + 1}`, florins: i ? 100 : big, mood: "content" }));
+ok(worldFire(nine(240))?.target === 1, "9 nations, one holds 23% (240 of 1040): it burns");
+ok(worldFire(nine(220)) === null, "9 nations, one holds 21.6% (220 of 1020): no fire");
+ok(worldFire(N({ 1: { florins: 3500 } })) === null && worldFire(N({ 1: { florins: 4100 } }))?.target === 1, "4 nations: the line is 50% (3500 of 7500 is safe, 4100 of 8100 burns)");
 ok(worldFire(N({ 1: { florins: 9000 } }).slice(0, 2)) === null, "a world of two nations is left alone");
 
 if (bad) { console.log(`${bad} failed`); process.exit(1); }
