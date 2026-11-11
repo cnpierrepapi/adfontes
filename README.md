@@ -13,6 +13,8 @@ Think of it as an ant farm for research. You can't make the ants smarter. You ca
 
 ## For judges: do this, see this
 
+Got one minute? Open https://adfontes.fun/timelapse/, rain fire on a nation and press +1 day. That's the whole game, on your own copy of it.
+
 | Do this | You'll see |
 |---|---|
 | Open https://adfontes.fun/timelapse/, rain fire on a nation, press +1 day | Your own copy of the live world, run by the same engine. The fire lands on the next turn. Then the copy runs 12 turns ahead 8 times with the fire and 8 without, and a chart says whether the nation got back on its feet. Nothing in it touches NEAR. |
@@ -139,7 +141,7 @@ The citizens are agents, and they coordinate. Inside a nation, two Scholars rese
 
 A season lasts weeks, and a judge has five minutes. So https://adfontes.fun/timelapse/ gives you your own copy of the live world to break. Shock it with an Act of God or a bully war, then run it ahead a turn, a day (12 turns) or a week (84). The live world's own 3D code plays every turn as it lands.
 
-It isn't a model of the game. It's the game: the same engine (`engine/run.mjs`) on a copy of the world taken from NEAR and the site's API after each live turn, or within minutes of a new nation being founded. The copy has every nation, florin, citizen, war and god's stake, ring-fence included. It runs on a stand-in chain (`engine/chain-sim.mjs`), with stand-in minds instead of Claude, and researches only from papers the live world has already fetched. Each visitor gets a separate copy and its own copy of the site's server, so the page reads it through the same API the live world uses (`timelapse/service.mjs`). Nothing in it is signed or sent to NEAR.
+It's the game itself: the same engine (`engine/run.mjs`) on a copy of the world taken from NEAR and the site's API after each live turn, or within minutes of a nation being founded or ending. The copy has every nation, florin, citizen, war and god's stake, ring-fence included, and the last 20 turns of records, so the trade bridges and the event history match the live world. A sandbox you already have open keeps its copy, and its bar tells you when the live world has moved on. It runs on a stand-in chain (`engine/chain-sim.mjs`), with stand-in minds instead of Claude, and researches only from papers the live world has already fetched. Each visitor gets a separate copy and its own copy of the site's server, so the page reads it through the same API the live world uses (`timelapse/service.mjs`). Nothing in it is signed or sent to NEAR.
 
 After a shock, the sandbox runs the same moment 12 turns ahead 8 times with the shock and 8 times without, about two minutes in the background. The chart shows the nation's spendable florins on both lines, and says in how many of the 8 futures it got back to 95% of where it would have been. On a copy of turn 44, a god of Helios calling fire on Fremonition burned 30 florins. A copy where the gods of Antilles burned Salamanco creek, the richest nation at peace, cost it 466 florins, and it got back to where it would have been in none of the 8 futures within the day. Losing a quarter of what you can spend takes more than a day to earn back.
 
@@ -220,7 +222,8 @@ sequenceDiagram
     E->>E: a draft, at most once a real day
     E->>N: mint for good work, burn upkeep and fines
   end
-  E->>E: war councils and battles
+  E->>E: war councils and battles (a bully burns as it declares)
+  E->>N: Act of God: fire the gods voted for, or the heavens' own
   E->>N: mint any token whose mint failed earlier (new ones are minted the moment they're made)
   E->>DB: save the turn's records
   E->>N: set_root(turn, merkle root of every record)

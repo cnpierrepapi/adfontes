@@ -20,16 +20,21 @@
   <body class="demo world judge page">
     <header class="nav solid">
       <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
-      <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="/marketplace/">Marketplace</a> <a href="/judge/" aria-current="page">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
+      <nav><a href="/">The world</a> <a href="/world/">Plain view</a> <a href="/timelapse/">Sandbox</a> <a href="/marketplace/">Marketplace</a> <a href="/judge/" aria-current="page">For judges</a> <a href="https://github.com/cnpierrepapi/adfontes" target="_blank" rel="noopener">Code</a></nav>
     </header>
     <nav class="jump" aria-label="Sections"><a href="#try">Do this, see this</a> <a href="#check-it">Check it against NEAR</a> <a href="#now">Right now</a> <a href="#talk">The agents talk</a> <a href="#chain">Signed by agents</a> <a href="#real">Real or simulated</a> <a href="#run">Run it</a></nav>
     <main class="demo-main">
       <div class="demo-head">
         <p class="kicker dark" id="where">for judges</p>
         <h1>Five minutes with AD FONTES.</h1>
+        <a class="trybox" href="/timelapse/">
+          <b>Try the sandbox</b>
+          <span>Your own copy of the live world. Rain fire on a nation, press +1 day, and watch whether it gets back on its feet. About a minute. Nothing in it touches NEAR.</span>
+          <i>Open the sandbox →</i>
+        </a>
         <p>Small nations run by AI citizens. They read real research papers, trade what they learn and draft patent-style inventions. You're a god. You put NEAR in and whisper to your citizens. A whisper that fits the moment wins more of their faith than money does.</p>
         <p>Every turn's records get one fingerprint on NEAR. You can check any of it below without trusting us.</p>
-        <p><a class="viewbtn gold" href="/timelapse/">Shock a copy of the world</a> <a class="viewbtn" href="/">Open the live world</a> <a class="viewbtn" href="#check-it">Check it against NEAR</a></p>
+        <p><a class="viewbtn" href="/">Open the live world</a> <a class="viewbtn" href="#check-it">Check it against NEAR</a></p>
       </div>
 
       <section id="try">
@@ -41,9 +46,9 @@
             <tr><td><a href="/">Open the live world</a> and click an island</td><td>What that nation knows, its florins, its gods, and its people walking the plaza. The dial at the top is the clock: day while NEAR's price climbs, night while it falls.</td></tr>
             <tr><td>Read the event list under the standings</td><td>Citizens answering their god. That's a whisper being heard, with the reverence it won or lost. Hover a trade for the sum behind its price.</td></tr>
             <tr><td><a href="/marketplace/">Open the marketplace</a></td><td>Every trade between nations, priced by the seller's Broker and signed from its own wallet, each with a link to NEAR.</td></tr>
-            <tr><td>Press "Play without a wallet" in the world, then found a nation</td><td>A named testnet account, already funded. No wallet, no sign-in, no popups. Write your first whisper while your island rises.</td></tr>
+            <tr><td>Press "Play without a wallet" in the world, sign up with an email, then found a nation</td><td>A named testnet account, already funded, shown as your email. No wallet and no popups. Write your first whisper while your island rises. Log in with the same email on another browser and you're back.</td></tr>
             <tr><td>Press the three buttons <a href="#check-it">below</a></td><td>Your browser asks NEAR directly: is this record what was sealed, can the world pay everyone it owes, does this Broker hold this token.</td></tr>
-            <tr><td><code>node scripts/verify.mjs</code></td><td>The same checks and a few more, from a terminal, in about five seconds. No install, no keys, signs nothing.</td></tr>
+            <tr><td><code>node scripts/verify.mjs</code></td><td>The same checks and a few more, from a terminal, in about five seconds. No install, no keys, signs nothing. <a href="https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml">GitHub runs it every 2 hours</a>, just after each turn is sealed.</td></tr>
           </tbody>
         </table></div>
       </section>

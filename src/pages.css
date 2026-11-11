@@ -122,3 +122,10 @@ body.page .proof-out:not(:empty) { margin-top: 10px; padding: 12px 14px; border-
 .rm-table th, .rm-table td { padding: 6px 14px 6px 0; text-align: left; border-bottom: 1px solid rgba(29, 20, 48, 0.1); font-variant-numeric: tabular-nums; }
 .rm-table th { font-weight: 600; color: #5b5170; }
 .rm-table td:not(:first-child), .rm-table th:not(:first-child) { text-align: right; padding-left: 18px; }
+
+/* The judge page's one thing to do first: the sandbox (11 Nov). */
+body.page .trybox { display: grid; gap: 6px; margin: 18px 0 14px; padding: 18px 22px; border-radius: 20px; text-decoration: none; color: var(--ink); background: linear-gradient(135deg, #ffe08a, #ffb800); box-shadow: 0 12px 30px rgba(255, 184, 0, 0.35); transition: transform 0.15s; }
+body.page .trybox:hover { transform: translateY(-2px); }
+body.page .trybox b { font-family: var(--display); font-size: clamp(1.4rem, 3.2vw, 2rem); line-height: 1.1; }
+body.page .trybox span { font-size: 0.98rem; line-height: 1.45; max-width: 46em; }
+body.page .trybox i { font-style: normal; font-weight: 800; font-family: var(--display); }
