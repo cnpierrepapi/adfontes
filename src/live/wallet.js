@@ -69,7 +69,7 @@ export async function createWallet(net) {
 
   async function wallets() {
     const out = [];
-    if (net === "testnet") out.push({ id: "local", name: "Play without a wallet", icon: "/favicon.svg", available: true, note: "Sign up or log in with an email. No wallet needed." });
+    if (net === "testnet") out.push({ id: "local", name: "Play with email", icon: "/favicon.svg", available: true, note: "Free. No wallet needed." });
     for (const m of selector.store.getState().modules) out.push({ id: m.id, name: m.metadata.name, icon: m.metadata.iconUrl, available: m.metadata.available !== false });
     return out;
   }

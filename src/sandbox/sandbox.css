@@ -63,3 +63,6 @@ body.sandbox .dial { background: rgba(124, 82, 214, 0.92); color: #fff; }
 body.sandbox a[href*="nearblocks"] { display: none !important; }
 .godpanel .line.burnt { color: #ffb37a; font-weight: 600; }
 .sb-reset.newer { background: linear-gradient(135deg, #ffe08a, #ffb800); }
+/* The lab owns the left side here, so the standings and the feed sit on the right. */
+body.sandbox .standings { left: auto; right: 18px; top: 84px; }
+@media (max-width: 700px) { body.sandbox .standings { top: 118px; right: 12px; } }

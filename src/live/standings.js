@@ -8,32 +8,8 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
   const box = el("aside", { className: "standings" });
   const head = el("button", { type: "button", className: "head" });
   const list = el("ol");
-  // The event list (SPEC §14): what just happened, newest on top; tap a line to fly there.
-  const evHead = el("button", { type: "button", className: "head ev-head" });
-  const events = el("ul", { className: "events" });
-  box.append(head, list, evHead, events);
-  let evOpen = innerWidth > 700;
-  const drawEvHead = () => { evHead.textContent = `${evOpen ? "▾" : "▸"} Events`; events.hidden = !evOpen; };
-  drawEvHead();
-  evHead.addEventListener("click", () => { evOpen = !evOpen; drawEvHead(); });
-  const MAX_EVENTS = 30;
-  function event({ text, kind, clan, tip, tx }) {
-    if (!text) return;
-    const li = el("li", { className: `ev ${kind || ""}${clan != null ? " go" : ""}${tip ? " has-tip" : ""}`, textContent: text, title: clan != null && !tip ? "Fly there" : "" });
-    // A trade's price sum and the merchant's reason: shown on hover, or on a tap (phones).
-    if (tip) li.append(el("span", { className: "tip", textContent: tip }));
-    // Its own transaction on NEAR, when it has one (9 Nov). Research, battles and councils have none:
-    // they live in the turn's sealed records, not in a transaction of their own.
-    // A simulated turn's stand-in chain makes ids like "sim-70-19-..." that are not on NEAR: no link.
-    if (tx && W.explorer && !String(tx).startsWith("sim-")) {
-      const a = el("a", { className: "evtx", href: `${W.explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: "NEAR ↗", title: "Open this transaction on NEAR" });
-      a.addEventListener("click", (e) => e.stopPropagation());
-      li.append(" ", a);
-    }
-    li.addEventListener("click", () => { if (tip) li.classList.toggle("open"); if (clan != null) flyTo(clan); });
-    events.prepend(li);
-    while (events.children.length > MAX_EVENTS) events.lastChild.remove();
-  }
+  // The event list is gone (11 Nov): the personal feed (src/live/feed.js) sits here instead.
+  box.append(head, list);
   visor.append(box);
   let open = innerWidth > 700; // phones start folded
   head.addEventListener("click", () => { open = !open; draw(last); });
@@ -78,5 +54,5 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
   }
   // What you saw is remembered when you leave, so next visit's arrows say what changed meanwhile.
   addEventListener("pagehide", () => { if (last) localStorage.setItem(key, JSON.stringify(Object.fromEntries(last.map((r, i) => [r.id, i + 1])))); });
-  return { update, event, ranks: () => Object.fromEntries((last || []).map((r, i) => [r.id, i + 1])) };
+  return { box, update, event: () => {}, ranks: () => Object.fromEntries((last || []).map((r, i) => [r.id, i + 1])) };
 }

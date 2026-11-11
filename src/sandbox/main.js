@@ -15,17 +15,20 @@ const post = (p, body = {}) => fetch(`/sbx/${p}`, { method: "POST", headers: { "
 const get = (p) => fetch(`/sbx/${p}`, { cache: "no-store" }).then(async (r) => { const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error || `error ${r.status}`); return j; });
 
 let id = sessionStorage.getItem(KEY), st = null, live = null, names = {};
+// Opened from a god's "Try it in a copy first" (live world, Act of God card): that fire, set up.
+const Q = new URLSearchParams(location.search);
+let PRE = Q.has("target") ? { caster: Number(Q.get("caster")), target: Number(Q.get("target")) } : null;
 
 async function open() {
   $("start").hidden = true;
   globalThis.__adfApi = (p) => fetch(`/sbx/${id}/api/${p}${p.includes("?") ? "&" : "?"}net=testnet`, { cache: "no-store" }).then((r) => r.json());
   const { startLive } = await import("../live/live.js");
-  live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, theme: "night", noReplay: true });
-  live.onRecord((r) => { caption(r); follow(r); });
+  live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, theme: "night", noReplay: true, sandbox: true });
+  live.onRecord((r) => follow(r)); // words come from the feed and the citizens' dialogue boxes, not captions
   live.fx.gap = 700; // a sandbox fast-forwards: its turns play quicker than the live world's
   for (const n of st.nations) names[n.id] = n.name;
   showBar(); showLab(); tick();
-  if (innerWidth < 700) $("lab").classList.add("folded"); // phones: the world first, the lab one tap away
+  if (innerWidth < 700 && !PRE) $("lab").classList.add("folded"); // phones: the world first, the lab one tap away
 }
 const nameOf = (x) => names[x] ?? `nation ${x}`;
 
@@ -42,7 +45,7 @@ function caption(r) {
 // ---- the camera goes where the shock lands: fire on an island, a war declared, peace, a fall ----
 function follow(r) {
   const id = r.kind === "fire" ? r.clan : r.kind === "war" ? r.attacker : r.kind === "peace" ? r.a : r.kind === "fallen" ? r.clan : null;
-  if (id != null) live.flyTo(id);
+  if (id != null) { live.flyTo(id); live.feed?.setFocus(id); }
 }
 
 // ---- keeping up with the server: while turns or futures run, look often ----
@@ -105,6 +108,7 @@ function showLab() {
     const caster = el("select", {}, ...st.nations.filter((n) => n.gods > 0).map((n) => opt(n)));
     const preset = () => { target.value = String(peace[0]?.id ?? ""); const poor = st.nations.filter((n) => n.gods > 0 && String(n.id) !== target.value).sort((a, b) => a.spendable - b.spendable)[0]; if (poor) caster.value = String(poor.id); };
     preset();
+    if (PRE) { if ([...target.options].some((o) => o.value === String(PRE.target))) target.value = String(PRE.target); if ([...caster.options].some((o) => o.value === String(PRE.caster))) caster.value = String(PRE.caster); }
     form = el("div", { className: "sb-form" },
       el("button", { type: "button", className: "sb-preset", textContent: "🔥 Burn the richest", onclick: preset }),
       el("label", {}, "Rain fire on", target),
@@ -141,6 +145,7 @@ function showOut() {
     st.log.length ? el("div", { className: "sb-log" }, el("small", { textContent: "What the heavens did" }), ...st.log.slice().reverse().map((r) => el("p", { textContent: `Turn +${r.turn}: ${r.kind === "fire" ? `${r.cause === "god" ? `the gods of ${nameOf(r.from)} rained fire on` : r.cause === "bully" ? "the heavens burned the bully" : "the heavens struck"} ${nameOf(r.clan)}, ${r0(r.florins)} florins burned${r.cost?.florins ? ` (${nameOf(r.from)} paid ${r0(r.cost.florins)})` : ""}` : `refused: ${r.why}`}` }))) : null].filter(Boolean));
 }
 async function shock(body) {
+  PRE = null; // the preset was used; the form is yours now
   try { st = await post(`${id}/shock`, body); showLab(); showBar(); clearTimeout(tickT); tickT = setTimeout(tick, 800); }
   catch (e) { caption({ text: e.message }); }
 }
@@ -203,6 +208,7 @@ async function showClan(c) {
   const w = live ? (await globalThis.__adfApi("world").catch(() => null))?.clans?.find((x) => x.id === c.id) : null;
   if (!n && !w) { p.hidden = true; return; }
   shown = c.id;
+  live?.feed?.setFocus(c.id);
   const fenced = n ? Math.max(0, n.florins - n.spendable) : 0;
   // What the heavens did to this nation in your copy, newest first.
   const hits = st.log.filter((r) => r.kind === "fire" && r.clan === c.id).reverse().map((r) => el("p", { className: "line burnt", textContent: `🔥 Turn +${r.turn}: ${r0(r.florins)} florins burned${r.cause === "god" ? ` by the gods of ${nameOf(r.from)}` : r.cause === "bully" ? " for picking on a weaker nation" : ""}.` }));

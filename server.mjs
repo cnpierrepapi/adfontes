@@ -219,6 +219,35 @@ function makeApi(NET) {
     },
   
     // One clan's mindmap and its agents.
+    // What happens next turn (11 Nov, the personal feed): everything here is already decided or known
+    // before the turn runs, so a god can answer it while they wait. Read-only, from the engine's state
+    // and the chain; the engine itself is unchanged.
+    async next() {
+      return cachedN("next", 5_000, async () => {
+        const [clans, totals, s] = await Promise.all([view("list_clans", { limit: 100 }), view("get_totals"), stateNow()]);
+        const standing = clans.filter((c) => c.alive && s.clans[c.id] && !s.clans[c.id].fallen);
+        const name = (id) => clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
+        const fv = near(totals.florin_value);
+        const spend = (c) => Math.max(0, florins(c.florins) - (fv > 0 ? (s.grantedNear?.[c.id] || 0) / fv : 0));
+        const wars = Object.values(s.wars || {}).filter((w) => w.status === "on");
+        const atWar = (id) => wars.some((w) => w.a === id || w.b === id);
+        // The heavens (engine/fire.mjs): hoarding = twice an equal share of what nations can spend;
+        // famine = half the nations hungry while the richest at peace isn't.
+        const total = standing.reduce((a, c) => a + spend(c), 0);
+        const peace = standing.filter((c) => !atWar(c.id)).sort((a, b) => spend(b) - spend(a));
+        const richest = peace[0], line = standing.length >= 3 ? 2 / standing.length : null;
+        const hungry = standing.filter((c) => s.clans[c.id]?.mood === "hungry").length;
+        return {
+          next_at: s.lastRunAt ? s.lastRunAt + 2 * 3600e3 : null, now_ms: Date.now(),
+          fires: (s.fire?.queue || []).map((f) => ({ caster: f.caster, caster_name: name(f.caster), target: f.target, target_name: name(f.target), god: f.god })),
+          wars: wars.map((w) => { const a = warInfo(s, w.a); return { a: w.a, a_name: name(w.a), b: w.b, b_name: name(w.b), round: (w.rounds || 0) + 1, a_points: a.hp + 1, b_points: a.enemyHp + 1, offer: w.offer?.by ?? null }; }),
+          hoard: richest && line && total > 0 ? { clan: richest.id, name: richest.name, share: +(spend(richest) / total).toFixed(4), line: +line.toFixed(4) } : null,
+          famine: standing.length >= 3 ? { hungry, of: standing.length, needs: Math.ceil(standing.length / 2), richest: richest?.id ?? null, richest_name: richest?.name ?? null, richest_hungry: richest ? s.clans[richest.id]?.mood === "hungry" : null } : null,
+          reports: Object.values(s.reports || {}).filter((r) => !r.settled).map((r) => ({ id: r.id, clan: r.clan, accuser: r.accuser, accused: r.accused, claim: r.claim })),
+          rulings: Object.entries(s.gifts || {}).filter(([, g]) => !g.applied).map(([id, g]) => ({ gift: Number(id), clan: g.clan, until: (g.at || 0) + 24 * 3600e3 })),
+        };
+      });
+    },
     async clan(q) {
       const id = whole(q, "id", 1);
       // ?d=<day> only splits the cache, so the live world can ask for the map right after a new day.

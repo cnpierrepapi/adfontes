@@ -1,6 +1,7 @@
 // The live world (step 1): islands and bridges built from the real world (API), and the
 // floating god's camera. Zoom levels become information levels in later steps.
 import { createStandings } from "./standings.js";
+import { createFeed } from "./feed.js";
 import { api as netApi } from "../net.js";
 import { endedName } from "../says.js";
 import * as THREE from "three";
@@ -430,7 +431,10 @@ export async function startLive(canvas, hud, opts = {}) {
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
   standings.update(W);
-  eventSink = standings.event;
+  eventSink = () => {}; // no event list (11 Nov): the feed and dialogue boxes say what matters
+  // The personal feed and the citizens' dialogue boxes (11 Nov) hear every record the world plays.
+  const feed = createFeed({ box: standings.box, W, flyTo: (id) => flyTo(id), sandbox: !!opts.sandbox });
+  recordHooks.add((r) => feed.record(r));
   early.splice(0).forEach(standings.event);
   let lastDay = W.day;
   // Which of a turn's records play on screen (the season world plays its cut; the live world, all).
@@ -476,14 +480,6 @@ export async function startLive(canvas, hud, opts = {}) {
   skip.addEventListener("click", () => { if (replay) { replay.i = replay.list.length; replay.skipped = true; } });
   strip.append(stripText, skip);
   hud.visor.append(strip);
-  const WHAT = {
-    corpus: (r) => `${r.scholar ?? "a Scholar"}'s new research${r.fake ? " (a made-up citation)" : ""}`,
-    gift: (r) => `a draft offered to the gods${r.passed === false ? " (the Warden failed it)" : ""}`,
-    warden: () => "the Warden caught a fake citation", ruling: () => "the gods ruled on a gift",
-    trade: (r) => (r.tool ? `bought a tool from ${clanName(r.seller)}` : `bought research from ${clanName(r.seller)}`),
-    tool: () => "the Smith built a tool", trickster: () => "a Trickster moved in", absorb: () => "absorbed ruins",
-    report: (r) => `a report: ${r.claim}`, overtake: (r) => r.text, "report-settled": (r) => `a report about ${r.accused} was settled`,
-  };
   function stepReplay(now) {
     if (opts.noReplay) return; // the season world plays its own cut, never "while you were away"
     // Left the nation mid-replay: what didn't play yet waits for the next visit.
@@ -506,7 +502,7 @@ export async function startLive(canvas, hud, opts = {}) {
     const r = replay.list[replay.i];
     // The strip names the event that's playing now (it stays up while a star-gun shot runs).
     strip.hidden = false;
-    stripText.textContent = `While you were away in ${clanName(replay.id)}: ${WHAT[r.kind]?.(r) ?? r.kind} (${replay.i + 1} of ${replay.list.length}, turn ${r.day})`;
+    stripText.textContent = `↺ ${replay.i + 1}/${replay.list.length}`; // the replay is the effects themselves, no words (11 Nov)
     replaying = true;
     try { fx.play(r); } finally { replaying = false; }
     replay.i++;
@@ -950,7 +946,7 @@ export async function startLive(canvas, hud, opts = {}) {
   frame();
   setTheme(opts.theme || "night");
   // setWars: show war lines without a world refresh (the intro recorder; display only).
-  return { setViewShift: (px) => { viewShift = Math.max(0, Math.round(px)); resize(); }, setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, poll: pollNow, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, standingsRank: () => standings.ranks?.() ?? {} };
+  return { setViewShift: (px) => { viewShift = Math.max(0, Math.round(px)); resize(); }, setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, poll: pollNow, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, feed, standingsRank: () => standings.ranks?.() ?? {} };
 }
 
 // A clan's island: size from its mindmap, town from its state.

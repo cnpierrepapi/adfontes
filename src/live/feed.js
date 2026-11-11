@@ -1,0 +1,152 @@
+// The personal feed (his call 11 Nov): it replaces the event list. Two parts.
+// "Next turn": what's already decided or known before the turn runs (/api/next: fires queued by a
+// vote, war rounds, the hoarding line, famine, reports and drafts waiting on you), with a countdown
+// and a button to answer it while you wait. Yours first; a visitor with no nation sees the world's.
+// "Just now": one short line per thing that happened to your nations (to the world, for a visitor).
+// Citizens who speak to you (a whisper heard, a report, a Patron's reason for war) appear in a
+// dialogue box (src/live/dialogue.js), never as text here.
+import { api } from "../net.js";
+import { createDialogue } from "./dialogue.js";
+
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
+const r0 = (x) => Math.round(x).toLocaleString("en");
+const pct = (x) => `${Math.round(x * 100)}%`;
+
+export function createFeed({ box, W, flyTo, sandbox = false }) {
+  const head = el("button", { type: "button", className: "head feed-head" });
+  const soon = el("ul", { className: "feed-soon" });
+  const justHead = el("p", { className: "feed-sub", textContent: "Just now" });
+  const just = el("ul", { className: "feed-just" });
+  justHead.hidden = true; // until something happens
+  const body = el("div", { className: "feed" }, soon, justHead, just);
+  box.append(head, body);
+  let open = innerWidth > 700, nextAt = null, skew = 0, last = null;
+  head.addEventListener("click", () => { open = !open; draw(); });
+
+  let gods = null, mine = new Set(), focus = null;
+  const dialogue = createDialogue();
+  const name = (id) => W.clans?.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
+  const isMine = (id) => id != null && mine.has(Number(id));
+  const me = () => (gods?.account?.() ?? null);
+  const act = (spec) => (gods ? gods.act(spec) : flyTo(spec.clan));
+
+  function countdown() {
+    if (sandbox || !nextAt) return "";
+    const ms = nextAt - (Date.now() + skew);
+    if (ms <= 0) return " · running now";
+    const m = Math.round(ms / 60e3);
+    return ` · in ${m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`}`;
+  }
+  function item(icon, text, buttons = [], mineToo = false, clan = null) {
+    const li = el("li", { className: mineToo ? "mine" : "" }, el("span", { className: "ic", textContent: icon }), el("span", { className: "tx", textContent: text }));
+    if (buttons.length) li.append(el("span", { className: "acts" }, ...buttons.map(([label, fn]) => el("button", { type: "button", textContent: label, onclick: (e) => { e.stopPropagation(); fn(); } }))));
+    if (clan != null) { li.classList.add("go"); li.addEventListener("click", () => flyTo(clan)); }
+    return li;
+  }
+  function draw() {
+    head.textContent = `${open ? "▾" : "▸"} Next turn${countdown()}`;
+    body.hidden = !open;
+    if (!last) return;
+    const N = last, mineList = [], world = [];
+    const god = !!me();
+    const firstMine = [...mine][0];
+    for (const f of N.fires || []) {
+      if (isMine(f.target)) mineList.push(item("🔥", `${f.caster_name}'s gods called fire on ${f.target_name}. It lands next turn.`, [["Strike back", () => act({ kind: "fire", clan: f.target, target: f.caster })], ["Warn them", () => act({ kind: "whisper", clan: f.target, text: `Fire is coming from ${f.caster_name}. Guard what matters most.` })]], true, f.target));
+      else if (isMine(f.caster)) mineList.push(item("🔥", `Your fire lands on ${f.target_name} next turn.`, [], true, f.target));
+      else world.push(item("🔥", `Fire lands on ${f.target_name} next turn, called by ${f.caster_name}.`, [], false, f.target));
+    }
+    for (const w of N.wars || []) {
+      const ours = isMine(w.a) ? w.a : isMine(w.b) ? w.b : null;
+      const them = ours === w.a ? w.b_name : w.a_name, ptsUs = ours === w.a ? w.a_points : w.b_points, ptsThem = ours === w.a ? w.b_points : w.a_points;
+      if (ours != null) mineList.push(item("⚔", `Round ${w.round} against ${them} next turn: ${ptsUs} points to ${ptsThem}.`, [["Whisper", () => act({ kind: "whisper", clan: ours, text: "" })]], true, ours));
+      else world.push(item("⚔", `${w.a_name} and ${w.b_name} fight round ${w.round} next turn: ${w.a_points} points to ${w.b_points}.`, [], false, w.a));
+    }
+    const h = N.hoard;
+    if (h && h.share >= h.line - 0.04) {
+      if (isMine(h.clan)) mineList.push(item("☄", `You hold ${pct(h.share)} of the florins. At ${pct(h.line)} the heavens strike you.`, [["Bless a rival", () => act({ kind: "bless", clan: [...W.clans].filter((c) => !isMine(c.id) && c.alive !== false).sort((a, b) => (a.florins || 0) - (b.florins || 0))[0]?.id })]], true, h.clan));
+      else world.push(item("☄", `${h.name} holds ${pct(h.share)} of the florins. At ${pct(h.line)} the heavens strike it.`, god && firstMine != null ? [["Call fire on it", () => act({ kind: "fire", clan: firstMine, target: h.clan })]] : [], false, h.clan));
+    }
+    const fm = N.famine;
+    if (fm && fm.hungry >= fm.needs - 1) world.push(item("🌾", `${fm.hungry} of ${fm.of} nations are hungry.${fm.hungry >= fm.needs && fm.richest_name ? (fm.richest_hungry ? " The richest is hungry too, so no fire yet." : ` ${fm.richest_name} burns next turn if it stays fed.`) : ` At ${fm.needs}, the richest fed nation burns.`}`, [], false, fm.richest));
+    for (const c of W.clans || []) if (isMine(c.id) && c.mood === "hungry") mineList.push(item("🍞", `${c.name}'s citizens are hungry. They slow down until fed.`, [["Bless", () => act({ kind: "bless", clan: c.id })]], true, c.id));
+    for (const r of N.reports || []) if (isMine(r.clan)) mineList.push(item("👁", `${r.accuser} accuses ${r.accused}. Smite to find out, or let it lapse.`, [["Open", () => flyTo(r.clan)]], true, r.clan));
+    for (const g of N.rulings || []) if (isMine(g.clan)) mineList.push(item("📜", `A draft from ${name(g.clan)} waits for your ruling.`, [["Open", () => flyTo(g.clan)]], true, g.clan));
+    soon.replaceChildren(...mineList, ...world.slice(0, mineList.length ? 4 : 6));
+    if (!soon.children.length) soon.append(item("☾", "Quiet. Nothing is set for next turn yet."));
+  }
+
+  async function refresh() {
+    try {
+      const N = await api("next");
+      if (N && !N.error) { last = N; nextAt = N.next_at; if (N.now_ms) skew = N.now_ms - Date.now(); }
+      if (gods && me()) mine = new Set(await gods.myNations());
+      draw();
+    } catch { /* keep the last one */ }
+  }
+  refresh();
+  setInterval(refresh, 20_000);
+  setInterval(() => (head.textContent = `${open ? "▾" : "▸"} Next turn${countdown()}`), 15_000);
+
+  // ---- just now: one short line each ----
+  const BIG = new Set(["fire", "war", "peace", "fallen", "founded"]);
+  function line(r) {
+    switch (r.kind) {
+      case "fire": return ["🔥", `Fire burned ${r0(r.florins)} florins in ${name(r.clan)}.`, r.clan];
+      case "war": return ["⚔", `${name(r.attacker)} declared war on ${name(r.defender)}.`, r.attacker];
+      case "battle": { const ids = Object.keys(r.sides || {}).map(Number); return ["⚔", `${name(ids[0])} and ${name(ids[1])} fought round ${r.round}.`, ids[0]]; }
+      case "peace": return ["🕊", `${name(r.a)} and ${name(r.b)} made peace.`, r.a];
+      case "fallen": return ["💀", `${name(r.clan)} fell to ${name(r.by)}.`, r.clan];
+      case "founded": return ["🏝", `${r.name ?? name(r.clan)} was founded.`, r.clan];
+      case "trade": case "market-sale": return ["⇄", `${name(r.buyer)} bought ${r.point ? `"${r.point}"` : "research"} from ${name(r.seller)}.`, r.buyer];
+      case "warden": return ["⚖", `The Warden fined ${name(r.clan)} ${r0(r.fine || 0)} florins.`, r.clan];
+      case "mint": return ["✦", `${name(r.clan)} earned ${(+r.florins).toFixed(1)} florins.`, r.clan];
+      case "heard": return ["✉", `${r.citizen ?? "A citizen"} heard a whisper: reverence ${r.delta >= 0 ? "+" : ""}${r.delta}.`, r.clan];
+      case "gift": return ["📜", `${name(r.clan)} drafted an invention.`, r.clan];
+      default: return null;
+    }
+  }
+  const involves = (r) => [r.clan, r.buyer, r.seller, r.attacker, r.defender, r.a, r.b, r.from, ...Object.keys(r.sides || {})].some(isMine);
+  function heard(r) {
+    const l = line(r);
+    if (!l) return;
+    const ours = mine.size ? involves(r) : BIG.has(r.kind);
+    if (!ours) return;
+    just.prepend(item(l[0], l[1], [], mine.size > 0, l[2]));
+    while (just.children.length > 6) just.lastChild.remove();
+    justHead.hidden = false;
+  }
+
+  // ---- citizens who speak to you: dialogue boxes, their real words ----
+  const roles = new Map(); // clan id -> Map(name -> role)
+  async function roleOf(clan, who) {
+    if (!roles.has(clan)) roles.set(clan, api(`clan?id=${clan}`).then((c) => new Map((c.agents || []).map((a) => [a.name, a.role]))).catch(() => new Map()));
+    return (await roles.get(clan)).get(who) ?? null;
+  }
+  async function patronOf(clan) {
+    if (!roles.has(clan)) await roleOf(clan, "");
+    for (const [n, r] of await roles.get(clan)) if (r === "Patron") return n;
+    return null;
+  }
+  const forMe = (clan, god = null) => (god && me() ? god === me() : mine.size ? isMine(clan) : focus === Number(clan));
+  async function speak(r) {
+    if (r.kind === "heard" && r.says && forMe(r.clan, r.god)) {
+      const who = r.citizen || "A citizen";
+      dialogue.say({ key: `h${r.day}:${r.i ?? r.at}:${who}`, name: who, role: await roleOf(r.clan, who), nation: name(r.clan), badge: `reverence ${r.delta >= 0 ? "+" : ""}${r.delta}`, text: r.says });
+    } else if (r.kind === "report" && r.claim && forMe(r.clan)) {
+      dialogue.say({ key: `r${r.report}`, name: r.accuser, role: await roleOf(r.clan, r.accuser), nation: name(r.clan), text: r.claim });
+    } else if (r.kind === "war" && r.reason && forMe(r.attacker)) {
+      const p = await patronOf(r.attacker);
+      dialogue.say({ key: `w${r.war}`, name: p ?? "The Patron", role: "Patron", nation: name(r.attacker), badge: `war on ${name(r.defender)}`, text: r.reason });
+    } else if (r.kind === "council" && r.reason && !r.refused && r.action !== "hold" && forMe(r.clan)) {
+      const p = await patronOf(r.clan);
+      dialogue.say({ key: `c${r.day}:${r.clan}:${r.action}`, name: p ?? "The Patron", role: "Patron", nation: name(r.clan), badge: r.action.replace("_", " "), text: r.reason });
+    }
+  }
+
+  return {
+    record(r) { heard(r); speak(r).catch(() => {}); },
+    setGods(g) { gods = g; refresh(); },
+    setFocus(id) { focus = id == null ? null : Number(id); },
+    refresh,
+  };
+}

@@ -17,6 +17,7 @@ const n3 = (x) => (Math.round(x * 1000) / 1000).toString();
 function showClan(c, status) {
   const p = $("panel");
   if (!c) { p.hidden = true; phoneSheet(); return; }
+  window.__live?.feed?.setFocus(c.id); // a visitor hears the citizens of the nation they're looking at
   p.replaceChildren();
   const h = document.createElement("h2"); h.textContent = c.name;
   const m = document.createElement("p"); m.className = "meta";
@@ -148,6 +149,7 @@ if (!q.has("stills")) cinema.then(async (played) => {
 import("./gods.js").then(({ createGods }) => createGods({ live, W, nav: document.querySelector(".hud-top nav"), toast, route, replayIntro: () => playCinematic({ force: true }).then(() => { live.home(); runTutorial({ force: true }); }) })).then((g) => {
   gods = g;
   window.__gods = g;
+  live.feed?.setGods(g); // the feed's buttons open the god's cards; its "yours" means your nations
   // A god coming back starts in their own nation's plaza with its panel open (his call 8 Nov), once the
   // intro is over and unless the tutorial is still running or a link asked for somewhere else.
   if (!q.has("stills") && !location.hash && localStorage.getItem("adf-tutorial-done"))

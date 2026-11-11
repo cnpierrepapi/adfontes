@@ -370,3 +370,58 @@ body.night .standings .events li .evtx { background: #fff; color: var(--ink); }
 .walletmenu label { display: grid; gap: 4px; margin: 6px 0; }
 .walletmenu .txin { width: 100%; box-sizing: border-box; }
 .linkish { background: none; border: 0; padding: 0; margin-top: 4px; font: inherit; font-size: 0.8rem; color: inherit; text-decoration: underline; cursor: pointer; opacity: 0.8; }
+
+/* The personal feed (11 Nov): what's coming next turn, with buttons; then "just now", one line each. */
+.standings .feed-head { border-top: 1px solid rgba(29, 20, 48, 0.1); margin-top: 2px; }
+.standings .feed { max-height: 42vh; overflow-y: auto; overscroll-behavior: contain; padding: 0 2px 6px; }
+.standings .feed[hidden] { display: none; }
+.standings .feed ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.standings .feed li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 6px; align-items: start; padding: 6px; border-radius: 10px; font-size: 0.76rem; line-height: 1.3; cursor: default; }
+.standings .feed li.go { cursor: pointer; }
+.standings .feed li.mine { background: rgba(255, 184, 0, 0.16); }
+.standings .feed .ic { font-size: 0.85rem; line-height: 1.2; }
+.standings .feed .acts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.standings .feed .acts button { font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.7rem; border: 0; border-radius: 999px; padding: 4px 9px; cursor: pointer; background: linear-gradient(135deg, #ffe08a, #ffb800); color: var(--ink); }
+.standings .feed-sub { margin: 8px 6px 4px; font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }
+.standings .feed-just li { font-size: 0.72rem; opacity: 0.92; padding: 4px 6px; }
+.standings .feed-just:empty, .standings .feed-just:empty + * { display: none; }
+body.night .standings .feed li.mine { background: rgba(255, 184, 0, 0.18); }
+
+/* Dialogue boxes (11 Nov): a citizen talks to you, RPG style. Tap or press space for the next line. */
+.dlg { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 60; width: min(640px, calc(100vw - 20px)); display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: end; cursor: pointer; user-select: none; }
+.dlg[hidden] { display: none; }
+.dlg.in { animation: dlg-in 0.28s ease-out; }
+@keyframes dlg-in { from { transform: translate(-50%, 16px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.dlg-face { width: 150px; height: 164px; margin-bottom: -2px; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35)); }
+.dlg-body { position: relative; min-height: 104px; padding: 14px 18px 22px; border-radius: 20px 20px 20px 6px; background: rgba(255, 252, 244, 0.97); color: var(--ink); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35); border: 3px solid #ffb800; }
+.dlg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 6px; }
+.dlg-who { font-family: var(--display); font-weight: 800; font-size: 1.05rem; }
+.dlg-tag { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: #7c52d6; }
+.dlg-text { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(0.95rem, 2.2vw, 1.12rem); line-height: 1.35; }
+.dlg-more { position: absolute; right: 14px; bottom: 6px; font-weight: 800; color: #c98d00; animation: dlg-bob 0.9s ease-in-out infinite; }
+@keyframes dlg-bob { 50% { transform: translateY(-3px); } }
+@media (max-width: 700px) { .dlg { grid-template-columns: 96px minmax(0, 1fr); bottom: 12px; } .dlg-face { width: 96px; height: 110px; } .dlg-body { min-height: 86px; padding: 10px 12px 18px; } }
+
+/* The Act of God card's link into the sandbox. */
+.txcard .trycopy { display: inline-block; margin: 2px 0 6px; font-family: var(--display); font-weight: 800; font-size: 0.86rem; color: #c95a00; text-decoration: none; }
+.txcard .trycopy:hover { text-decoration: underline; }
+
+/* Wallet, on-brand (11 Nov): it should feel like joining a game. Email is the big gold way in; NEAR
+   wallets sit underneath, small. The chip glows gold until you're a god. */
+.walletmenu { gap: 10px; padding: 18px; border-radius: 22px; border: 2px solid rgba(255, 184, 0, 0.55); }
+.walletmenu .lead { font-family: var(--display); font-weight: 800; font-size: 1.02rem; line-height: 1.3; }
+.walletpick.primary { padding: 14px 16px; border-radius: 16px; font-size: 1.05rem; background: linear-gradient(135deg, #ffe08a, #ffb800); color: var(--ink); box-shadow: 0 8px 22px rgba(255, 184, 0, 0.35); }
+.walletpick.primary span { display: grid; gap: 1px; }
+.walletpick.primary small { font-family: var(--body); font-weight: 600; font-size: 0.74rem; opacity: 0.75; }
+.walletpick.primary:hover { background: linear-gradient(135deg, #ffe9a8, #ffc21f); transform: translateY(-1px); }
+.walletpick.small { padding: 7px 10px; font-size: 0.82rem; font-weight: 600; }
+.walletmenu .fine.others { margin-top: 4px; font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.walletmenu .viewbtn { border-radius: 999px; }
+.walletmenu label.fine { font-family: var(--display); font-weight: 700; font-size: 0.78rem; }
+.walletmenu .txin { border-radius: 12px; border: 2px solid rgba(124, 82, 214, 0.25); padding: 9px 11px; font: inherit; }
+.walletmenu .txin:focus { outline: none; border-color: #ffb800; }
+.chip.wallet:not(.god) { background: linear-gradient(135deg, #ffe08a, #ffb800); color: var(--ink); }
+body.night .walletmenu { border-color: rgba(255, 184, 0, 0.45); }
+body.night .walletpick.primary { color: var(--ink); }
+body.night .walletmenu .txin { background: rgba(255, 255, 255, 0.95); color: var(--ink); }
+body.night .walletpick.primary, body .walletpick.primary { background: linear-gradient(135deg, #ffe08a, #ffb800); color: #1d1430; }

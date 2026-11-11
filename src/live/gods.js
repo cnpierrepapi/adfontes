@@ -55,7 +55,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   const menu = el("div", { className: "walletmenu", hidden: true });
   document.getElementById("visor").append(menu);
   // The chip shows your email when you signed up with one (the account stays underneath).
-  const showChip = () => { const shown = account ? (wallet.label?.() || account) : null; chip.replaceChildren("◈ ", el("span", { className: "word", textContent: shown ? short(shown) : "Connect wallet" })); };
+  const showChip = () => { const shown = account ? (wallet.label?.() || account) : null; chip.replaceChildren("◈ ", el("span", { className: "word", textContent: shown ? short(shown) : "Become a god" })); chip.classList.toggle("god", !!account); };
   showChip();
   wallet.onAccount((a) => { account = a; showChip(); refreshPanel(); if (!menu.hidden) openMenu(); });
   chip.addEventListener("click", () => (menu.hidden ? openMenu() : (menu.hidden = true)));
@@ -65,9 +65,12 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     menu.replaceChildren();
     menu.hidden = false;
     if (!account) {
-      menu.append(el("p", { className: "lead", textContent: `Connect a NEAR ${W.net} wallet to bless nations and use your powers as a god.` }));
+      menu.append(el("p", { className: "lead", textContent: "Become a god. Bless nations, whisper to their people, call down fire." }));
+      let others = false;
       for (const w of await wallet.wallets()) {
-        const b = el("button", { type: "button", className: "walletpick" }, w.icon ? el("img", { src: w.icon, alt: "", width: 22, height: 22 }) : null, el("span", { textContent: w.name }));
+        // Email first and big (his call 11 Nov: it should feel like a game); NEAR wallets under it, smaller.
+        if (w.id !== "local" && !others) { others = true; menu.append(el("p", { className: "fine others", textContent: "Or bring your own NEAR wallet" })); }
+        const b = el("button", { type: "button", className: `walletpick${w.id === "local" ? " primary" : " small"}` }, w.icon ? el("img", { src: w.icon, alt: "", width: w.id === "local" ? 28 : 18, height: w.id === "local" ? 28 : 18 }) : null, el("span", {}, w.name, w.id === "local" ? el("small", { textContent: w.note }) : ""));
         b.addEventListener("click", async () => {
           b.disabled = true;
           // Play without a wallet: sign up or log in with an email (a browser that already holds a key goes straight in).
@@ -77,10 +80,10 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         });
         menu.append(b);
       }
-      if (W.net !== "mainnet") menu.append(el("p", { className: "fine", textContent: "This is the practice world on testnet. HOT joins the list on mainnet." }));
+      if (W.net !== "mainnet") menu.append(el("p", { className: "fine", textContent: "This season is a practice world: the NEAR here is free." }));
       return;
     }
-    menu.append(el("p", { className: "lead" }, "Signed in as ", el("b", { textContent: wallet.label?.() || account })), wallet.email?.() ? el("p", { className: "fine", textContent: `Your NEAR account: ${account}` }) : "");
+    menu.append(el("p", { className: "lead" }, "You are ", el("b", { textContent: wallet.label?.() || account })), wallet.email?.() ? el("p", { className: "fine", textContent: `Your account underneath: ${account}` }) : "");
     // Your route as a god (SPEC §12n): what you've done, and what to try next.
     if (route) {
       const steps = route.progress(), nextStep = steps.find((x) => !x.done);
@@ -121,23 +124,23 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       row.append(claim);
     }
     if (replayIntro) { const intro = el("button", { type: "button", className: "viewbtn", textContent: "Watch the intro" }); intro.addEventListener("click", () => { menu.hidden = true; replayIntro(); }); row.append(intro); }
-    const out = el("button", { type: "button", className: "viewbtn", textContent: "Sign out" });
+    const out = el("button", { type: "button", className: "viewbtn", textContent: "Leave" });
     out.addEventListener("click", async () => { await wallet.signOut(); menu.hidden = true; });
     row.append(out);
     menu.append(row);
     // Playing without a wallet: the key lives in this browser only. Save it, or lose the account
     // with the browser's storage.
     if (wallet.isLocal?.()) {
-      const save = el("button", { type: "button", className: "viewbtn", textContent: "Save your key as a file" });
+      const save = el("button", { type: "button", className: "viewbtn", textContent: "Back up your key" });
       save.addEventListener("click", saveKey);
       if (wallet.email?.()) {
         const forget = el("button", { type: "button", className: "viewbtn", textContent: "Forget my email" });
         forget.addEventListener("click", () => forgetForm());
-        menu.append(el("p", { className: "fine", textContent: "Your key is saved under your email, locked with your passphrase. Log in with them on any browser. We never see the passphrase or the key." }), el("div", { className: "row" }, save, forget));
+        menu.append(el("p", { className: "fine", textContent: "Your key is saved to your email, locked with your passphrase. Log in on any browser. We never see either." }), el("div", { className: "row" }, save, forget));
       } else {
-        const keep = el("button", { type: "button", className: "viewbtn gold", textContent: "Keep it under an email" });
+        const keep = el("button", { type: "button", className: "viewbtn gold", textContent: "Save it to an email" });
         keep.addEventListener("click", () => emailForm("signup"));
-        menu.append(el("p", { className: "fine", textContent: "You're playing without a wallet. Your key lives only in this browser. Keep it under an email and a passphrase, or save it as a file, so you don't lose your nation." }), el("div", { className: "row" }, keep, save));
+        menu.append(el("p", { className: "fine", textContent: "Your key lives only in this browser. Save it to an email so you can come back from anywhere." }), el("div", { className: "row" }, keep, save));
       }
     }
   }
@@ -165,11 +168,11 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       } catch (e) { msg.textContent = e.message || "That didn't work. Try again."; go.disabled = false; go.textContent = mode === "signup" ? "Sign up" : "Log in"; }
     });
     menu.append(
-      el("p", { className: "lead", textContent: mode === "signup" ? "Play with an email" : "Log in with your email" }),
-      el("p", { className: "fine", textContent: mode === "signup" ? "We make you a NEAR testnet account with free test NEAR. Your email is the name you see; the account is underneath. Your passphrase locks your key in this browser before it's saved, so we can't open it, and we can't reset it if you forget." : "Your key comes back to this browser and opens here with your passphrase." }),
+      el("p", { className: "lead", textContent: mode === "signup" ? "Become a god" : "Welcome back" }),
+      el("p", { className: "fine", textContent: mode === "signup" ? "Free to play. Your email is your name here. Your passphrase locks your key in this browser before it's saved, so we can't open it, and can't reset it if you forget." : "Your key comes back to this browser and opens with your passphrase." }),
       el("label", { className: "fine" }, "Email", email), el("label", { className: "fine" }, "Passphrase", pass), again ? el("label", { className: "fine" }, "Again", again) : "",
       el("div", { className: "row" }, go), msg, swap,
-      mode === "signup" ? el("p", { className: "fine", textContent: "We keep a scrambled form of your email (not the email itself) and your locked key, only so you can log in. Forget my email, in the wallet menu, deletes both." }) : "");
+      mode === "signup" ? el("p", { className: "fine", textContent: "We keep a scrambled form of your email (never the email itself) and your locked key, only so you can log in. Forget my email deletes both." }) : "");
     email.focus();
   }
   function forgetForm() {
@@ -209,7 +212,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     shade.addEventListener("pointerdown", (e) => { if (e.target === shade) close(); });
     const words = el("p", { className: "words" });
     const err = el("p", { className: "err" });
-    const sign = el("button", { type: "button", className: "viewbtn gold", textContent: "Sign in your wallet" });
+    const sign = el("button", { type: "button", className: "viewbtn gold", textContent: wallet.isLocal?.() ? "Do it" : "Approve in your wallet" });
     const cancel = el("button", { type: "button", className: "viewbtn", textContent: "Cancel" });
     cancel.addEventListener("click", close);
     const fields = el("div", { className: "fields" }, ...(spec.fields || []));
@@ -257,7 +260,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           return;
         }
         err.textContent = /reject|cancel|closed|denied/i.test(e.message || "") ? "You cancelled in your wallet. Nothing was sent." : e.message || "Something went wrong. Nothing was charged unless your wallet says so.";
-        sign.textContent = "Sign in your wallet";
+        sign.textContent = wallet.isLocal?.() ? "Do it" : "Approve in your wallet";
         sign.disabled = cancel.disabled = false;
       }
     });
@@ -291,8 +294,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     if (clans.some((c) => c.alive && c.gods.some((g) => g.account === account))) return;
     // A named account from the pool (9 Nov) arrives already funded: straight to naming the nation.
     const sent = wallet.takeSponsored?.();
-    if (sent) { toast(`You're ${account}, with ${sent} free testnet NEAR. Now name your nation.`); setTimeout(foundCard, 2500); return; }
-    toast("Your account is ready. Getting you free testnet NEAR to found a nation…");
+    if (sent) { toast(`You have ${sent} NEAR to start. Now name your nation.`); setTimeout(foundCard, 2500); return; }
+    toast("You're in. Fetching your starting NEAR…");
     const r = await fetch("/api/sponsor", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ account }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world." }));
     if (r.ok) toast(`${r.sent} testnet NEAR sent to you. Now name your nation.`);
     else if (r.error) toast(r.error);
@@ -346,7 +349,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         words: () => fundPays
           ? `You found "${name.value.trim() || "…"}" and become its first god. The world pays for its DAO, so everything you put in is the nation's money: 86% for its citizens to spend, 14% to the season jackpot.`
           : `You found "${name.value.trim() || "…"}" and become its first god. ${near(cfg.dao_deposit)} NEAR makes its DAO, ${near(cfg.staking_deposit)} NEAR goes to its staking fund and a little pays for storage. The rest is the nation's money: 86% for its citizens to spend, 14% to the season jackpot.`,
-        working: "Founding… NEAR is building your nation's DAO. About 20 seconds.",
+        working: "Founding… your nation is rising. About 20 seconds.",
         start: () => { const want = name.value.trim(); live.refresh?.(want); route?.founded(want); birthPanel(want); },
         closeAfter: true, // the birth panel takes over once it's signed
         // Done as soon as the world lists the nation with you as its god, whatever the wallet is doing.
@@ -445,7 +448,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       if (!account) {
         box.append(rev);
         drawReverence(false, false, null).catch(() => {});
-        const b = el("button", { type: "button", className: "viewbtn gold", textContent: "Connect a wallet" });
+        const b = el("button", { type: "button", className: "viewbtn gold", textContent: "Become a god" });
         b.addEventListener("click", openMenu);
         box.append(el("p", { className: "fine", textContent: "Anyone can bless this nation with NEAR and become one of its gods." }), b);
         return;
@@ -483,7 +486,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       };
       power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "bless", me ? "Put more NEAR in. It lifts reverence up to 60." : "Put NEAR in and become one of its gods.");
       if (me) {
-        if (!seats.includes(account)) power("Take your DAO seat", () => joinCard(clan, policy), "seat", "Get your vote in the nation's DAO.");
+        if (!seats.includes(account)) power("Take your seat on the council", () => joinCard(clan, policy), "seat", "Get your vote among its gods.");
         else {
           power("Whisper", () => whisperCard(clan), "whisper", "Tell your citizens what matters.");
           power("Smite a citizen", () => smiteCard(clan), "smite", "Stun a cheat, or remove them.");
@@ -578,7 +581,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   }
   function joinCard(clan, policy) {
     card({
-      title: "Take your DAO seat",
+      title: "Take your seat on the council",
       words: () => `You are a god of ${clan.name}, but your seat in its DAO didn't go through when you blessed it. This asks again. The ${near(policy.proposal_bond)} NEAR bond pays for the seat proposal.`,
       calls: () => [C.joinDao(WORLD, clan.id, policy.proposal_bond)],
       after: async () => "Your seat is proposed and approved by the world. You can use the DAO powers in a few seconds.",
@@ -602,7 +605,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     if (wallet.isLocal?.()) {
       who = el("div", { className: "whoami" },
         wallet.email?.() ? el("p", {}, "You're ", el("b", { textContent: wallet.email() }), ". Underneath, that's ", el("b", { textContent: account }), " on NEAR testnet.") : el("p", {}, "You're ", el("b", { textContent: account }), " on NEAR testnet."),
-        el("p", { className: "fine", textContent: wallet.email?.() ? "No wallet: your key signs right here, so nothing pops up when you act. It's saved under your email, locked with your passphrase, so you can log in from any browser." : "No wallet: your key signs right here, so nothing pops up when you act. It lives only in this browser. Save it and you can come back to your nation from anywhere." }));
+        el("p", { className: "fine", textContent: wallet.email?.() ? "Nothing pops up when you act. Your key is saved to your email, locked with your passphrase, so you can come back from any browser." : "Nothing pops up when you act. Your key lives only in this browser: back it up so you can come back from anywhere." }));
       if (!wallet.email?.()) { save = el("button", { type: "button", className: "viewbtn gold", textContent: "Save your key" }); save.addEventListener("click", saveKey); }
     }
     const box = el("aside", { className: "birth", role: "status" },
@@ -649,7 +652,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     card({
       title: "Whisper",
       fields: [label("Your whisper (280 characters at most)", text)],
-      words: () => `Your citizens hear this against what's happening to them right now. Say something that fits the moment and they'll take it as prophecy and revere you more. Something vague moves little, and something that misreads them costs you. It's how a god wins reverence past 60, where blessings stop. They also lean their choices toward it every turn. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      words: () => `Your citizens hear this against what's happening to them right now. Say something that fits the moment and they'll take it as prophecy and revere you more. Something vague moves little, and something that misreads them costs you. It's how a god wins reverence past 60, where blessings stop. They also lean their choices toward it every turn. ${clan.name}'s council of gods votes on it, and yours is the first vote.`,
       check: () => (!text.value.trim() ? "Write the whisper." : new TextEncoder().encode(text.value.trim()).length > 280 ? "That's over 280 characters." : null),
       calls: () => { const w = text.value.trim(); return p.build("whisper", { clan_id: clan.id, text: w }, `AD FONTES: whisper to ${clan.name}: "${w}"`).calls; },
       after: async (outs) => {
@@ -681,7 +684,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     card({
       title: "Smite a citizen",
       fields: [label("Citizen", sel), label("Verdict", v)],
-      words: () => `${sel.value} is ${v.value === "Kill" ? "killed. A gravestone takes their place and their name is never used again" : "stunted: they can't work or learn for 3 turns (about 6 hours)"}. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      words: () => `${sel.value} is ${v.value === "Kill" ? "killed. A gravestone takes their place and their name is never used again" : "stunted: they can't work or learn for 3 turns (about 6 hours)"}. ${clan.name}'s council of gods votes on it, and yours is the first vote.`,
       calls: () => p.build("smite", { clan_id: clan.id, agent: sel.value, verdict: v.value }, `AD FONTES: ${v.value === "Kill" ? "kill" : "stunt"} ${sel.value} of ${clan.name}`).calls,
       after: async (outs) => {
         const r = await daoResult(clan, C.returned(outs[0]));
@@ -708,7 +711,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         const x = pick(), n = grew(x.point);
         return `"${x.point}"${n ? ` and the ${n} point${n === 1 ? "" : "s"} that grew from it` : ""} leave ${clan.name}'s mind map for good. ` +
           (x.stir === "doubt" ? `It unsettles the citizens${x.stir_why ? ` ("${x.stir_why}")` : ""}, so their faith stops sliding and they'll thank you for it. ` : "Nobody is worried about this one, so the citizens won't thank you for cutting it. ") +
-          `The cost: the nation's lines get shorter, so a patent draft gets less likely. It goes to ${clan.name}'s DAO as a proposal with your yes vote.`;
+          `The cost: the nation's lines get shorter, so a patent draft gets less likely. ${clan.name}'s council of gods votes on it, and yours is the first vote.`;
       },
       calls: () => p.build("root_out", { clan_id: clan.id, point: sel.value }, `AD FONTES: root out "${sel.value}" from ${clan.name}`).calls,
       after: async (outs) => {
@@ -722,7 +725,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   // is next to the richest nation; walls shield some of it. Your own nation pays a tenth of the damage,
   // and each god can do it once a real day. It goes through your nation's DAO like root out (the
   // point "act of god: <id>"), so the vote is on NEAR.
-  async function fireCard(clan) {
+  async function fireCard(clan, target = null) {
     const p = await prepDao(clan);
     // Nations at war are never a target: they're already being hit (his rule 10 Nov).
     // Fire burns what a nation can spend: florins less its gods' ring-fenced grant (as the engine does).
@@ -733,15 +736,21 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const est = (x) => { const shield = Math.min(0.3, ((x.war?.walls || 0) / 300) * 0.3); const pct = (0.05 + 0.2 * (sp(x) / top)) * (1 - shield); return { pct, fl: sp(x) * pct }; };
     targets.sort((a, b) => sp(b) - sp(a));
     const sel = el("select", { className: "txin" }, ...targets.map((x) => el("option", { value: String(x.id), textContent: `${x.name}: about ${Math.round(est(x).fl)} of its ${Math.round(sp(x))} spendable florins burn` })));
+    if (target != null && targets.some((x) => x.id === Number(target))) sel.value = String(target);
     const pick = () => targets.find((x) => String(x.id) === sel.value);
+    // Try it in a copy first (11 Nov): the sandbox opens with this fire set up, so you see it land and
+    // whether the target recovers before you cast it for real.
+    const tryIt = el("a", { className: "trycopy", target: "_blank", rel: "noopener", textContent: "🔥 Try it in a copy first" });
+    const setTry = () => (tryIt.href = `/timelapse/?caster=${clan.id}&target=${sel.value}`);
+    sel.addEventListener("change", setTry); setTry();
     card({
       title: "Act of God",
-      fields: [label("The nation to burn", sel)],
+      fields: [label("The nation to burn", sel), tryIt],
       words: () => {
         const x = pick(), e = est(x);
         const fenced = Math.round((x.florins || 0) - sp(x));
         return `Fire rains on ${x.name}. About ${Math.round(e.pct * 100)}% of the florins it can spend burn (${Math.round(e.fl)}), more the richer it is${sp(x) >= top ? " (it's the richest)" : ""}${x.war?.walls ? ", less for its walls" : ""}.${fenced > 1 ? ` Its gods' ${fenced} ring-fenced florins can't burn.` : ""} Burnt florins are gone, so every other florin in the world is worth a little more. ` +
-          `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, never on your own nation, and never on a nation at war. It goes to ${clan.name}'s DAO as a proposal with your yes vote, and burns on the world's next turn.`;
+          `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, never on your own nation, and never on a nation at war. ${clan.name}'s council of gods votes on it, and yours is the first vote, and burns on the world's next turn.`;
       },
       calls: () => p.build("root_out", { clan_id: clan.id, point: `act of god: ${sel.value}` }, `AD FONTES: an Act of God. ${clan.name}'s gods rain fire on ${pick().name}`).calls,
       after: async (outs) => {
@@ -762,7 +771,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     card({
       title: `Rule on gift #${gift.id}`,
       fields: [label("Ruling", choice), pick, verd],
-      words: () => (choice.value === "reward" ? `You record that the gods reward "${gift.title ?? "this draft"}". To reward it with NEAR too, bless the nation.` : `You punish ${sel.value} for this gift: ${v.value === "Kill" ? "killed for good" : "stunted for 3 turns (about 6 hours)"}.`) + ` It goes to ${clan.name}'s DAO as a proposal with your yes vote.`,
+      words: () => (choice.value === "reward" ? `You record that the gods reward "${gift.title ?? "this draft"}". To reward it with NEAR too, bless the nation.` : `You punish ${sel.value} for this gift: ${v.value === "Kill" ? "killed for good" : "stunted for 3 turns (about 6 hours)"}.`) + ` ${clan.name}'s council of gods votes on it, and yours is the first vote.`,
       check: () => (choice.value === "punish" && !agents.length ? "There is no living citizen to punish." : null),
       calls: () => p.build("rule", choice.value === "reward" ? { gift_id: gift.id, reward: true, verdict: null, agent: null } : { gift_id: gift.id, reward: false, verdict: v.value, agent: sel.value }, `AD FONTES: ${choice.value} gift #${gift.id}${choice.value === "punish" ? ` (${v.value.toLowerCase()} ${sel.value})` : ""}`).calls,
       after: async (outs) => {
@@ -777,7 +786,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   // ---- NEAR Intents (1Click): pay from any chain, NEAR lands in your account ----
   function intentsCard() {
     if (W.net !== "mainnet") return toast("NEAR Intents runs on mainnet. On testnet, the found card tops you up from the sponsor pool.");
-    if (!account) return toast("Connect a wallet first: the NEAR goes to your account.");
+    if (!account) return toast("Become a god first: the NEAR goes to your account.");
     const box = el("div", { className: "txcard", role: "dialog" }), shade = el("div", { className: "txshade" }, box);
     const close = () => { clearInterval(poll); shade.remove(); };
     shade.addEventListener("pointerdown", (e) => { if (e.target === shade) close(); });
@@ -874,5 +883,14 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const clans = await wallet.view(WORLD, "list_clans", { limit: 100 }).catch(() => []);
     return clans.filter((c) => c.alive && c.gods.some((g) => g.account === account)).map((c) => c.id);
   }
-  return { section, wallet, openMenu, myNations };
+  /** The personal feed's buttons (src/live/feed.js): open a god's card on a nation, preset. */
+  async function act({ kind, clan: clanId, target = null, text = "" }) {
+    const clan = (live.world?.clans || W.clans).find((c) => c.id === Number(clanId)) || W.clans.find((c) => c.id === Number(clanId));
+    if (!account) { openMenu(); return toast("Become a god first: it takes a few seconds."); }
+    if (!clan) return;
+    if (kind === "fire") return fireCard(clan, target);
+    if (kind === "whisper") return whisperCard(clan, text);
+    if (kind === "bless") return blessCard(clan);
+  }
+  return { section, wallet, openMenu, myNations, act, account: () => account };
 }
