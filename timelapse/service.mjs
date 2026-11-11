@@ -100,7 +100,7 @@ async function keepFresh() {
   const now = await liveNow();
   if (!base || (now && (now.day > base.day || now.nations !== base.nations))) await reseed(now?.nations ?? null);
 }
-setInterval(() => keepFresh().catch(() => {}), 2 * 60e3).unref(); // a new nation shows up within a few minutes
+setInterval(() => keepFresh().catch(() => {}), Number(process.env.SBX_FRESH_MS) || 2 * 60e3).unref(); // a new nation shows up within a few minutes
 
 // ---- reading a copy ----
 const FL = (u) => Number(BigInt(u || "0") / 10n ** 16n) / 1e6;
@@ -198,7 +198,9 @@ function view(s) {
   const W = florinsOf(s.dir), S = stateOf(s.dir), C = readJ(path.join(s.dir, "chain.json"));
   const wars = Object.values(S.wars || {}).filter((w) => w.status === "on").map((w) => [w.a, w.b]);
   return {
-    id: s.id, seed_day: base?.day ?? null, copied_at: readJ(path.join(s.dir, "seed.json")).seededAt, turns: s.k - 1, day: S.day,
+    id: s.id, seed_day: readJ(path.join(s.dir, "seed.json")).day, copied_at: readJ(path.join(s.dir, "seed.json")).seededAt, turns: s.k - 1, day: S.day,
+    // The live world has moved on since this copy (a new turn, or a nation founded or gone): a fresh copy catches up.
+    newer: !!base && base.seededAt > readJ(path.join(s.dir, "seed.json")).seededAt ? { day: base.day, nations: base.nations ? base.nations.split(",").length : null } : null,
     running: s.running, target: s.running?.target ?? null, done: s.running?.done ?? 0, pending: s.pending, log: s.log.slice(-12), error: s.error,
     nations: Object.entries(W.nations).filter(([id, n]) => n.alive && S.clans[id] && !S.clans[id].fallen).map(([id, n]) => ({ id: +id, name: n.name, florins: +n.florins.toFixed(1), spendable: +n.spendable.toFixed(1), at_war: wars.some((p) => p.includes(+id)), gods: (C.clans.find((c) => c.id === +id)?.gods || []).length })),
     florin_value: W.value, futures: s.futures,

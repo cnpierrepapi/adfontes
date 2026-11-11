@@ -71,7 +71,8 @@ async function tick() {
 function showBar() {
   $("turn").textContent = `Copy of turn ${st.seed_day ?? "?"} · +${st.turns} turn${st.turns === 1 ? "" : "s"}`;
   $("dial").textContent = `Sandbox · a copy, nothing here is on NEAR`;
-  $("run").textContent = st.running ? `running ${st.done} of ${st.target}…` : st.error ? "a turn failed, try again" : st.pending ? "the shock lands on the next turn" : "";
+  $("run").textContent = st.running ? `running ${st.done} of ${st.target}…` : st.error ? "a turn failed, try again" : st.pending ? "the shock lands on the next turn" : st.newer ? `The live world has moved on${st.newer.nations ? ` (${st.newer.nations} nations now)` : ""}. Fresh copy to catch up.` : "";
+  $("reset").classList.toggle("newer", !!st.newer);
   for (const b of $("bar").querySelectorAll(".sb-ff button")) b.disabled = !!st.running;
 }
 for (const b of $("bar").querySelectorAll(".sb-ff button")) b.addEventListener("click", async () => {
