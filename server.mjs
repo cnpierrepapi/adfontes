@@ -190,6 +190,9 @@ function makeApi(NET) {
               war: warInfo(s, c.id),
               // What the nation holds: florins, and what they're worth in NEAR at today's florin value.
               florins: florins(c.florins), worth: +(florins(c.florins) * near(totals.florin_value)).toFixed(4),
+              // What it can spend (11 Nov): less its gods' ring-fenced grant (granted NEAR at today's
+              // florin value), the same florins the engine's war, trades and Act of God use.
+              spendable: +Math.max(0, florins(c.florins) - (near(totals.florin_value) > 0 ? (s.grantedNear?.[c.id] || 0) / near(totals.florin_value) : 0)).toFixed(4),
               total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
               field: st.field ?? null, mbti: st.mbti ?? null, fortune: st.fortune ?? 1,
               seen: !!s.clans[c.id], tricksters: st.tricksters ?? 0,

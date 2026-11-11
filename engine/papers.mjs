@@ -23,6 +23,8 @@ export async function papersFor(query, n = 10) {
   const key = `${query}|${n}`;
   const hit = await getPapers(key);
   if (hit) return hit;
+  // A copy of the world run offline (ADF_PAPERS_OFFLINE=1, tests only): the cache or nothing.
+  if (SIM && process.env.ADF_PAPERS_OFFLINE === "1") throw new Error("OpenAlex offline (test copy, not in the cache)");
   const url = new URL("https://api.openalex.org/works");
   url.searchParams.set("search", query);
   url.searchParams.set("filter", "open_access.is_oa:true,has_abstract:true,from_publication_date:2015-01-01");

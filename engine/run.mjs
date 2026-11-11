@@ -369,6 +369,9 @@ for (let n = 0; n < days; n++) {
       const st = await chain.stake(x.id, g.account).catch(() => null);
       if (st?.granted && BigInt(st.granted) > 0n) reserve[x.id] = (reserve[x.id] || 0) + Number((BigInt(st.granted) * 10n ** 6n) / fv) / 1e6;
     }
+    // The site shows what each nation can spend (/api/world spendable): the granted NEAR, so the
+    // page can convert it at the florin value of the moment.
+    s.grantedNear = Object.fromEntries(Object.entries(reserve).map(([id, f]) => [id, +(f * Number(fv) / 1e24).toFixed(6)]));
   } catch { /* no reserve this turn: the nation can spend what it holds */ }
   const spendable = (id, units) => Math.max(0, toFlorins(units || "0") - (reserve[id] || 0));
   const florinsOf = (id) => spendable(id, onchain.find((x) => x.id === Number(id))?.florins);
@@ -869,6 +872,9 @@ for (let n = 0; n < days; n++) {
 
   // An instant turn ends here: no rulings sweep, fees, root or new day (the next day does those).
   if (INSTANT) {
+    // A god's Act of God burns now, in the instant turn their vote started (11 Nov: it used to wait
+    // for the next scheduled turn). The heavens' own fire still waits for a scheduled turn.
+    try { await firePhase(); } catch (e) { log({ kind: "error", error: `act of god: ${String(e.message || e).slice(0, 200)}` }); }
     s.spend.usd = spendBase + meter.usd;
     await store.saveState(net, s);
     console.log(`  instant turn for ${INSTANT.join(",")} done: ${rec.length} pending records | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);
