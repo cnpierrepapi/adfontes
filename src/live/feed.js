@@ -24,7 +24,8 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
   head.addEventListener("click", () => { open = !open; draw(); });
 
   let gods = null, mine = new Set(), focus = null;
-  const dialogue = createDialogue();
+  // The sandbox has no dialogue boxes (his call 11 Nov): its lab says what happened.
+  const dialogue = sandbox ? { say() {}, busy: () => false } : createDialogue();
   const name = (id) => W.clans?.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
   const isMine = (id) => id != null && mine.has(Number(id));
   const me = () => (gods?.account?.() ?? null);

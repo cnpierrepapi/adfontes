@@ -113,7 +113,7 @@ function showLab() {
       el("button", { type: "button", className: "sb-preset", textContent: "🔥 Burn the richest", onclick: preset }),
       el("label", {}, "Rain fire on", target),
       el("label", {}, "Called by the gods of", caster),
-      el("p", { className: "sb-note", textContent: "It goes through that nation's DAO vote, as on the live world, and burns on the next turn. The caster's nation pays a tenth. One call per god per day of world time, never on your own nation, never on a nation at war." }),
+      el("p", { className: "sb-note", textContent: "Its gods vote it through their council, as on the live world, and it burns on the next turn. The caster's nation pays a tenth. One call per god per day of world time, never on your own nation, never on a nation at war." }),
       el("button", { type: "button", className: "tl-go sb-cast", textContent: "Call the fire", disabled: !!st.pending || !!st.running, onclick: () => shock({ kind: "fire", target: Number(target.value), caster: Number(caster.value) }) }));
   } else {
     const all = st.nations.filter((n) => !n.at_war).sort((a, b) => b.spendable - a.spendable);

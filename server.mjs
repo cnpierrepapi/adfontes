@@ -39,7 +39,11 @@ const cache = new Map();
 // once. Now: one fetch at a time per key; while it runs, visitors get the last copy (stale-while-
 // refresh); with no copy yet, everyone waits on the same fetch.
 const inflight = new Map();
+// A sandbox's own server (timelapse/service.mjs) has one visitor and must show a turn the moment it
+// lands, so it reads fresh every time (11 Nov: the cache held each new turn back by ~6 s).
+const NO_CACHE = process.env.ADF_NO_CACHE === "1";
 async function cached(key, ms, fn) {
+  if (NO_CACHE) return fn();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.t < ms) return hit.v;
   let run = inflight.get(key);

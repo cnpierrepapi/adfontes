@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import crypto from "node:crypto";
+import os from "node:os";
 import { spawn } from "node:child_process";
 
 const DIR = path.resolve(process.env.SBX_DIR || (process.env.RAILWAY_ENVIRONMENT ? "/tmp/adf-sandbox" : "debug/sandbox"));
@@ -27,7 +28,7 @@ const BASE = path.join(DIR, "base"), SESS = path.join(DIR, "sessions");
 const MAX = Number(process.env.SBX_MAX || 6); // sandboxes at once
 const IDLE_MS = 30 * 60e3; // a sandbox nobody has touched for 30 minutes is cleared
 const H = 3600e3, TURN_MS = 2 * H; // one turn = two hours of world time, as live
-const FUTURES = Number(process.env.SBX_FUTURES || 8), AHEAD = 12, PARALLEL = Number(process.env.SBX_PARALLEL || 3);
+const FUTURES = Number(process.env.SBX_FUTURES || 8), AHEAD = 12, PARALLEL = Number(process.env.SBX_PARALLEL || 2);
 const SITE = process.env.SBX_SITE || "https://adfontes.fun";
 const PORT0 = Number(process.env.SBX_PORT0 || 4300);
 const PAPERS = path.join(DIR, "papers-cache.json");
@@ -41,8 +42,9 @@ function cleanEnv(extra) {
   for (const [k, v] of Object.entries(process.env)) if (!SECRET.test(k)) env[k] = v;
   return { ...env, DATABASE_URL: "", ADF_UPSTREAM: "off", ...extra };
 }
-const run = (args, env, timeoutMs = 120e3) => new Promise((resolve) => {
+const run = (args, env, timeoutMs = 120e3, low = false) => new Promise((resolve) => {
   const p = spawn(process.execPath, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+  if (low) try { os.setPriority(p.pid, 15); } catch { /* not allowed here: runs at normal priority */ } // futures yield to the visitor's own turns
   let out = "", err = "";
   p.stdout.on("data", (d) => { out += d; if (out.length > 4e6) out = out.slice(-2e6); });
   p.stderr.on("data", (d) => { err += d; if (err.length > 1e5) err = err.slice(-5e4); });
@@ -119,13 +121,13 @@ function florinsOf(dir) {
 const stateOf = (dir) => readJ(path.join(dir, "state", "testnet.json"));
 
 // ---- one turn on a copy ----
-async function turn(dir, k, extra = {}, args = ["--force"]) {
+async function turn(dir, k, extra = {}, args = ["--force"], low = false) {
   const { seededAt } = readJ(path.join(dir, "seed.json"));
   const env = cleanEnv({
     ADF_SIM_CHAIN: path.join(dir, "chain.json"), ADF_STATE_DIR: path.join(dir, "state"), ADF_FAKE_LLM: "1", ADF_MARKET: "1",
     ADF_PAPERS_OFFLINE: "1", ADF_PAPERS_CACHE: PAPERS, ADF_DAILY_CAP: "50", ADF_NOW: String(seededAt + k * TURN_MS), ...extra,
   });
-  const r = await run(["engine/run.mjs", "testnet", ...args], env, 180e3);
+  const r = await run(["engine/run.mjs", "testnet", ...args], env, 180e3, low);
   if (r.code !== 0) throw new Error(`turn ${k} failed: ${(r.err || r.out).slice(-300)}`);
   return r.out;
 }
@@ -179,7 +181,7 @@ async function create() {
   sessions.set(id, s);
   try {
     s.port = nextPort++; if (nextPort > PORT0 + 200) nextPort = PORT0;
-    s.child = spawn(process.execPath, ["server.mjs"], { env: cleanEnv({ PORT: String(s.port), ADF_SIM_CHAIN: path.join(dir, "chain.json"), ADF_STATE_DIR: path.join(dir, "state") }), stdio: "ignore" });
+    s.child = spawn(process.execPath, ["server.mjs"], { env: cleanEnv({ PORT: String(s.port), ADF_SIM_CHAIN: path.join(dir, "chain.json"), ADF_STATE_DIR: path.join(dir, "state"), ADF_NO_CACHE: "1" }), stdio: "ignore" });
     s.child.on("exit", () => { s.child = null; });
     await waitPort(s.port);
   } catch (e) { drop(id); throw e; }
@@ -248,7 +250,7 @@ async function futures(s, shock) {
     const line = [florinsOf(dir).nations[shock.kind === "bully" ? shock.attacker : shock.target]?.spendable ?? 0];
     for (let t = 1; t <= AHEAD; t++) {
       if (withShock && t === 1) applyShock(dir, shock, startK);
-      await turn(dir, startK + t, withShock && t === 1 ? shockEnv(shock) : {});
+      await turn(dir, startK + t, withShock && t === 1 ? shockEnv(shock) : {}, ["--force"], true);
       line.push(+(florinsOf(dir).nations[shock.kind === "bully" ? shock.attacker : shock.target]?.spendable ?? 0).toFixed(2));
     }
     (withShock ? F.shocked : F.plain).push(line);

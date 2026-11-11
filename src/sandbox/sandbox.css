@@ -66,3 +66,6 @@ body.sandbox a[href*="nearblocks"] { display: none !important; }
 /* The lab owns the left side here, so the standings and the feed sit on the right. */
 body.sandbox .standings { left: auto; right: 18px; top: 84px; }
 @media (max-width: 700px) { body.sandbox .standings { top: 118px; right: 12px; } }
+/* No standings box in the sandbox (his call 11 Nov): the lab says what's waiting and what happened,
+   and the nation panel has the right side to itself. */
+body.sandbox .standings { display: none !important; }
