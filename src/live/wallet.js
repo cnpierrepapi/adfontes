@@ -69,7 +69,7 @@ export async function createWallet(net) {
 
   async function wallets() {
     const out = [];
-    if (net === "testnet") out.push({ id: "local", name: "Play without a wallet", icon: "/favicon.svg", available: true, note: "A key made in this browser. Save it from the wallet menu." });
+    if (net === "testnet") out.push({ id: "local", name: "Play without a wallet", icon: "/favicon.svg", available: true, note: "Sign up or log in with an email. No wallet needed." });
     for (const m of selector.store.getState().modules) out.push({ id: m.id, name: m.metadata.name, icon: m.metadata.iconUrl, available: m.metadata.available !== false });
     return out;
   }
@@ -193,7 +193,60 @@ export async function createWallet(net) {
   }
   /** The browser key, for the player to save (only when playing without a wallet). */
   const exportKey = () => (localOn() ? { account: localKey().account, private_key: localKey().key, network: net } : null);
-  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, takeSponsored, isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
+
+  // ---- Email log-in (11 Nov): the email is the name you see; the NEAR account and key stay underneath ----
+  // The passphrase never leaves this browser. PBKDF2 (600,000 rounds) turns it into an AES key that
+  // encrypts the NEAR key here, and a login token; the server keeps the encrypted key, the salt and a
+  // hash of the token (server.mjs loginPost). A new browser: email + passphrase brings the key back.
+  const EMAIL = `${LOCAL}-email`;
+  const hexOf = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const bytesOf = (hex) => new Uint8Array(hex.match(/../g).map((h) => parseInt(h, 16)));
+  async function derive(pass, saltHex) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveBits"]);
+    const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: bytesOf(saltHex), iterations: 600000 }, base, 512));
+    return { aes: await crypto.subtle.importKey("raw", bits.slice(0, 32), "AES-GCM", false, ["encrypt", "decrypt"]), auth: hexOf(bits.slice(32)) };
+  }
+  const postJ = (p, b) => fetch(`/api/login${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }).then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn't reach the world. Try again."); return j; });
+  const checkPass = (pass) => { if (String(pass).length < 10) throw new Error("Use a passphrase of 10 characters or more."); };
+  /** Sign up: a key made in this browser (and a funded named account), saved under your email, encrypted here. */
+  async function signUpEmail(email, pass) {
+    checkPass(pass);
+    email = email.trim().toLowerCase();
+    await signIn("local"); // makes the key and the account if this browser has none yet
+    const lk = localKey(), salt = hexOf(crypto.getRandomValues(new Uint8Array(16))), iv = crypto.getRandomValues(new Uint8Array(12));
+    const { aes, auth } = await derive(pass, salt);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aes, new TextEncoder().encode(JSON.stringify({ account: lk.account, key: lk.key }))));
+    await postJ("/signup", { email, auth, salt, iv: hexOf(iv), ct: btoa(String.fromCharCode(...ct)), account: lk.account });
+    localStorage.setItem(EMAIL, email);
+    tell();
+    return lk.account;
+  }
+  /** Log in on any browser: the encrypted key comes back for the right passphrase and is opened here. */
+  async function logInEmail(email, pass) {
+    email = email.trim().toLowerCase();
+    const { salt } = await postJ("/salt", { email });
+    const { aes, auth } = await derive(pass, salt);
+    const r = await postJ("", { email, auth });
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytesOf(r.iv) }, aes, Uint8Array.from(atob(r.ct), (c) => c.charCodeAt(0)));
+    const k = JSON.parse(new TextDecoder().decode(plain));
+    localStorage.setItem(LOCAL, JSON.stringify({ account: k.account, key: k.key, sponsored: null }));
+    localStorage.setItem(`${LOCAL}-on`, "1");
+    localStorage.setItem(EMAIL, email);
+    tell();
+    return k.account;
+  }
+  /** Forget me: the server deletes the encrypted key for this email. The key in this browser stays. */
+  async function forgetEmail(pass) {
+    const email = localStorage.getItem(EMAIL);
+    if (!email) return;
+    const { salt } = await postJ("/salt", { email });
+    await postJ("/forget", { email, auth: (await derive(pass, salt)).auth });
+    localStorage.removeItem(EMAIL);
+    tell();
+  }
+  /** What the page shows for you: your email when you signed up with one, else the account. */
+  const label = () => (localOn() && localStorage.getItem(EMAIL)) || account();
+  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, takeSponsored, signUpEmail, logInEmail, forgetEmail, label, email: () => (localOn() ? localStorage.getItem(EMAIL) : null), hasLocalKey: () => !!localKey(), isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
 }
 
 /** Did this outcome fail anywhere? Returns the first failure in plain-ish words, or null. */

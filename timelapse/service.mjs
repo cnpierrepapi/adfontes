@@ -56,7 +56,7 @@ const writeJ = (f, o) => fs.writeFileSync(f, JSON.stringify(o));
 async function dumpPapers() {
   if (process.env.DATABASE_URL) {
     const pg = (await import("pg")).default;
-    const c = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL.includes("railway.internal") ? false : { rejectUnauthorized: false } });
+    const c = new pg.Client({ connectionString: process.env.DATABASE_URL }); // as engine/store.mjs connects
     await c.connect();
     try {
       const r = await c.query("select key, papers from papers_cache");

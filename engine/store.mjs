@@ -22,9 +22,35 @@ async function db() {
     alter table records add column if not exists raw text;
     create table if not exists sponsored (net text, account text, at timestamptz default now(), tx text, primary key (net, account));
     create table if not exists llm_spend (date text primary key, usd double precision not null default 0);
+    create table if not exists logins (id text primary key, net text not null, account text not null, salt text not null, auth text not null, iv text not null, ct text not null, at timestamptz default now());
   `);
   await ready;
   return pool;
+}
+
+// Email log-ins (11 Nov): id = a peppered hash of the email (the email itself is never stored), auth =
+// a hash of the login token the browser derives from the passphrase, ct = the NEAR key encrypted in
+// the browser with a key from the same passphrase. Nothing here can sign anything.
+const LOGINS = () => `${DIR}/logins.json`;
+const loginFile = () => (fs.existsSync(LOGINS()) ? JSON.parse(fs.readFileSync(LOGINS(), "utf8")) : {});
+export async function getLogin(id) {
+  const p = await db();
+  if (p) return (await p.query("select * from logins where id = $1", [id])).rows[0] ?? null;
+  return loginFile()[id] ?? null;
+}
+/** Adds a log-in; false if that email already has one. */
+export async function addLogin(row) {
+  const p = await db();
+  if (p) return (await p.query("insert into logins (id, net, account, salt, auth, iv, ct) values ($1,$2,$3,$4,$5,$6,$7) on conflict (id) do nothing", [row.id, row.net, row.account, row.salt, row.auth, row.iv, row.ct])).rowCount === 1;
+  const all = loginFile();
+  if (all[row.id]) return false;
+  all[row.id] = row; fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(LOGINS(), JSON.stringify(all));
+  return true;
+}
+export async function deleteLogin(id) {
+  const p = await db();
+  if (p) return void (await p.query("delete from logins where id = $1", [id]));
+  const all = loginFile(); delete all[id]; fs.writeFileSync(LOGINS(), JSON.stringify(all));
 }
 
 // Testnet founders the sponsor pool has topped up (once per account; SPEC §12m C).

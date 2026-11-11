@@ -15,7 +15,7 @@ export function runTutorial({ force = false } = {}) {
     { text: "Everything that happens lands here. Click the newest event.", target: () => $(".standings .events li"), click: true },
     { text: "The season race. The most revered nation on 30 November wins the jackpot.", target: () => $(".standings ol"), next: "Got it" },
     { text: "Become a god. Connect a wallet, or play without one.", target: () => $(".chip.wallet"), click: true },
-    { text: "Pick one. \"Play without a wallet\" gets you started in seconds.", target: () => [...document.querySelectorAll(".walletpick")].find(visible), done: () => !!document.querySelector(".chip.wallet")?.textContent.match(/[0-9a-f]{6}|\.testnet|\.near/) },
+    { text: "Pick one. \"Play without a wallet\" gets you started in seconds.", target: () => [...document.querySelectorAll(".walletpick")].find(visible), done: () => !!document.querySelector(".chip.wallet")?.textContent.match(/[0-9a-f]{6}|\.testnet|\.near|@/) }, // an email shows once signed up
     { text: "Last step: found your own nation. It rises out of the clouds.", target: () => $(".chip.wallet"), click: true },
     { text: "Click Found a nation.", target: () => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Found a nation" && visible(b)), click: true, final: true },
   ];

@@ -521,6 +521,51 @@ function fileOf(p) {
 // own cap (what it can pay for) stops it when it runs dry. Testnet NEAR has no value, but the pool
 // is shared, so this stays strict.
 const sponsorByIp = new Map();
+// ---- Email log-in (11 Nov): sign up / log in with an email and a passphrase ----
+// The browser stretches the passphrase (PBKDF2, 600,000 rounds) into two keys: one encrypts the NEAR
+// key, the other is a login token. The server keeps a peppered hash of the email (never the email),
+// the salt, a hash of the token, and the encrypted key. It hands the encrypted key back only for the
+// right token, so knowing someone's email isn't enough to try passphrases offline. It can't sign anything.
+const PEPPER = process.env.LOGIN_PEPPER || "adf-dev-pepper"; // Railway sets a real one
+const loginId = (email) => crypto.createHmac("sha256", PEPPER).update(`email|${email}`).digest("hex");
+const tokenHash = (auth) => crypto.createHash("sha256").update(`auth|${auth}`).digest("hex");
+const loginHits = new Map(); // ip or id -> times, for the limits below
+function limited(key, max, ms) {
+  const now = Date.now(), list = (loginHits.get(key) || []).filter((t) => now - t < ms);
+  list.push(now); loginHits.set(key, list);
+  if (loginHits.size > 5000) for (const [k, v] of loginHits) if (!v.some((t) => now - t < 3600e3)) loginHits.delete(k);
+  return list.length > max;
+}
+async function loginPost(req, res, what) {
+  const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
+  let body = "";
+  for await (const chunk of req) { body += chunk; if (body.length > 4096) return json(413, { error: "Too long." }); }
+  let b; try { b = JSON.parse(body); } catch { return json(400, { error: "Bad request." }); }
+  const email = String(b.email || "").trim().toLowerCase();
+  if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,24}$/.test(email)) return json(400, { error: "That doesn't look like an email address." });
+  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  if (limited(`ip|${ip}`, 30, 10 * 60e3)) return json(429, { error: "Too many tries from here. Wait ten minutes." });
+  const id = loginId(email), hex = (x, n) => typeof x === "string" && new RegExp(`^[0-9a-f]{${n}}$`).test(x);
+  // The salt, so the browser can derive its keys. An email with no log-in gets a made-up salt that
+  // stays the same, so this can't be used to find out who has signed up.
+  if (what === "salt") { const row = await store.getLogin(id); return json(200, { salt: row?.salt ?? crypto.createHmac("sha256", PEPPER).update(`salt|${id}`).digest("hex").slice(0, 32) }); }
+  if (!hex(b.auth, 64)) return json(400, { error: "Bad request." });
+  if (what === "signup") {
+    if (!hex(b.salt, 32) || !hex(b.iv, 24) || typeof b.ct !== "string" || !/^[A-Za-z0-9+/=]{20,1400}$/.test(b.ct) || !/^[a-z0-9_\-.]{2,64}$/.test(String(b.account || ""))) return json(400, { error: "Bad request." });
+    if (limited(`signup|${ip}`, 5, 24 * 3600e3)) return json(429, { error: "Five sign-ups a day from one connection." });
+    const ok = await store.addLogin({ id, net: "testnet", account: b.account, salt: b.salt, auth: tokenHash(b.auth), iv: b.iv, ct: b.ct });
+    return ok ? json(200, { ok: true }) : json(409, { error: "That email already has an account here. Log in instead." });
+  }
+  // Log in or forget me: the right token, at most 5 wrong ones an hour per email.
+  const fails = (loginHits.get(`fail|${id}`) || []).filter((t) => Date.now() - t < 3600e3);
+  if (fails.length >= 5) return json(429, { error: "Too many wrong passphrases for this email. Try again in an hour." });
+  const row = await store.getLogin(id);
+  const good = row && crypto.timingSafeEqual(Buffer.from(row.auth, "hex"), Buffer.from(tokenHash(b.auth), "hex"));
+  if (!good) { loginHits.set(`fail|${id}`, [...fails, Date.now()]); return json(401, { error: "That email and passphrase don't match." }); }
+  if (what === "forget") { await store.deleteLogin(id); return json(200, { ok: true }); }
+  return json(200, { account: row.account, iv: row.iv, ct: row.ct });
+}
+
 async function sponsorPost(req, res) {
   const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
   const pool = process.env.SPONSOR_ACCOUNT_ID, key = process.env.SPONSOR_PRIVATE_KEY;
@@ -588,6 +633,7 @@ http
   .createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     if (req.method === "POST" && url.pathname === "/api/sponsor") return sponsorPost(req, res);
+    { const lm = req.method === "POST" && url.pathname.match(/^\/api\/login(?:\/(salt|signup|forget))?$/); if (lm) return loginPost(req, res, lm[1] || "login"); }
     // The sandbox (/timelapse, timelapse/service.mjs): copies of the live world to shock and fast-forward.
     if (SANDBOX && (url.pathname === "/sbx" || url.pathname.startsWith("/sbx/"))) return (await SANDBOX).handleSandbox(req, res, url);
     if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "text/plain", "read only");

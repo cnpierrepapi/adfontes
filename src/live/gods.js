@@ -54,7 +54,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   nav.prepend(chip, " ");
   const menu = el("div", { className: "walletmenu", hidden: true });
   document.getElementById("visor").append(menu);
-  const showChip = () => { chip.innerHTML = account ? `◈ <span class="word">${short(account)}</span>` : `◈ <span class="word">Connect wallet</span>`; };
+  // The chip shows your email when you signed up with one (the account stays underneath).
+  const showChip = () => { const shown = account ? (wallet.label?.() || account) : null; chip.replaceChildren("◈ ", el("span", { className: "word", textContent: shown ? short(shown) : "Connect wallet" })); };
   showChip();
   wallet.onAccount((a) => { account = a; showChip(); refreshPanel(); if (!menu.hidden) openMenu(); });
   chip.addEventListener("click", () => (menu.hidden ? openMenu() : (menu.hidden = true)));
@@ -69,7 +70,9 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         const b = el("button", { type: "button", className: "walletpick" }, w.icon ? el("img", { src: w.icon, alt: "", width: 22, height: 22 }) : null, el("span", { textContent: w.name }));
         b.addEventListener("click", async () => {
           b.disabled = true;
-          try { await wallet.signIn(w.id); menu.hidden = true; if (w.id === "local") quickStart(); } catch (e) { toast(`${w.name}: ${e.message || "could not connect"}`); }
+          // Play without a wallet: sign up or log in with an email (a browser that already holds a key goes straight in).
+          if (w.id === "local" && !wallet.hasLocalKey?.()) { b.disabled = false; return emailForm(); }
+          try { await wallet.signIn(w.id); menu.hidden = true; if (w.id === "local") { showChip(); quickStart(); } } catch (e) { toast(`${w.name}: ${e.message || "could not connect"}`); }
           b.disabled = false;
         });
         menu.append(b);
@@ -77,7 +80,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       if (W.net !== "mainnet") menu.append(el("p", { className: "fine", textContent: "This is the practice world on testnet. HOT joins the list on mainnet." }));
       return;
     }
-    menu.append(el("p", { className: "lead" }, "Signed in as ", el("b", { textContent: account })));
+    menu.append(el("p", { className: "lead" }, "Signed in as ", el("b", { textContent: wallet.label?.() || account })), wallet.email?.() ? el("p", { className: "fine", textContent: `Your NEAR account: ${account}` }) : "");
     // Your route as a god (SPEC §12n): what you've done, and what to try next.
     if (route) {
       const steps = route.progress(), nextStep = steps.find((x) => !x.done);
@@ -125,10 +128,62 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     // Playing without a wallet: the key lives in this browser only. Save it, or lose the account
     // with the browser's storage.
     if (wallet.isLocal?.()) {
-      const save = el("button", { type: "button", className: "viewbtn gold", textContent: "Save your key" });
+      const save = el("button", { type: "button", className: "viewbtn", textContent: "Save your key as a file" });
       save.addEventListener("click", saveKey);
-      menu.append(el("p", { className: "fine", textContent: "You're playing without a wallet. Your key lives in this browser. Save it so you don't lose your nation." }), el("div", { className: "row" }, save));
+      if (wallet.email?.()) {
+        const forget = el("button", { type: "button", className: "viewbtn", textContent: "Forget my email" });
+        forget.addEventListener("click", () => forgetForm());
+        menu.append(el("p", { className: "fine", textContent: "Your key is saved under your email, locked with your passphrase. Log in with them on any browser. We never see the passphrase or the key." }), el("div", { className: "row" }, save, forget));
+      } else {
+        const keep = el("button", { type: "button", className: "viewbtn gold", textContent: "Keep it under an email" });
+        keep.addEventListener("click", () => emailForm("signup"));
+        menu.append(el("p", { className: "fine", textContent: "You're playing without a wallet. Your key lives only in this browser. Keep it under an email and a passphrase, or save it as a file, so you don't lose your nation." }), el("div", { className: "row" }, keep, save));
+      }
     }
+  }
+
+  // Sign up or log in with an email (11 Nov). The passphrase stays in this browser: it locks the key
+  // here before anything is sent (src/live/wallet.js signUpEmail / logInEmail).
+  function emailForm(mode = "signup") {
+    menu.replaceChildren();
+    menu.hidden = false;
+    const email = el("input", { className: "txin", type: "email", autocomplete: "email", placeholder: "you@example.com" });
+    const pass = el("input", { className: "txin", type: "password", autocomplete: mode === "signup" ? "new-password" : "current-password", placeholder: "a passphrase, 10 characters or more" });
+    const again = mode === "signup" ? el("input", { className: "txin", type: "password", autocomplete: "new-password", placeholder: "the passphrase again" }) : null;
+    const go = el("button", { type: "button", className: "viewbtn gold", textContent: mode === "signup" ? "Sign up" : "Log in" });
+    const swap = el("button", { type: "button", className: "linkish", textContent: mode === "signup" ? "I already signed up: log in" : "New here: sign up", onclick: () => emailForm(mode === "signup" ? "login" : "signup") });
+    const msg = el("p", { className: "fine" });
+    go.addEventListener("click", async () => {
+      msg.textContent = "";
+      if (again && again.value !== pass.value) { msg.textContent = "The two passphrases don't match."; return; }
+      go.disabled = true; go.textContent = mode === "signup" ? "Making your account…" : "Opening your key…";
+      try {
+        if (mode === "signup") await wallet.signUpEmail(email.value, pass.value); else await wallet.logInEmail(email.value, pass.value);
+        menu.hidden = true; showChip();
+        toast(mode === "signup" ? `Signed up as ${wallet.label()}.` : `Welcome back, ${wallet.label()}.`);
+        quickStart();
+      } catch (e) { msg.textContent = e.message || "That didn't work. Try again."; go.disabled = false; go.textContent = mode === "signup" ? "Sign up" : "Log in"; }
+    });
+    menu.append(
+      el("p", { className: "lead", textContent: mode === "signup" ? "Play with an email" : "Log in with your email" }),
+      el("p", { className: "fine", textContent: mode === "signup" ? "We make you a NEAR testnet account with free test NEAR. Your email is the name you see; the account is underneath. Your passphrase locks your key in this browser before it's saved, so we can't open it, and we can't reset it if you forget." : "Your key comes back to this browser and opens here with your passphrase." }),
+      el("label", { className: "fine" }, "Email", email), el("label", { className: "fine" }, "Passphrase", pass), again ? el("label", { className: "fine" }, "Again", again) : "",
+      el("div", { className: "row" }, go), msg, swap,
+      mode === "signup" ? el("p", { className: "fine", textContent: "We keep a scrambled form of your email (not the email itself) and your locked key, only so you can log in. Forget my email, in the wallet menu, deletes both." }) : "");
+    email.focus();
+  }
+  function forgetForm() {
+    menu.replaceChildren();
+    const pass = el("input", { className: "txin", type: "password", autocomplete: "current-password", placeholder: "your passphrase" });
+    const go = el("button", { type: "button", className: "viewbtn", textContent: "Delete it" });
+    const msg = el("p", { className: "fine" });
+    go.addEventListener("click", async () => {
+      go.disabled = true;
+      try { await wallet.forgetEmail(pass.value); menu.hidden = true; showChip(); toast("Done. Your email and locked key are gone from our side. The key is still in this browser: save it as a file if you want to keep it."); }
+      catch (e) { msg.textContent = e.message; go.disabled = false; }
+    });
+    menu.append(el("p", { className: "lead", textContent: "Forget my email" }), el("p", { className: "fine", textContent: "We delete your scrambled email and locked key. You stay signed in here, but you can't log in with the email anywhere else." }), el("label", { className: "fine" }, "Passphrase", pass), el("div", { className: "row" }, go), msg);
+    pass.focus();
   }
 
   // The browser key as a file (only when playing without a wallet).
@@ -546,10 +601,9 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     let who = null, save = null;
     if (wallet.isLocal?.()) {
       who = el("div", { className: "whoami" },
-        el("p", {}, "You're ", el("b", { textContent: account }), " on NEAR testnet."),
-        el("p", { className: "fine", textContent: "No wallet and no sign-in: your key signs right here, so nothing pops up when you act. It lives only in this browser. Save it and you can come back to your nation from anywhere." }));
-      save = el("button", { type: "button", className: "viewbtn gold", textContent: "Save your key" });
-      save.addEventListener("click", saveKey);
+        wallet.email?.() ? el("p", {}, "You're ", el("b", { textContent: wallet.email() }), ". Underneath, that's ", el("b", { textContent: account }), " on NEAR testnet.") : el("p", {}, "You're ", el("b", { textContent: account }), " on NEAR testnet."),
+        el("p", { className: "fine", textContent: wallet.email?.() ? "No wallet: your key signs right here, so nothing pops up when you act. It's saved under your email, locked with your passphrase, so you can log in from any browser." : "No wallet: your key signs right here, so nothing pops up when you act. It lives only in this browser. Save it and you can come back to your nation from anywhere." }));
+      if (!wallet.email?.()) { save = el("button", { type: "button", className: "viewbtn gold", textContent: "Save your key" }); save.addEventListener("click", saveKey); }
     }
     const box = el("aside", { className: "birth", role: "status" },
       el("h3", {}, `${want} is being born `, clock),
