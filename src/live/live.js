@@ -435,7 +435,14 @@ export async function startLive(canvas, hud, opts = {}) {
   let lastDay = W.day;
   // Which of a turn's records play on screen (the season world plays its cut; the live world, all).
   const cut = (recs) => (opts.cut ? opts.cut(recs) : recs);
-  api(`day?d=${W.day}`).then((d) => { const recs = cut(d.records || []); folk.dayRecords(recs, W.day); fx.enqueue(recs); }).catch(() => {});
+  // A turn's records arrive while it runs (the engine saves them nation by nation), so the open turn is
+  // read again on every poll and only records not seen yet play (11 Nov: an Act of God, which burns at
+  // the very end of a turn, never played on an open page). Big moments jump the queue.
+  const seenRec = new Set();
+  const fresh = (recs, d) => recs.filter((r) => { const k = `${d}:${r.i ?? JSON.stringify(r)}`; if (seenRec.has(k)) return false; seenRec.add(k); return true; });
+  const BIG = new Set(["fire", "war", "peace", "fallen"]);
+  const bigFirst = (recs) => [...recs.filter((r) => BIG.has(r.kind)), ...recs.filter((r) => !BIG.has(r.kind))];
+  api(`day?d=${W.day}`).then((d) => { const recs = cut(fresh(d.records || [], W.day)); folk.dayRecords(recs, W.day); fx.enqueue(bigFirst(recs)); }).catch(() => {});
   // The game days before it in the last 24 hours (11 more) don't play on the world view, but
   // count as missed: flying in replays them.
   for (let d = Math.max(1, W.day - 11); d < W.day; d++) api(`day?d=${d}`).then((x) => (x.records || []).forEach((r) => noteMissed(r, true))).catch(() => {});
@@ -540,7 +547,7 @@ export async function startLive(canvas, hud, opts = {}) {
       updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
       W.wars = now.wars || []; updateWars(); warLayer.update(now);
       for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; } }
-      for (let d = lastDay + 1; d <= now.day; d++) { const recs = cut(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live))); folk.dayRecords(recs, d); fx.enqueue(holdBack(recs)); }
+      for (let d = Math.max(1, lastDay); d <= now.day; d++) { const recs = cut(fresh(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)), d)); if (!recs.length) continue; folk.dayRecords(recs, d); fx.enqueue(holdBack(bigFirst(recs))); }
       W.jackpot = now.jackpot;
       standings.update(now);
       opts.onPoll?.(now); // the world clock: day or night now
