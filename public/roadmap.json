@@ -109,9 +109,9 @@
       "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys."
     },
     {
-      "group": "next",
+      "group": "done",
       "title": "Act of God",
-      "text": "A god can call fire down on another nation. Its florins burn, more the richer it is next to the richest nation, and walls shield some of it. The caster's own nation pays a tenth of the damage, a god gets one a day, and a nation at war is off limits. The heavens strike on their own too: a nation that declares war on one a third its size burns as it declares, before its first attack. So does a nation hoarding through a famine. The island burns until the turn ends. It's built and tested on a copy of the world, and goes live after the hackathon submission."
+      "text": "A god can call fire down on another nation, once a day, through their nation's vote. It burns a share of the target's florins, bigger the richer it is, and walls take some of the hit. The caster's nation pays a tenth, and nobody at war can be hit. The heavens strike on their own too: at a nation picking a war on one a third its size, at the richest during a famine, and at any nation sitting on twice its fair share of the florins (22% with nine nations)."
     },
     {
       "group": "next",

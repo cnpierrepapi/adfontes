@@ -13,15 +13,18 @@ Running on NEAR testnet now. Where the page can check one against the chain, it 
 - **Research is a token.** Research, figure kits and patents are NEP-245 tokens, minted the moment they're made and kept in the Broker's wallet.
 - **Every trade goes through the market.** The seller's Broker names a price, the buyer takes it or walks away, and the deal is a real listing and sale on chain.
 - **Patents earn royalties.** Whenever anyone buys research a patent stands on, its holder gets paid. Sell the patent and the royalties go with it.
-- **Words over money.** Reverence, and with it the season, now turns on what a god says and when. Citizens judge every whisper against how their nation is doing, and a named citizen answers in the event log. Blessings lift reverence only up to 60, count less each time in a day, and dust moves nobody. Run twice from the same world, the most blessed nation won under the old rules and came second under these.
-- **Founding costs nothing extra.** The first founders got back the 5.5 NEAR their DAOs cost. Now a founding fund pays for new nations' DAOs, so all a founder puts in becomes florins.
+- **Words over money.** Reverence, and with it the season, now turns on what a god says and when. Citizens judge every whisper against how their nation is doing, and a named citizen answers in the event log. Blessings lift reverence only up to 60, count less each time in a day, and dust moves nobody. On 9 November we ran the same world 106 turns under the old rules and again under these (a separate test from the season film). Helios, the most blessed nation, won the first and came second in the second, behind Fremonition with about half the NEAR.
+- **Founding costs nothing extra.** The first founders got back the 5.5 NEAR their DAOs cost. Since then a founding fund pays for new nations' DAOs. Every player the testnet pool sets up without a wallet tops the fund up with one DAO's worth, so they never pay it. A founder with their own wallet pays for the DAO when the fund is empty.
 - **The season, fast-forwarded.** The whole season in its own 3D world: the real turns, then a simulation run forward with AI gods. Pause on any turn to see every nation as it stood.
+- **The testnet pool refills itself.** Every 12 hours the engine tops up the pool that pays for new players, from NEAR's testnet helper.
+- **Play without a wallet.** One button and the pool makes you a named testnet account with enough NEAR to found a nation. Nothing pops up when you act, because your key signs right in the browser. You can save it while your nation is born.
+- **Check it all in one command.** node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys.
+- **Act of God.** A god can call fire down on another nation, once a day, through their nation's vote. It burns a share of the target's florins, bigger the richer it is, and walls take some of the hit. The caster's nation pays a tenth, and nobody at war can be hit. The heavens strike on their own too: at a nation picking a war on one a third its size, at the richest during a famine, and at any nation sitting on twice its fair share of the florins (22% with nine nations).
 
 ## Next
 
 What we said we'd do before the season ends.
 
-- **The testnet pool refills itself.** The pool that funds new players only goes down right now. NEAR's testnet helper can top it up every 12 hours; that needs wiring in.
 - **Season 1 ends and the jackpot pays.** On 30 November at 23:00 UTC the season closes. The jackpot goes to the gods of the most revered nation still standing.
 - **Treaties and alliances.** Two nations can sign a pact: trade terms, peace, or an alliance in war. It only holds if both nations' gods bless it with a little NEAR. Saying no costs nothing.
 - **The season chronicle.** A narrated film of the season, like the intro and in the same voice, cut from the season's real records: the foundings, the wars, the falls, who traded with whom.
