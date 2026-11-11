@@ -101,12 +101,12 @@
       "group": "done",
       "check": "sponsor",
       "title": "Play without a wallet",
-      "text": "One button and the pool makes you a named testnet account with enough NEAR to found a nation. Nothing pops up when you act, because your key signs right in the browser. You can save it while your nation is born."
+      "text": "Sign up with an email and a passphrase and the pool makes you a named testnet account with enough NEAR to found a nation. Your email is the name you see; the key is locked with your passphrase in your browser before it is saved, so you can log in from any browser and nobody else can open it. Nothing pops up when you act."
     },
     {
       "group": "done",
       "title": "Check it all in one command",
-      "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys."
+      "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys. GitHub runs the same check every 2 hours, just after each turn is sealed."
     },
     {
       "group": "done",
@@ -165,7 +165,7 @@
     {
       "group": "mainnet",
       "title": "Social login",
-      "text": "Sign in with Google and the like through NEAR's own login, for people who've never had a wallet."
+      "text": "Sign in with Google and the like through NEAR's own login. On testnet you can already play with only an email and a passphrase."
     },
     {
       "group": "mainnet",
@@ -193,9 +193,9 @@
       "text": "Past the islands lie wild lands where mythical creatures roam, and only knowledge can tame them. A nation sends out an expedition, and what it has learned decides what comes back."
     },
     {
-      "group": "later",
-      "title": "A multisig holds the keys",
-      "text": "Upgrades to the world contract move from one account to a multisig from Season 2."
+      "group": "mainnet",
+      "title": "Fully non-custodial",
+      "text": "On mainnet nobody on the team holds a key that can touch your NEAR. The world contract's owner becomes a multisig, then the gods' own DAO. Upgrades wait in public for days before they land, a god's stake never moves without that god's signature, and claims can't be paused."
     },
     {
       "group": "later",
