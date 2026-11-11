@@ -282,6 +282,9 @@ export function warCouncil({ me, rivals, war, temperament }) {
     // Stand-in: declare on the weakest rival with a patent if strong enough, accept any peace offer.
     if (war?.offerFromThem) return Promise.resolve({ action: "accept_peace", target: war.enemy, reason: "We have lost enough." });
     if (war) return Promise.resolve({ action: me.walls < 5 ? "fortify" : "hold", target: 0, reason: "Hold the walls." });
+    // Tests can make one stand-in council declare on a chosen nation: ADF_FAKE_WAR=<attacker>:<defender>.
+    const [fa, fd] = String(process.env.ADF_FAKE_WAR || "").split(":").map(Number);
+    if (fa && fa === me.id && fd) return Promise.resolve({ action: "declare", target: fd, reason: "The test says so." });
     const prey = rivals.filter((r) => r.fairGame && !r.atWar).sort((a, b) => a.hp - b.hp)[0];
     if (prey && me.hp > prey.hp) return Promise.resolve({ action: "declare", target: prey.id, reason: `${prey.name} is weaker than us.` });
     return Promise.resolve({ action: "hold", target: 0, reason: "Not yet." });

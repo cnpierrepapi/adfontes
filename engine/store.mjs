@@ -164,7 +164,7 @@ export async function putPapers(key, papers) {
   if (p) return void (await p.query("insert into papers_cache (key, papers) values ($1,$2) on conflict (key) do nothing", [key, JSON.stringify(papers)]));
   fileCache ||= fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
   fileCache[key] = papers;
-  fs.mkdirSync(DIR, { recursive: true });
+  fs.mkdirSync(CACHE.slice(0, CACHE.lastIndexOf("/")), { recursive: true }); // the cache's own folder, not the state folder
   fs.writeFileSync(CACHE, JSON.stringify(fileCache));
 }
 

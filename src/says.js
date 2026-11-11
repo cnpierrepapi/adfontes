@@ -18,6 +18,7 @@ export function tipOf(r) {
     case "trade": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, r.sellerWhy && `The seller asked ${fl(r.price)}: ${r.sellerWhy}`, why].filter(Boolean).join("\n");
     case "listed": return [r.priceWhy && `Fair price: ${r.priceWhy}.`, `It asks ${fl(r.price)}. A Broker can ask half to three times the fair price.`, why].filter(Boolean).join("\n");
     case "market-buy": return [r.fair != null && `Fair price ${fl(r.fair)}, paid ${fl(r.price)}.`, why].filter(Boolean).join("\n");
+    case "fire": return [r.why && `Why: ${r.why}.`, `${Math.round((r.pct || 0) * 100)}% of its florins burned${r.shield ? `, after its walls took off ${Math.round(r.shield * 100)}%` : ""}.`, r.cost?.florins ? `The nation that called it paid ${fl(r.cost.florins)}.` : null].filter(Boolean).join("\n");
     case "heard": return `Reverence ${r.delta > 0 ? "+" : ""}${r.delta}: the citizens took it as ${r.verdict === "prophecy" ? "prophecy" : r.verdict === "misread" ? "a god who misread them" : r.verdict === "insult" ? "contempt" : `${r.verdict} words`}. The god said: "${r.text}"`;
     case "royalty": return `Each research buy on a point in a patent's chain pays its holder. Patents: ${(r.patents || []).join(", ")}.`;
     default: return "";
@@ -60,6 +61,8 @@ function saysRaw(r, c) {
       const earned = r.florins ? Object.values(r.florins).reduce((a, b) => a + b, 0) : 0;
       return r.passed ? `${c(r.clan)} drafted "${r.title}". The Warden passed it${earned ? `, and it earned ${fl(earned)}` : ""}.` : `${c(r.clan)} drafted "${r.title}". The Warden found a problem.`;
     }
+    case "fire": return r.cause === "god" ? `An Act of God: ${c(r.from)}'s gods rained fire on ${c(r.clan)}. ${fl(r.florins)} burned.` : `An Act of God: fire fell on ${c(r.clan)}${r.cause === "bully" ? (r.against != null ? ` as it declared war on ${c(r.against)}, a far smaller nation` : " for picking on a weaker nation") : r.cause === "famine" ? " for hoarding while others went hungry" : " for hoarding the world's florins"}. ${fl(r.florins)} burned.`;
+    case "fire-refused": return `${c(r.clan)}'s gods called fire on ${c(r.target)}, but the heavens refused: ${r.why}.`;
     case "warden": return `The Warden caught a made-up citation in ${c(r.clan)}'s work. ${r.fine != null ? `${fl(r.fine)} burned` : `${n2(r.bounty)} NEAR fine`}.`;
     case "trickster": return `A Trickster called ${r.name} moved into ${c(r.clan)}. Its gods went quiet for a day.`;
     case "absorb": return `${c(r.clan)} reached "${r.via[0]}" and found ${r.points.length} point${r.points.length === 1 ? "" : "s"} of a dead nation's knowledge in the ruins.`;

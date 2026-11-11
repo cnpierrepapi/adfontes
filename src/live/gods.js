@@ -15,6 +15,7 @@ const ICONS = {
   bless: svg('<path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/><circle cx="12" cy="12" r="2.5"/>'),
   seat: svg('<path d="M6 21V11a6 6 0 0 1 12 0v10M4 21h16M9 15h6"/>'),
   whisper: svg('<path d="M4 6h16v10H9l-5 4z"/><path d="M8 10h8M8 13h5"/>'),
+  fire: svg('<path d="M12 22c4 0 7-3 7-7 0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-4-3 2-5 5-5 8 0 4 3 7 7 7z"/>'),
   smite: svg('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),
   root: svg('<path d="M12 3v8M12 11c-4 0-6 3-6 6M12 11c4 0 6 3 6 6M12 11v10M4 21h16"/><path d="M8 3l8 8M16 3l-8 8"/>'),
   staking: svg('<path d="M4 17h16M6 13h12M8 9h8M10 5h4"/>'),
@@ -432,6 +433,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           power("Whisper", () => whisperCard(clan), "whisper", "Tell your citizens what matters.");
           power("Smite a citizen", () => smiteCard(clan), "smite", "Stun a cheat, or remove them.");
           power("Root it out", () => rootCard(clan), "root", "Cut knowledge that unsettles them.");
+          power("Act of God", () => fireCard(clan), "fire", "Rain fire on another nation's florins.");
           if (BigInt(clan.staking_fund) > 0n) power("Release staking", () => stakingCard(clan), "staking", "Send the staking fund out.");
         }
         power("Claim your stake", () => withdrawCard(clan, me), "claim", "Take your florins out as NEAR.");
@@ -660,6 +662,36 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         const r = await daoResult(clan, C.returned(outs[0]));
         if (!r.passed) return waiting(r.left);
         return `Done. "${sel.value}" leaves ${clan.name}'s mind map on the world's next turn.`;
+      },
+    });
+  }
+  // Act of God (engine/fire.mjs): rain fire on another nation. Its florins burn, more the richer it
+  // is next to the richest nation; walls shield some of it. Your own nation pays a tenth of the damage,
+  // and each god can do it once a real day. It goes through your nation's DAO like root out (the
+  // point "act of god: <id>"), so the vote is on NEAR.
+  async function fireCard(clan) {
+    const p = await prepDao(clan);
+    // Nations at war are never a target: they're already being hit (his rule 10 Nov).
+    const targets = W.clans.filter((x) => x.alive && !x.fallen && x.id !== clan.id && x.war?.enemy == null && (x.florins || 0) > 1);
+    if (!targets.length) return toast("There's no nation at peace with florins to burn. Nations at war can't be struck.");
+    const top = Math.max(...W.clans.filter((x) => x.alive && !x.fallen).map((x) => x.florins || 0));
+    const est = (x) => { const shield = Math.min(0.3, ((x.war?.walls || 0) / 300) * 0.3); const pct = (0.05 + 0.2 * (x.florins / top)) * (1 - shield); return { pct, fl: x.florins * pct }; };
+    targets.sort((a, b) => b.florins - a.florins);
+    const sel = el("select", { className: "txin" }, ...targets.map((x) => el("option", { value: String(x.id), textContent: `${x.name}: about ${Math.round(est(x).fl)} of its ${Math.round(x.florins)} florins burn` })));
+    const pick = () => targets.find((x) => String(x.id) === sel.value);
+    card({
+      title: "Act of God",
+      fields: [label("The nation to burn", sel)],
+      words: () => {
+        const x = pick(), e = est(x);
+        return `Fire rains on ${x.name}. About ${Math.round(e.pct * 100)}% of its florins burn (${Math.round(e.fl)}), more because it's ${x.florins >= top ? "the richest nation" : "rich"}${x.war?.walls ? ", less for its walls" : ""}. Burnt florins are gone, so every other florin in the world is worth a little more. ` +
+          `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, never on your own nation, and never on a nation at war. It goes to ${clan.name}'s DAO as a proposal with your yes vote, and burns on the world's next turn.`;
+      },
+      calls: () => p.build("root_out", { clan_id: clan.id, point: `act of god: ${sel.value}` }, `AD FONTES: an Act of God. ${clan.name}'s gods rain fire on ${pick().name}`).calls,
+      after: async (outs) => {
+        const r = await daoResult(clan, C.returned(outs[0]));
+        if (!r.passed) return waiting(r.left);
+        return `Done. Fire falls on ${pick().name} within moments, and it burns there until the turn ends.`;
       },
     });
   }

@@ -236,7 +236,7 @@ body.night .stakebox .up { color: #6fe3a5; } body.night .stakebox .down { color:
 .powertile.bless b { font-size: 1rem; }
 .powertile.bless::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.55) 45%, transparent 60%); transform: translateX(-120%); animation: tile-shine 4.5s ease-in-out infinite; pointer-events: none; }
 @keyframes tile-shine { 0%, 60% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
-.powertile.whisper { --c: #1ca7e8; } .powertile.smite { --c: #e8325e; } .powertile.root { --c: #8a5cff; }
+.powertile.whisper { --c: #1ca7e8; } .powertile.smite { --c: #e8325e; } .powertile.root { --c: #8a5cff; } .powertile.fire { --c: #ff6a1a; }
 .powertile.staking { --c: #10b39a; } .powertile.claim { --c: #22a35a; } .powertile.seat { --c: #6b6f80; }
 body.night .powertile { color: #f1ecff; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 30%, #1d1640), rgba(29, 22, 64, 0.9) 75%); border-color: color-mix(in srgb, var(--c) 45%, transparent); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
 body.night .powertile:hover { box-shadow: 0 10px 26px color-mix(in srgb, var(--c) 40%, transparent), 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); }

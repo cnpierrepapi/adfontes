@@ -165,6 +165,70 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       return true;
     });
   }
+  // Act of God (engine/fire.mjs): fire rains out of the sky onto the island for a few seconds, each
+  // drop landing with a flash, then the island keeps burning until the turn ends (burning()).
+  function rainFire(isl) {
+    if (!isl) return;
+    const r = isl.userData.r || 3, base = top(isl);
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r * 0.85;
+      const land = base.clone().add(new THREE.Vector3(Math.cos(a) * d, 0.2, Math.sin(a) * d));
+      const from = land.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 14 + Math.random() * 6, (Math.random() - 0.5) * 3));
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.4, 1.4, 0.3) }));
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.6, 8, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 0.7, 0.12), transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const t0 = performance.now() + i * 120 + Math.random() * 200;
+      let added = false, landed = false;
+      add(() => {
+        const k = (performance.now() - t0) / 900;
+        if (k < 0) return true;
+        if (!added) { scene.add(ball, tail); added = true; }
+        ball.position.copy(from).lerp(land, Math.min(1, k * k));
+        tail.position.copy(ball.position).y += 0.8; tail.lookAt(from); tail.rotateX(Math.PI / 2);
+        if (k >= 1 && !landed) { landed = true; scene.remove(ball, tail); spark(land); }
+        return k < 1;
+      });
+    }
+  }
+  function spark(at) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.1, 0.25), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    scene.add(m);
+    const t0 = performance.now();
+    add(() => {
+      const k = (performance.now() - t0) / 500;
+      m.position.copy(at); m.scale.setScalar(0.15 + k * 0.6); m.material.opacity = Math.max(0, 0.9 * (1 - k));
+      if (k >= 1) { scene.remove(m); return false; }
+      return true;
+    });
+  }
+  // A nation on fire: flames flicker across the island until the turn ends. One set per island.
+  const fires = new Map();
+  function burning(id) {
+    const isl = islands.get(id);
+    if (!isl || fires.has(id)) return;
+    const r = isl.userData.r || 3, base = top(isl), group = new THREE.Group();
+    const flames = Array.from({ length: 16 }, () => {
+      const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r * 0.8;
+      const f = new THREE.Mesh(new THREE.ConeGeometry(0.14 + Math.random() * 0.12, 0.8 + Math.random() * 0.9, 7, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5 + Math.random() * 0.5, 0.28 + Math.random() * 0.3, 0.04), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+      f.position.set(Math.cos(a) * d, 0.35, Math.sin(a) * d);
+      f.userData.phase = Math.random() * 10;
+      group.add(f);
+      return f;
+    });
+    group.position.copy(base);
+    scene.add(group);
+    const entry = { group, on: true };
+    fires.set(id, entry);
+    add(() => {
+      if (!entry.on) { scene.remove(group); return false; }
+      group.position.copy(top(isl)); // islands bob
+      const t = performance.now() / 1000;
+      for (const f of flames) { const s = 0.75 + 0.35 * Math.sin(t * 7 + f.userData.phase) + 0.1 * Math.sin(t * 17 + f.userData.phase); f.scale.set(1, s, 1); f.material.opacity = 0.4 + 0.25 * Math.sin(t * 5 + f.userData.phase); }
+      return true;
+    });
+  }
+  /** A new turn: the fires go out. */
+  function endTurn() { for (const e of fires.values()) e.on = false; fires.clear(); }
+
   // Stones break off the island's edge and fall into the clouds (points burned in war).
   function crumble(isl, n = 8, delay = 0) {
     if (!isl) return;
@@ -408,6 +472,7 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
       case "royalty": beam(islands.get(r.clan), GOLD); bubble(islands.get(r.clan), text, "gift", tipOf(r)); break;
       // The citizens on a whisper (9 Nov): a soft ring, gold if it landed, red if it shook them.
       case "heard": ring(islands.get(r.clan), r.delta >= 8 ? GOLD : r.delta < 0 ? RED : WHITE); bubble(islands.get(r.clan), text, r.delta < 0 ? "warden" : "gift", tipOf(r)); break;
+      case "fire": rainFire(islands.get(r.clan)); burning(r.clan); bubble(islands.get(r.clan), text, "warden", tipOf(r)); break;
       case "council": if (r.refused) bubble(islands.get(r.clan), text, "corpus"); else bubble(islands.get(r.clan), text, "corpus"); break;
       default: break; // weather, upkeep, team, sweep, errors: no fireworks
     }
@@ -423,6 +488,6 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
     if (queue.length && !fx.paused && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + fx.gap; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  const fx = { quiet: false, paused: false, gap: 1500, play, enqueue, update, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, clear: () => queue.splice(0), setCrowd: () => {} };
+  const fx = { quiet: false, paused: false, gap: 1500, play, enqueue, update, endTurn, burning, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, clear: () => queue.splice(0), setCrowd: () => {} };
   return fx;
 }
