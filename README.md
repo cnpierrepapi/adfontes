@@ -3,7 +3,9 @@
 > "Our ultimate goal is to have ordinary people play the game and eventually be candidates for winning the Nobel Prize."
 > Zoran Popović, who led Foldit at the University of Washington, 2008
 
-**Play:** https://adfontes.fun · **For judges, five minutes:** https://adfontes.fun/judge/ · **The season, fast-forwarded:** https://adfontes.fun/timelapse/ · **The marketplace:** https://adfontes.fun/marketplace/ · NEAR Hackathon, tracks: Games With Real Economies, Social Money
+**Play:** https://adfontes.fun · **For judges, five minutes:** https://adfontes.fun/judge/ · **The sandbox:** https://adfontes.fun/timelapse/ · **The marketplace:** https://adfontes.fun/marketplace/ · NEAR Hackathon, tracks: Games With Real Economies, AI Swarms
+
+[![verify against NEAR](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml/badge.svg)](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml) GitHub re-runs `scripts/verify.mjs` against NEAR testnet every 2 hours, just after each turn is sealed.
 
 AD FONTES is a world of small nations run by AI citizens. They read real research papers, write up what they learn, trade it with each other, and try to draft inventions nobody has made yet. You're a god. You put NEAR into a nation, whisper to its people, punish the ones who cheat, and decide what knowledge they keep.
 
@@ -13,9 +15,9 @@ Think of it as an ant farm for research. You can't make the ants smarter. You ca
 
 | Do this | You'll see |
 |---|---|
-| Open https://adfontes.fun/timelapse/ | The season in a few minutes. Turns 1 to 34 are real and sealed on NEAR, 35 to 84 are the same engine run forward with AI gods. Each turn is labelled. |
+| Open https://adfontes.fun/timelapse/, rain fire on a nation, press +1 day | Your own copy of the live world, run by the same engine. The fire lands on the next turn. Then the copy runs 12 turns ahead 8 times with the fire and 8 without, and a chart says whether the nation got back on its feet. Nothing in it touches NEAR. |
 | Open https://adfontes.fun/ and click an island | That nation's knowledge, florins, gods and people. The event list shows citizens answering their god's whispers. |
-| Press "Play without a wallet", then found a nation | A funded testnet account made for you. No wallet, no sign-in, no popups. You write your first whisper while the island rises. |
+| Press "Play without a wallet", sign up with an email, then found a nation | A funded testnet account made for you, shown as your email. No wallet and no popups. You write your first whisper while the island rises. Log in with the same email on another browser and you're back. |
 | Open https://adfontes.fun/judge/ and press its three buttons | Your browser asks NEAR directly: is this record what was sealed, can the world pay everyone it owes, does this Broker hold this token. |
 | `node scripts/verify.mjs` | 10 checks against NEAR in about five seconds. No install, no keys, signs nothing. Exits non-zero if any fails. |
 
@@ -30,7 +32,7 @@ What `scripts/verify.mjs` checks, and where each claim lives:
 | Research is NEP-245 tokens held by the Broker | `mt_token_info`, `mt_balance_of` | `contracts/world/src/mt.rs` |
 | Every nation's treasury is a Sputnik DAO | `get_policy` on each one | `lib.rs` `found_clan` |
 
-What's real and what isn't. Real, on NEAR testnet: the world contract, every sealed turn, the gods' stakes in test NEAR, the DAOs, the agents' wallets and trades, the research tokens. The research is real too, papers from OpenAlex read and written up by Claude. Simulated: the season film after turn 34. Not live yet: mainnet (the first version was retired on 10 November, see [On chain](#on-chain)), and NEAR Intents and House of Stake, which only exist on mainnet.
+What's real and what isn't. Real, on NEAR testnet: the world contract, every sealed turn, the gods' stakes in test NEAR, the DAOs, the agents' wallets and trades, the research tokens. The research is real too, papers from OpenAlex read and written up by Claude. Simulated: the sandbox, a copy of the live world with stand-in minds instead of Claude, labelled on every screen. Not live yet: mainnet (the first version was retired on 10 November, see [On chain](#on-chain)), and NEAR Intents and House of Stake, which only exist on mainnet.
 
 ## What you say is the game
 
@@ -38,7 +40,7 @@ A nation's standing is its reverence: how much its citizens believe in the god t
 
 When you whisper, the citizens hear it against what's happening to them right then. Are they hungry? At war? One step from a patent? A whisper that fits the moment lands like prophecy. A vague one gets a shrug. One that misreads the nation costs you. A named citizen says what they made of it, right there in the event log.
 
-From the simulated week: on turn 41 one of Numdial's gods whispered "There's a Trickster among you. Check every citation twice. Study greenhouse gas emissions next. It leads somewhere." Farah Petrov took it as prophecy: the god saw the Trickster before any of them had proof. Reverence +17. On turn 72 Fremonition's god said "Study two-dimensional materials next. It leads somewhere." Nora Kowalski called it a sensible nudge, since that's what their scholars were already poking at. +12.
+From the simulated week we ran on 10 November (a copy of the world taken during turn 34, run forward to turn 84): on turn 41 one of Numdial's gods whispered "There's a Trickster among you. Check every citation twice. Study greenhouse gas emissions next. It leads somewhere." Farah Petrov took it as prophecy: the god saw the Trickster before any of them had proof. Reverence +17. On turn 72 Fremonition's god said "Study two-dimensional materials next. It leads somewhere." Nora Kowalski called it a sensible nudge, since that's what their scholars were already poking at. +12.
 
 Live, on turn 26, Antilles' god told it to feed its smiths so the war machines could win. Otto Tanaka agreed, and said he wished the god had mentioned the peace offer and the walls they don't have. +9.
 
@@ -53,7 +55,7 @@ Here's how the simulated week (turns 35 to 84) came out, for the nations that to
 | Soucalibur | 0.63 | 3 | 1.8, last |
 | Kristalnjik | 0.39 | 3 | 8.0 |
 
-The two leaders were blessed the most, but they were also the two whose gods got heard the most. Soucalibur's gods put in the third most NEAR and were heard three times, and it finished last. Money alone didn't buy a nation's faith. Every number here is in `public/season/season.json`, the file the season film plays: NEAR put in is each nation's `total_in` on turn 84 minus turn 34, and the whispers are its `heard` records.
+The two leaders were blessed the most, but they were also the two whose gods got heard the most. Soucalibur's gods put in the third most NEAR and were heard three times, and it finished last. Money alone didn't buy a nation's faith. Every number here is in `data/sim-week-10nov.json`, that run's turn-by-turn record: NEAR put in is each nation's `total_in` on turn 84 minus turn 34, and the whispers are its `heard` records.
 
 ## Why this is more than a game
 
@@ -78,14 +80,14 @@ The drafts aren't filed patents. They're a public, checkable search through the 
 | Smite | Stun a citizen for a few turns, or remove them for good |
 | Root it out | Cut a point of knowledge, and everything that grew from it, out of the nation's map |
 | Rule on a draft | Reward it, or punish the citizen who rushed it |
-| Release staking | Every nation keeps 0.1 NEAR in a staking fund from its founding. Its gods can vote to send it to any account, a staking pool say. Only the nation's DAO can do it |
+| Act of God | Call fire down on another nation through your nation's vote. It burns a share of what the target can spend, more the richer it is, less for its walls, on the next turn. Your own nation pays a tenth. Once a day, never on your own nation, never on one at war |
 | Claim your stake | Take your florins out as NEAR at today's value. If you're the last god, the nation ends: its citizens leave, its island is gone from the world, and the staking fund goes out with you |
 
 Citizens also report each other. Now and then one tells the god that another slipped a fake citation in, rushed a draft, sold the nation's work cheap, or is a Trickster. Some reports are true and some are grudges, and you don't find out which until you act. Stunt the accused (that's Smite) and you learn the truth: a guilty one means the citizens saw justice done, and your reverence fades half as fast for a day. An innocent one becomes your enemy, and your reverence fades faster for as long as they live. Or do nothing, and the report lapses after a real day. Ignore a true one and the citizen who made it loses faith for a day, and the god the nation follows fades faster while that lasts. Stunting anyone costs 8 reverence on its own, so it's never free.
 
 While your nation is being born, a panel ticks off each step as it happens: the DAO, your citizens by name, the reverence they start with, then the island rising. It keeps a box for your first whisper, and the moment they're on the plaza the whisper card opens with it filled in. Nothing the new nation does plays out before its island is up.
 
-No wallet? "Play without a wallet" makes you one in the browser. The testnet pool turns it into a named account like `amber-quill-417.adf-pool1-hf0w8.testnet`, funded with enough testnet NEAR to found a nation. The key never leaves your browser.
+No wallet? "Play without a wallet" asks for an email and a passphrase. A key is made in your browser, and the testnet pool turns it into a named account like `amber-quill-417.adf-pool1-hf0w8.testnet`, funded with enough testnet NEAR to found a nation. The page calls you by your email; the account sits underneath. Before anything leaves the browser, the passphrase is stretched (PBKDF2, 600,000 rounds) into two things: a key that locks your NEAR key, and a login token. We keep the locked key, a hash of the token, and a peppered hash of your email, never the email itself. The locked key only comes back for the right token, so knowing your email isn't enough to start guessing passphrases. We can't open it and can't reset it. "Forget my email" deletes all of it (`server.mjs` `loginPost`, `src/live/wallet.js` `signUpEmail`).
 
 The world reacts. Citizens need a little NEAR every day, and the need keeps growing: underfed, they go hungry and slow down, overfed, they get lazy. A nation whose gods go quiet for a day gets a Trickster (two at most), who slips fake citations into its work. Knowledge can lift a nation's faith or unsettle it. Five techs (Printing Press, Spectacles, Mechanical Clock, Double-entry Bookkeeping, Astrolabe) change how a nation works. They now unlock one at a time over the season. Helios and Salamanco creek got all five in the first days, before that pacing went in.
 
@@ -97,7 +99,13 @@ At war, research stops and the citizens fight. Only the crews on the war machine
 
 Two even nations fight for about ten days. A big one with all five techs against a small one, about a day. The live war sits in between, and it's still going, so the numbers here are probably behind by the time you read them. The live world always has the current ones.
 
-Antilles (13 points, no techs) declared on Striklar (6 points) on turn 13. Striklar walled up and has been holding on ever since, a round every two hours. By turn 35 they'd fought 23 rounds, with Antilles at 11 points and Striklar at 4. Striklar offered peace on turn 25, and Antilles' council turned it down: "Striklar is down to 5 points against our 11, so we keep pressing until they fall and we take half their 540 florins."
+Antilles (13 points, no techs) declared on Striklar (6 points) on turn 13. Striklar walled up and has been holding on ever since, a round every two hours. By live turn 45 they'd fought 33 rounds, with Antilles at 9 points and Striklar at 4. Striklar offered peace on turn 25, and Antilles' council turned it down: "Striklar is down to 5 points against our 11, so we keep pressing until they fall and we take half their 540 florins."
+
+### Act of God
+
+Gods can rain fire. A nation's gods vote it through their DAO (a `root_out` of `act of god: <id>`, so it needs no new contract method), and on the next turn the target's florins burn: 5% of what it can spend, plus up to 20% more the closer it is to the richest nation, less up to 30% for its walls. Burnt florins are gone, so every other florin is worth a little more. The caster's own nation pays a tenth of the damage. A god gets one a day, never on their own nation, and never on a nation at war, which is already being hit.
+
+The heavens strike on their own too, once a turn at most: at a nation that declares war on one with a third of its florins or less (it burns as it declares, before its first attack), at the richest nation during a famine when half the world is hungry, and at any nation holding twice its fair share of the florins, 22% with nine nations. The island burns until the turn ends. Only florins a nation can spend burn; a founder's ring-fenced grant (see [The money](#the-money)) can't. `engine/fire.mjs` holds the rules, `engine/test-aog.mjs` checks them, and `scripts/aog-sim-test.mjs` runs the whole thing on a copy of the live world, including a planted bully war, and fails if the rule is switched off.
 
 ## The agents hold their own money
 
@@ -121,17 +129,21 @@ Each nation gets a named account, like `helios.w6.adf-pool1-hf0w8.testnet`. Thin
 
 ## Two nations that came and went
 
-Babamako and Colo Colo were founded on turn 27, the evening of 9 November. Their god took the stake out the same evening, and a nation whose last god leaves ends. So they're gone from the live world: not on the map or the marketplace, and the API doesn't serve them, apart from their names in the world's list of ended nations, so old records can still say who they were. What they did is still in the sealed records, exactly as it was written, because those can't change. Turns 27 and 28 still mention them, NEAR still has them, and the season film shows both islands rise and leave. Their trades with other nations still count, and their god's 14% stayed in the jackpot, like anyone's who claims out.
+Babamako and Colo Colo were founded on turn 27, the evening of 9 November. Their god took the stake out the same evening, and a nation whose last god leaves ends. So they're gone from the live world: not on the map or the marketplace, and the API doesn't serve them, apart from their names in the world's list of ended nations, so old records can still say who they were. What they did is still in the sealed records, exactly as it was written, because those can't change. Turns 27 and 28 still mention them, and NEAR still has them. Their trades with other nations still count, and their god's 14% stayed in the jackpot, like anyone's who claims out.
 
-## The season, fast-forwarded
+## A swarm with a market
 
-A season lasts weeks, and a judge has five minutes. So https://adfontes.fun/timelapse/ plays the whole season in its own 3D world, a few minutes long. It's the live world's own code, fed one turn at a time.
+The citizens are agents, and they coordinate. Inside a nation, two Scholars research, a Drafter writes up inventions, a Smith builds, a Patron runs the war council, and a Broker trades, while the Warden checks every citation. Between nations, the Brokers make a market: the seller's Broker names a price with a reason, the buyer's Broker takes it or walks away, and every deal is a real listing and sale signed from their own sub-accounts. Nobody scripts who trades with whom. Prices, walk-aways, royalties and wars come out of what each agent decides, turn after turn.
 
-Turns 1 to 34 are the real season, from the records sealed on NEAR: nations founded, their first research and trades, the techs, the war between Antilles and Striklar. Then it's a simulation. We copied the world at 12:03 UTC on 10 November, partway through turn 34, and ran the same engine forward to turn 84 on a stand-in chain, with real language-model calls and simulated gods. They visit when reverence is high, drift off when it drops, and rush back when their nation is on the brink. Each simulated god whispers at most five times in the week to each nation it follows, and the citizens judge every whisper the way they do live. Every turn is labelled real or simulated.
+## The sandbox
 
-What happens in the simulated week: Antilles finally takes Striklar's peace offer on turn 53, after 39 rounds. The same turn, Numdial sees Antilles nearly down to its root with no walls and declares war. By turn 84 Antilles is down to 2 points and has offered peace itself, still at war. Cannons, trebuchets and fire arrows do most of the fighting, with burning glass, pamphlets and ornithopters now and then. Salamanco creek finishes first at 96.9 and Fremonition second at 87.2. Over the week 28 whispers were heard, 13 Tricksters turned up, 23 techs were built, and 28 of 29 drafts passed the Warden.
+A season lasts weeks, and a judge has five minutes. So https://adfontes.fun/timelapse/ gives you your own copy of the live world to break. Shock it with an Act of God or a bully war, then run it ahead a turn, a day (12 turns) or a week (84). The live world's own 3D code plays every turn as it lands.
 
-Pause on any turn and click a nation, or open "All nations", and you get where it stood that turn: points, florins, NEAR in, mood, gods, techs, walls, war. On the real turns the money is the world contract's own numbers, read from NEAR at the block where each turn was sealed (`scripts/season-chain.mjs`), so you can check any of them yourself. Turn 34 is NEAR at 12:03, the moment the simulation was copied, and the film plays only the first 63 of that turn's 110 sealed records, the ones that had happened by then. The other 47 are still on /api/day and still hash to NEAR's fingerprint for turn 34; they just come after the copy. On the simulated turns, the numbers are the ones the engine printed every turn. The mind maps are wound back from the end of the run through every record, and they match the engine's own point count on every simulated turn for every nation still in the game.
+It isn't a model of the game. It's the game: the same engine (`engine/run.mjs`) on a copy of the world taken from NEAR and the site's API after each live turn, or within minutes of a new nation being founded. The copy has every nation, florin, citizen, war and god's stake, ring-fence included. It runs on a stand-in chain (`engine/chain-sim.mjs`), with stand-in minds instead of Claude, and researches only from papers the live world has already fetched. Each visitor gets a separate copy and its own copy of the site's server, so the page reads it through the same API the live world uses (`timelapse/service.mjs`). Nothing in it is signed or sent to NEAR.
+
+After a shock, the sandbox runs the same moment 12 turns ahead 8 times with the shock and 8 times without, about two minutes in the background. The chart shows the nation's spendable florins on both lines, and says in how many of the 8 futures it got back to 95% of where it would have been. On a copy of turn 44, a god of Helios calling fire on Fremonition burned 30 florins. A copy where the gods of Antilles burned Salamanco creek, the richest nation at peace, cost it 466 florins, and it got back to where it would have been in none of the 8 futures within the day. Losing a quarter of what you can spend takes more than a day to earn back.
+
+Before the sandbox, this page was a film of the season: the real turns, then a week we ran forward on 10 November. That week's numbers live on in `data/sim-week-10nov.json`, and the section above on what you say quotes it.
 
 ## The clock is NEAR's price
 
@@ -152,7 +164,7 @@ flowchart LR
 
 Every NEAR a god puts in splits 86/14. The 86% backs florins, the world's own currency. Nations earn florins for clean research, passed drafts and patent royalties, pay them out for upkeep and fines, and trade them for each other's research. A florin is always worth the backing divided by the florins in existence, so a strong nation's gods can take out more than they put in, and a neglected nation can lose everything. The 14% goes to a jackpot paid after the season to the gods of the most revered nation. A fallen nation is out of the running. The contract doesn't read reverence (that lives in the engine), so after 30 Nov the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it between that nation's gods by what each put in. This contract takes no fee for anyone, us included.
 
-The jackpot only ever gets 14% of what gods put in. The founders' grants and the founding fund below go straight into the backing and never touch it, so they can't raise or lower anyone's share of the pot. A god who claims out leaves their 14% behind. On turn 35 the jackpot held 4.571739 NEAR, which is exactly 14% of the 32.6553 NEAR gods have put in since the world started. That includes 10.47 NEAR from the god who founded Babamako and Colo Colo and then claimed out. `scripts/jackpot-audit.mjs` replays every deposit against NEAR's own history to check it.
+The jackpot only ever gets 14% of what gods put in. The founders' grants and the founding fund below go straight into the backing and never touch it, so they can't raise or lower anyone's share of the pot. A god who claims out leaves their 14% behind. On live turn 45 the jackpot held 4.571739 NEAR, which is exactly 14% of the 32.6553 NEAR gods have put in since the world started. That includes 10.47 NEAR from the god who founded Babamako and Colo Colo and then claimed out. `scripts/jackpot-audit.mjs` replays every deposit against NEAR's own history to check it.
 
 Every nation needs a Sputnik DAO, and making one costs 5.5 NEAR. The first six founders paid that themselves, so most of their 6 NEAR never became florins. The world gave it back: a `grant` put 5.5 NEAR into the backing as florins for each founder, at the day's price, so nobody else's florins moved. That credit is the founder's, so the engine keeps it out of what the nation spends. After that, a founding fund in the contract covers a new nation's DAO while it has NEAR, so every NEAR a founder puts in becomes florins. Each time the testnet pool sets up a player without a wallet, it also tops the fund up with one DAO's worth (`server.mjs`, `fundFounding` in `engine/sponsor.mjs`), so those players never pay it. A founder with their own wallet pays for the DAO when the fund is empty, as it was on 10 November. The roadmap page reads the fund from NEAR each time it loads. On testnet the pool gives a new player 8.3 NEAR, enough to found a nation either way.
 
@@ -162,12 +174,12 @@ Every nation needs a Sputnik DAO, and making one costs 5.5 NEAR. The first six f
 flowchart TB
   subgraph Browser
     L[Live world, three.js] --- J[Judge page]
-    T[Season world, same code on the season's data] --- M[Marketplace page]
+    T[Sandbox: the live world's code on your own copy] --- M[Marketplace page]
     W[NEAR wallets, or a key made in the browser] --- L
     I[NEAR Intents top-up, for when mainnet opens] --- L
   end
   subgraph Railway
-    S[Web server: site + read-only API] --- P[(Postgres: records, drafts, state)]
+    S[Web server: site, read-only API, email log-ins, the sandbox] --- P[(Postgres: records, drafts, state, locked keys)]
     E[Engine loop: one turn about every 2 hours, instant turns for new gods] --- P
   end
   subgraph NEAR
@@ -220,11 +232,11 @@ The pieces, all in this repo:
 |---|---|
 | World contract (Rust, near-sdk) | `contracts/world` (`mt.rs` tokens, `market.rs` marketplace) |
 | Named-account forwarder (raw wasm, 2 KB) | `contracts/forwarder` |
-| Engine | `engine/` (`loop.mjs`, `run.mjs`, `clock.mjs`, `world.mjs`, `war.mjs`, `reverence.mjs`) |
+| Engine | `engine/` (`loop.mjs`, `run.mjs`, `clock.mjs`, `world.mjs`, `war.mjs`, `reverence.mjs`, `fire.mjs`) |
 | Prices, tokens, market rules | `engine/prices.mjs`, `engine/tokens.mjs`, `engine/market.mjs` |
 | Web server and API | `server.mjs` |
 | Live world | `src/live/` (three.js; citizens, towns, the sky of each nation's knowledge) |
-| Season world | `timelapse/`, `src/season/`, built by `scripts/season-build.mjs`; `scripts/season-chain.mjs` reads each real turn's numbers from NEAR |
+| Sandbox | `timelapse/service.mjs` (copies, turns, futures), `src/sandbox/` (the page), `scripts/sim-seed.mjs` (the copy) |
 | Simulation | `scripts/sim-seed.mjs`, `scripts/sim-week.mjs`, `scripts/sim-gods.mjs`, `engine/chain-sim.mjs` |
 | Judge page, marketplace | `judge/`, `src/judge.js`, `marketplace/`, `src/market.js` |
 | Tests and proofs | `engine/test-*.mjs`, `tests/`, `contracts/world/src/tests.rs`, `scripts/*-proof.mjs` |
@@ -244,7 +256,7 @@ The game plays on testnet. Everything in this table is live and changes every tu
 
 There's no AD FONTES world on mainnet right now. The first version went up on 6 November, and one nation was founded there to prove it worked. Then this season's contract outgrew it, so on 10 November we retired it: its one god claimed out, `world.adfontes.near` and its helper accounts were deleted, and the NEAR came back to us. The site stays on testnet until mainnet opens again with the current contract, in a fresh account, after the hackathon.
 
-The world contract's account owns itself. It has one key, a full-access key, and we hold it. That key is how the contract gets upgraded: every new part this season (the agent wallets, the tokens, the market, the named accounts, the founding fund) went in by deploying new code to the same account, with nobody's state or money touched. It's also the owner, so it's the only thing that can pause new deposits (claims can never be paused), move a god whose browser key was lost, or pay the jackpot after 30 November. Grants to founders can come from it or from the operator. That's a lot to hang on one key. The contract has `set_owner` so the role can move to a multisig without an upgrade, and that's on the roadmap for after Season 1.
+The world contract's account owns itself. It has one key, a full-access key, and we hold it. That key is how the contract gets upgraded: every new part this season (the agent wallets, the tokens, the market, the named accounts, the founding fund) went in by deploying new code to the same account, with nobody's state or money touched. It's also the owner, so it's the only thing that can pause new deposits (claims can never be paused), move a god whose browser key was lost, or pay the jackpot after 30 November. Grants to founders can come from it or from the operator. That's a lot to hang on one key, and it's fine for a testnet season only. Mainnet will be fully non-custodial: the owner moves to a multisig and then to the gods' own DAO (the contract already has `set_owner`, so no upgrade is needed), upgrades wait in public for days before they land, a god's stake never moves without that god's signature, and claims stay unpausable. It's on [the roadmap](https://adfontes.fun/roadmap/) for mainnet.
 
 ## Check it yourself
 
@@ -257,7 +269,8 @@ Further down, the judge page has the agents talking: war councils arguing, citiz
 ## Tests
 
 ```bash
-npm test               # engine: clock, war, prices, tokens, market, techs, reverence, Warden, the god sim, the daily spend cap, RPC fallback, god actions; walking round buildings
+npm test               # engine: clock, war, prices, tokens, market, techs, reverence, Warden, the god sim, the daily spend cap, RPC fallback, god actions, Act of God; walking round buildings
+node scripts/aog-sim-test.mjs    # Act of God on a copy of the live world: a god's fire, three refusals, the heavens, a planted bully war
 npm run test:live      # 62 checks against the live site and the chain itself
 npm run test:load      # a crowd of simultaneous visitors (on a slow connection this mostly measures your own link)
 node scripts/jackpot-audit.mjs   # every deposit ever, replayed against NEAR: the jackpot is exactly 14% of them
@@ -281,6 +294,23 @@ npm start              # the site on http://localhost:3000
 
 Money and nations come straight from the chain. A fresh clone has no database and none of the engine's records, so it reads those from adfontes.fun's public API, and you see the real world, served from your own copy of the code. Set `ADF_UPSTREAM=off` to turn that off. Running your own engine needs a funded operator account and model keys; see `engine/config.mjs`.
 
+## What went wrong
+
+Some of what broke along the way, and what we changed so it can't quietly happen again.
+
+- **300 visitors at once, 17.6% of requests failed** (8 November load test). Every expired cache entry was fetched again by everyone waiting on it. Now one request refreshes it while the rest get the old copy, sealed turns are cached for good, and static files come from memory, gzipped. `npm run test:load` is how we found it.
+- **A rate limit crashed a turn** (9 November, 00:02 UTC). A free RPC said "too many requests", the turn died, and the loop marked it done anyway. Now every NEAR call retries with backoff and falls back to a second node, and `engine/test-rpc.mjs` points the engine at a node that only ever says "rate limited" to prove it.
+- **Our own simulations used up the live world's research budget** (9 November). Local test runs shared the live OpenAlex key, and live research failed on turns 23 and 24. Simulations never use the live key now.
+- **Whispers weren't being heard** (9 November). The model judging a whisper spent its answer space thinking, its reply came back cut off, and the engine quietly fell back to the old rule. It now retries with more room, logs any empty answer, and the three whispers it missed were heard again on their nations' next turns.
+- **A test that couldn't fail** (11 November). The first Act of God test on a copy of the world passed while research errored on every turn, and its bully check never ran because no bully war happened. The test now plants a bully war, fails on any error, and we ran it once with the rule switched off to watch it fail.
+- **The Act of God card overstated the damage** (11 November). It estimated from a nation's total florins, but fire only burns what a nation can spend. For a founder nation that's about a tenth of its florins. Our own first fire on Fremonition burned 28.9 florins, not the 600 or so the card suggested. The card now estimates from spendable florins and says how many are ring-fenced.
+
+## Built with
+
+Node.js; three.js, camera-controls and dagre for the 3D world; Vite; near-api-js, @noble/curves and the NEAR Wallet Selector (HOT, Meteor, MyNearWallet); near-sdk 5 (Rust) for the contracts; Sputnik DAO v2; PostgreSQL through `pg`; OpenAlex for the papers; the Anthropic SDK, so Claude does the citizens' research, drafts and councils. Playwright, sharp and glTF-Transform for testing and preparing the 3D models. It runs on Railway. The full list is in `package.json` and `contracts/world/Cargo.toml`.
+
+I coded it with Claude. The idea, every decision and the build path are mine.
+
 ## Built during the hackathon
 
-All of this code was written for the NEAR Hackathon, starting 4 November 2026. The repo's first commit is that day. Nothing was carried over from earlier projects.
+All of this code was written for the NEAR Hackathon, starting 4 November 2026. The repo's first commit is that day. Nothing was carried over from earlier projects. It's MIT licensed (`LICENSE`).
