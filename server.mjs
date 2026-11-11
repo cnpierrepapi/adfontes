@@ -81,6 +81,8 @@ function reportsOf(s, id) {
 // Development only: ADF_SIM_CHAIN=<a fast-forward run's chain.json> (with ADF_STATE_DIR=<its state>)
 // serves that simulated world instead of NEAR, to look at the site on a world with more going on.
 const SIM_CHAIN = process.env.ADF_SIM_CHAIN || null;
+// The sandbox runs in this process when ADF_SANDBOX=on (never inside a sandbox's own child server).
+const SANDBOX = process.env.ADF_SANDBOX === "on" && !SIM_CHAIN ? import("./timelapse/service.mjs").then((m) => { m.startSandbox(); return m; }) : null;
 function simView(method, args) {
   const S = JSON.parse(fs.readFileSync(SIM_CHAIN, "utf8"));
   const units = (fl) => (BigInt(Math.round(fl * 1e6)) * 10n ** 16n).toString();
@@ -586,6 +588,8 @@ http
   .createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     if (req.method === "POST" && url.pathname === "/api/sponsor") return sponsorPost(req, res);
+    // The sandbox (/timelapse, timelapse/service.mjs): copies of the live world to shock and fast-forward.
+    if (SANDBOX && (url.pathname === "/sbx" || url.pathname.startsWith("/sbx/"))) return (await SANDBOX).handleSandbox(req, res, url);
     if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "text/plain", "read only");
     const m = url.pathname.match(/^\/api\/([a-z]+)$/);
     // A fresh clone (no database, no engine state on disk) has the chain but none of the engine's

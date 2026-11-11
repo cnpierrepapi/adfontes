@@ -22,7 +22,15 @@ const turn = (k, extra = {}, args = ["--force"]) => {
   return r.stdout.split("\n").filter((l) => /\[(fire|fire-refused)\]|act of god/.test(l));
 };
 const chain = () => JSON.parse(fs.readFileSync(`${DIR}/chain.json`, "utf8"));
-const fl = (C, id) => Number(BigInt(C.clans.find((c) => c.id === id).florins) / 10n ** 16n) / 1e6;
+// The florins a nation can spend, as the engine counts them: its florins less its gods' ring-fenced
+// grant (granted NEAR at today's florin value). The copy carries each god's stake (scripts/sim-seed.mjs).
+const fl = (C, id) => {
+  const c = C.clans.find((x) => x.id === id), all = Number(BigInt(c.florins) / 10n ** 16n) / 1e6;
+  const f = BigInt(C.totals.florins), fv = f > 0n ? (BigInt(C.totals.backing) * 10n ** 22n) / f : 0n;
+  let reserve = 0;
+  if (fv > 0n) for (const g of c.gods || []) { const st = C.stakes?.[`${id}|${g.account}`]; if (st?.granted && BigInt(st.granted) > 0n) reserve += Number((BigInt(st.granted) * 10n ** 6n) / fv) / 1e6; }
+  return Math.max(0, all - reserve);
+};
 let bad = 0;
 const ok = (c, m) => { console.log(`${c ? "PASS" : "FAIL"} ${m}`); if (!c) bad++; };
 
@@ -61,7 +69,11 @@ ok(!!fire, `turn 3, the next scheduled turn: fire fell on ${rich.name}, the rich
 const f = fire ? { pct: Number(/"pct":([\d.]+)/.exec(fire)?.[1]) } : null; // the engine prints records cut at 220 characters
 ok(f && f.pct > 0.05 && f.pct <= 0.25, `it burned ${f ? (f.pct * 100).toFixed(1) : "?"}% (5% plus up to 20% by its florins next to the richest, which may be at war; less for walls)`);
 ok(fl(C, rich.id) < before.rich - 1, `${rich.name}'s florins on the stand-in chain: ${before.rich.toFixed(1)} -> ${fl(C, rich.id).toFixed(1)}`);
-ok(fl(C, poor.id) < before.poor, `${poor.name} paid for it: ${before.poor.toFixed(1)} -> ${fl(C, poor.id).toFixed(1)}`);
+// The caster's price, from the sealed record: a tenth of the damage, burned from its own florins (its
+// florins can still end the turn higher: it earns in the same turn).
+const dd3 = `${DIR}/state/testnet`, last3 = Math.max(...fs.readdirSync(dd3).filter((x) => /^day-\d+\.json$/.test(x)).map((x) => Number(x.match(/\d+/)[0])));
+const fr = JSON.parse(fs.readFileSync(`${dd3}/day-${last3}.json`, "utf8")).find((r) => r.kind === "fire" && r.clan === rich.id);
+ok(fr?.cost?.florins > 0 && Math.abs(fr.cost.florins - fr.florins * 0.1) < 0.01, `${poor.name} paid a tenth: ${fr?.cost?.florins} florins for ${fr?.florins} burned`);
 ok(lines2.some((l) => /fire-refused/.test(l) && /24 hours/.test(l)), "the same god's second call the same day was refused");
 ok(lines2.some((l) => /fire-refused/.test(l) && /own nation/.test(l)), "a call on the god's own nation was refused");
 if (fighting && other) ok(lines2.some((l) => /fire-refused/.test(l) && /at war/.test(l)), `a call on ${fighting.name}, which is at war, was refused`);
@@ -80,7 +92,7 @@ console.log(`wars declared on the copy: ${wars}; bully fires: ${bully.length}${b
 const n4 = chain().clans.filter((c) => c.alive).length, f4 = lines4.filter((l) => /\[fire\]/.test(l));
 ok(f4.every((l) => /"cause":"famine"/.test(l) || (/"cause":"hoard"/.test(l) && Number(/holds (\d+)%/.exec(l)?.[1]) >= Math.floor((200 / n4)))), `turn 4, normal rules: ${f4.length ? "fire only past the line (" + (200 / n4).toFixed(1) + "% with " + n4 + " nations)" : "no fire"}`);
 // Turn 5: a bully, planted. The richest nation at peace (with a passed patent) declares on a nation
-// at peace with a fifth of its florins or less. Only its council meets (the others are marked as met).
+// at peace with under a third of its florins. Only its council meets (the others are marked as met).
 // The fire must hit the attacker, before the war's first battle, for the right amount.
 // --rule-off: the same turn with Act of God switched off; the bully checks must then FAIL.
 const sp = `${DIR}/state/testnet.json`, S = JSON.parse(fs.readFileSync(sp, "utf8"));
@@ -88,8 +100,8 @@ const { eligible, warOf: inWar } = await import("../engine/war.mjs");
 const { damage } = await import("../engine/fire.mjs");
 C = chain();
 const free = C.clans.filter((c) => c.alive && eligible(S, c.id) && !inWar(S, c.id)).sort((a, b) => fl(C, b.id) - fl(C, a.id));
-const att = free[0], def = free.filter((c) => fl(C, c.id) * 5 <= fl(C, att.id)).at(-1);
-ok(!!(att && def), att && def ? `planted: ${att.name} (${fl(C, att.id).toFixed(1)}) declares on ${def.name} (${fl(C, def.id).toFixed(1)})` : "no nation 5x poorer than the richest to pick on");
+const att = free[0], def = free.filter((c) => fl(C, c.id) * 3.2 <= fl(C, att.id)).at(-1); // the rule says 3x; a little margin
+ok(!!(att && def), att && def ? `planted: ${att.name} (${fl(C, att.id).toFixed(1)}) declares on ${def.name} (${fl(C, def.id).toFixed(1)})` : "no nation 3.2x poorer than the richest to pick on");
 if (att && def) {
   for (const [id, c] of Object.entries(S.clans)) c.lastCouncilAt = Number(id) === att.id ? 0 : seededAt + 6 * 2 * H; // only its council meets
   fs.writeFileSync(sp, JSON.stringify(S));

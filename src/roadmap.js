@@ -46,7 +46,7 @@ const CHECKS = {
   async market() { const [l, s] = await view("testnet", "market_count"); return ok(`${l} listing${l === "1" ? "" : "s"} and ${s} sale${s === "1" ? "" : "s"} so far, all on chain.`); },
   async royalties() { const m = await api("market"); return m.counts.royalty_payments ? ok(`${m.counts.royalty_payments} paid so far, ${n2(m.counts.royalties)} florins in all.`) : wait("None paid yet."); },
   async founding() { const [fund, min] = await view("testnet", "get_founding"); return N(fund) > 0 ? ok(`The fund holds ${n2(N(fund))} NEAR; founding a nation takes ${n2(N(min))} NEAR right now.`) : wait(`The fund is empty right now: a founder with their own wallet pays for the DAO (founding takes ${n2(N(min))} NEAR). The next player the pool sets up refills it.`); },
-  async season() { const s = await fetch("/season/season.json").then((x) => x.json()); return ok(`Turns 1 to ${s.real_to} real, then ${s.last - s.real_to} simulated: ${s.last} in all.`); },
+  async sandbox() { const s = await fetch("/sbx/info").then((x) => x.json()); return s.base_day ? ok(`A copy of live turn ${s.base_day} is ready; ${s.in_use} of ${s.max} sandboxes in use.`) : info("The sandbox hasn't copied the live world yet."); },
   async mainnetContract() {
     const has = await view("mainnet", "get_founding").then(() => true, () => false);
     return has ? ok(`${WORLD.mainnet} runs the current contract.`) : wait("No mainnet world right now. The first version was retired on 10 November, and its NEAR returned.");

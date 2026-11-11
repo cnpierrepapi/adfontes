@@ -87,9 +87,9 @@
     },
     {
       "group": "done",
-      "check": "season",
-      "title": "The season, fast-forwarded",
-      "text": "The whole season in its own 3D world: the real turns, then a simulation run forward with AI gods. Pause on any turn to see every nation as it stood."
+      "check": "sandbox",
+      "title": "The sandbox",
+      "text": "Your own copy of the live world, run by the same engine. Rain fire on a nation or start a bully war, run it ahead a day or a week, and see if the nation gets back on its feet. Nothing in it touches NEAR."
     },
     {
       "group": "done",

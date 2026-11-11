@@ -40,7 +40,8 @@ export function connectSim(file) {
     },
     tick: async (day) => { S.config.day = day; save(); return tx(); },
     spawn: async (id, name, role) => { (S.agents[id] ||= []).push({ name, role, clan_id: Number(id), alive: true, stunted_until: 0, born_day: S.config.day }); save(); return tx(); },
-    stake: async () => ({ florins: "0", near: "0", put_in: "0" }),
+    // A god's stake as the copy was taken (scripts/sim-seed.mjs): its granted NEAR keeps the ring-fence.
+    stake: async (id, account) => S.stakes?.[`${id}|${account}`] ?? { florins: "0", near: "0", put_in: "0" },
     trade: async (buyer, seller, florins) => {
       const b = clan(buyer), s = clan(seller), u = units(florins);
       if (BigInt(b.florins) < u) throw new Error("Buyer can't afford it");

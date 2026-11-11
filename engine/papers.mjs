@@ -1,6 +1,21 @@
 // Open papers from OpenAlex, with the keywords OpenAlex tags on each one (the mindmap's points).
 import fs from "node:fs";
-import { getPapers, putPapers } from "./store.mjs";
+import { getPapers, putPapers, allPapers } from "./store.mjs";
+
+const words = (q) => new Set(String(q).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+/** The cached search closest to a query (most shared words, same page size), or null. */
+function closest(query, n) {
+  const want = words(query);
+  let best = null, score = 0;
+  for (const [key, papers] of Object.entries(allPapers())) {
+    const [q, size] = key.split("|");
+    if (Number(size) !== n || !papers?.length) continue;
+    let k = 0;
+    for (const w of words(q)) if (want.has(w)) k++;
+    if (k > score) { score = k; best = papers; }
+  }
+  return best;
+}
 
 // Free OpenAlex key = $1/day (~1,000 searches). Without one we share $0.10/day per IP address.
 // A local simulation (ADF_SIM_CHAIN) never spends the live world's key (9 Nov: three sims used up the
@@ -23,8 +38,14 @@ export async function papersFor(query, n = 10) {
   const key = `${query}|${n}`;
   const hit = await getPapers(key);
   if (hit) return hit;
-  // A copy of the world run offline (ADF_PAPERS_OFFLINE=1, tests only): the cache or nothing.
-  if (SIM && process.env.ADF_PAPERS_OFFLINE === "1") throw new Error("OpenAlex offline (test copy, not in the cache)");
+  // A copy of the world run offline (ADF_PAPERS_OFFLINE=1: tests and the sandbox) never asks OpenAlex.
+  // A search it hasn't seen gets the cached search that shares the most words with it, so research
+  // goes on; with nothing in common it fails like an OpenAlex miss.
+  if (SIM && process.env.ADF_PAPERS_OFFLINE === "1") {
+    const near = closest(query, n);
+    if (near) return near;
+    throw new Error("OpenAlex offline (test copy, not in the cache)");
+  }
   const url = new URL("https://api.openalex.org/works");
   url.searchParams.set("search", query);
   url.searchParams.set("filter", "open_access.is_oa:true,has_abstract:true,from_publication_date:2015-01-01");

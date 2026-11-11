@@ -22,7 +22,7 @@ const merkle = (leaves) => { let l = leaves.slice(); if (!l.length) return sha("
 // ---------- A. pages ----------
 console.log("\n# Pages");
 const title = async (p) => { const r = await get(p); const t = await r.text(); return [r.status, (t.match(/<title>([^<]*)<\/title>/) || [])[1] || ""]; };
-for (const [p, want] of [["/", "the live world"], ["/live/", "the live world"], ["/judge/", "for judges"], ["/world/", "the world right now"], ["/marketplace/", "the marketplace"], ["/roadmap/", ""], ["/timelapse/", "fast-forwarded"]]) {
+for (const [p, want] of [["/", "the live world"], ["/live/", "the live world"], ["/judge/", "for judges"], ["/world/", "the world right now"], ["/marketplace/", "the marketplace"], ["/roadmap/", ""], ["/timelapse/", "the sandbox"]]) {
   const [s, t] = await title(p);
   ok(s === 200 && t.toLowerCase().includes(want), `${p} loads${want ? ` (title has "${want}")` : ""}`, `${s} "${t}"`);
 }

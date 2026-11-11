@@ -151,13 +151,18 @@ export async function saveDraft(net, d) {
   fs.writeFileSync(`${DIR}/${net}/${d.id}.json`, JSON.stringify(d, null, 1));
 }
 
-const CACHE = "engine/state/papers-cache.json";
+const CACHE = process.env.ADF_PAPERS_CACHE || "engine/state/papers-cache.json"; // the sandbox points copies at its own dump
 let fileCache = null;
 export async function getPapers(key) {
   const p = await db();
   if (p) return (await p.query("select papers from papers_cache where key = $1", [key])).rows[0]?.papers ?? null;
   fileCache ||= fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
   return fileCache[key] ?? null;
+}
+/** Every cached search, from the file cache (copies of the world run on files, never the database). */
+export function allPapers() {
+  fileCache ||= fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
+  return fileCache;
 }
 export async function putPapers(key, papers) {
   const p = await db();

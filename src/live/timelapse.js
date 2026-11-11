@@ -1,6 +1,6 @@
-// The season, fast-forwarded now lives in its own 3D world at /timelapse/ (src/season/, his call
-// 9 Nov). These keep the old entry points (the Season button, the offer after the intro, ?timelapse)
-// pointing there.
+// /timelapse/ is the sandbox now (src/sandbox/, timelapse/service.mjs, his call 11 Nov): a copy of the
+// live world to shock and fast-forward. These keep the old entry points (the HUD button, the offer
+// after the intro, ?timelapse) pointing there.
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null)); return e; };
 
 export function playTimelapse() { location.href = "/timelapse/"; return new Promise(() => {}); }
@@ -9,9 +9,9 @@ export function playTimelapse() { location.href = "/timelapse/"; return new Prom
 export function offerTimelapse() {
   return new Promise((resolve) => {
     const card = el("div", { className: "tl-offer" },
-      el("b", { textContent: "Watch the season, fast-forwarded" }),
-      el("small", { textContent: "A few minutes in its own world: the nations founded, then a simulated run ahead with wars, strange weapons and a fall. Pause on any turn to see every nation as it stood." }));
-    const go = el("a", { className: "tl-go", href: "/timelapse/", textContent: "▶ Play" });
+      el("b", { textContent: "Try the sandbox" }),
+      el("small", { textContent: "A copy of this world you can shock. Rain fire on a nation or start a war, run it ahead a day or a week, and see if it gets back on its feet. Nothing in it touches NEAR." }));
+    const go = el("a", { className: "tl-go", href: "/timelapse/", textContent: "Open it" });
     const no = el("button", { type: "button", className: "tl-no", textContent: "Not now" });
     card.append(el("div", { className: "tl-row" }, go, no));
     document.body.append(card);

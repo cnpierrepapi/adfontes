@@ -131,7 +131,7 @@ function toast(text) {
 // The god's route and the first-visit intro (SPEC §12n).
 const route = createRoute({ live, W, account: () => window.__gods?.wallet.account() ?? null });
 // After the intro (or straight away for a returning visitor): the world, then the tutorial once.
-// The season, fast-forwarded (his calls 8-9 Nov; scripts/reel-build.mjs): offered straight after the intro, before the tutorial;
+// The sandbox (/timelapse/, his call 11 Nov; it replaced the season film): offered straight after the intro, before the tutorial;
 // ?timelapse plays it at once (the judge page links there); a HUD button plays it any time.
 if (!q.has("stills")) cinema.then(async (played) => {
   if (played) live.home();
@@ -140,8 +140,8 @@ if (!q.has("stills")) cinema.then(async (played) => {
   setTimeout(() => runTutorial(), played ? 900 : 1500);
 });
 {
-  const b = Object.assign(document.createElement("button"), { type: "button", className: "chip season", title: "Watch the season, fast-forwarded, in its own world" });
-  b.innerHTML = '▶ <span class="word">Season</span>';
+  const b = Object.assign(document.createElement("button"), { type: "button", className: "chip season", title: "Shock a copy of this world and fast-forward it" });
+  b.innerHTML = '🔥 <span class="word">Sandbox</span>';
   b.addEventListener("click", () => playTimelapse(live));
   document.querySelector(".hud-top nav")?.prepend(b, " ");
 }
