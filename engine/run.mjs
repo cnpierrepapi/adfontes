@@ -307,7 +307,10 @@ for (let n = 0; n < days; n++) {
     const mine = all.filter((l) => l.open && l.seller === oc.id);
     const sell = MK.sellable(s, oc.id, FL).filter((x) => !mine.some((m) => m.token_id === x.token_id));
     const offers = all.filter((l) => l.open && l.seller !== oc.id && s.clans[l.seller] && MK.useful(s, oc.id, l.token_id))
-      .map((l) => { const f = MK.fairOf(s, l.token_id, FL); return f && { id: l.id, seller: l.seller, token_id: l.token_id, title: f.title, kind: f.kind, price: l.price, fair: f.price }; }).filter(Boolean);
+      .map((l) => { const f = MK.fairOf(s, l.token_id, FL); return f && { id: l.id, seller: l.seller, token_id: l.token_id, title: f.title, kind: f.kind, price: l.price, fair: f.price }; }).filter(Boolean)
+      // The same walk-away as a direct deal (cold audit 11 Nov: a Broker bought at 2.2x fair here): an
+      // offer over twice its fair price never reaches the Broker.
+      .filter((o) => o.price <= o.fair * WALK);
     if (!sell.length && !offers.length && !mine.length) return 0;
     const m = await brokerMarket({ field: c.field, temperament: c.mbti, florins, sellable: sell, mine: mine.map((x) => ({ id: x.id, token_id: x.token_id, price: x.price })), offers, open: Object.keys(c.frontier) });
     let openN = mine.length;

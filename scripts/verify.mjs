@@ -5,6 +5,7 @@
 // Every number below comes from a view call on NEAR testnet. The site is only used to find out which
 // records to hash and which accounts to ask about; anything it says is checked against the chain.
 import crypto from "node:crypto";
+import { seasonLabel } from "../src/season.js";
 
 const SITE = process.argv[2] || "https://adfontes.fun";
 const RPC = "https://rpc.testnet.fastnear.com";
@@ -30,7 +31,7 @@ const merkle = (leaves) => { let l = leaves.slice(); if (!l.length) return sha("
 
 const W = await site("world");
 const WORLD = W.world;
-console.log(`AD FONTES, ${W.season}, turn ${W.day}. World contract: ${WORLD} (NEAR testnet)\n`);
+console.log(`AD FONTES, ${seasonLabel()}, turn ${W.day}. World contract: ${WORLD} (NEAR testnet)\n`);
 
 // 1. The money: the contract holds more NEAR than it owes.
 console.log("# 1. Is the world solvent?");

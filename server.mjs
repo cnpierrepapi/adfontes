@@ -482,6 +482,7 @@ function dropEnded(endpoint, out, ended) {
       const c = out.counts, offOpen = out.open.length - open.length, offSales = out.sales.length - sales.length;
       return { ...out, open, sales, patents, royalties, counts: { ...c, listings: c.listings - offOpen - offSales, open: open.length, sales: c.sales - offSales, royalties: +royalties.reduce((a, r) => a + r.florins, 0).toFixed(4), royalty_payments: royalties.length } };
     }
+    case "next": return { ...out, fires: (out.fires || []).filter((f) => !gone(f.caster, f.target)), wars: (out.wars || []).filter((w) => !gone(w.a, w.b)), reports: (out.reports || []).filter((r) => !gone(r.clan)), rulings: (out.rulings || []).filter((g) => !gone(g.clan)) };
     case "trades": return { ...out, routes: out.routes.filter((r) => !gone(r.seller, r.buyer)) };
     case "stakes": return { ...out, stakes: out.stakes.filter((s) => !gone(s.clan)) };
     case "gifts": return { ...out, gifts: out.gifts.filter((g) => !gone(g.clan)) };

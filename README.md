@@ -13,11 +13,11 @@ Think of it as an ant farm for research. You can't make the ants smarter. You ca
 
 ## For judges: do this, see this
 
-Got one minute? Open https://adfontes.fun/timelapse/, rain fire on a nation and press +1 day. That's the whole game, on your own copy of it.
+Got one minute? Open https://adfontes.fun/timelapse/, press "Open my copy", rain fire on a nation and press +1 day. That's the whole game, on your own copy of it.
 
 | Do this | You'll see |
 |---|---|
-| Open https://adfontes.fun/timelapse/, rain fire on a nation, press +1 day | Your own copy of the live world, run by the same engine. The fire lands on the next turn. Then the copy runs 12 turns ahead 8 times with the fire and 8 without, and a chart says whether the nation got back on its feet. Nothing in it touches NEAR. |
+| Open https://adfontes.fun/timelapse/, press "Open my copy", rain fire on a nation, press +1 day | Your own copy of the live world, run by the same engine. The fire lands on the next turn. Then the copy runs 12 turns ahead 8 times with the fire and 8 without, and a chart says whether the nation got back on its feet. Nothing in it touches NEAR. |
 | Open https://adfontes.fun/ and click an island | That nation's knowledge, florins, gods and people. The feed on the left says what lands next turn, and citizens who speak to you appear in a dialogue box. |
 | Press "Become a god", then "Play with email", sign up, then found a nation | A funded testnet account made for you, shown as your email. No wallet and no popups. You write your first whisper while the island rises. Log in with the same email on another browser and you're back. |
 | Open https://adfontes.fun/judge/ and press its three buttons | Your browser asks NEAR directly: is this record what was sealed, can the world pay everyone it owes, does this Broker hold this token. |
@@ -34,7 +34,7 @@ What `scripts/verify.mjs` checks, and where each claim lives:
 | Research is NEP-245 tokens held by the Broker | `mt_token_info`, `mt_balance_of` | `contracts/world/src/mt.rs` |
 | Every nation's treasury is a Sputnik DAO | `get_policy` on each one | `lib.rs` `found_clan` |
 
-What's real and what isn't. Real, on NEAR testnet: the world contract, every sealed turn, the gods' stakes in test NEAR, the DAOs, the agents' wallets and trades, the research tokens. The research is real too, papers from OpenAlex read and written up by Claude. Simulated: the sandbox, a copy of the live world with stand-in minds instead of Claude, labelled on every screen. Not live yet: mainnet (the first version was retired on 10 November, see [On chain](#on-chain)), and NEAR Intents and House of Stake, which only exist on mainnet.
+What's real and what isn't. Real, on NEAR testnet: the world contract, every sealed turn, the gods' stakes in test NEAR, the DAOs, the agents' wallets and trades, the research tokens. The research is real too, papers from OpenAlex read and written up by Claude. Not all of it is honest, on purpose: a nation whose gods do nothing for a day gets a Trickster, who slips fakes into its research. Catching them is the Warden's job, and each catch is a fine in the records, so a quiet world shows a lot of them. Simulated: the sandbox, a copy of the live world with stand-in minds instead of Claude, labelled on every screen. Not live yet: mainnet (the first version was retired on 10 November, see [On chain](#on-chain)), and NEAR Intents and House of Stake, which only exist on mainnet.
 
 ## What you say is the game
 
@@ -141,7 +141,7 @@ The game is in beta. Its first season runs from 11 November to 12 December. The 
 
 ## A swarm with a market
 
-The citizens are agents, and they coordinate. Inside a nation, two Scholars research, a Drafter writes up inventions, a Smith builds, a Patron runs the war council, and a Broker trades, while the Warden checks every citation. Between nations, the Brokers make a market: the seller's Broker names a price with a reason, the buyer's Broker takes it or walks away, and every deal is a real listing and sale signed from their own sub-accounts. Nobody scripts who trades with whom. Prices, walk-aways, royalties and wars come out of what each agent decides, turn after turn.
+The citizens are agents, and they coordinate. Inside a nation, two Scholars research, a Drafter writes up inventions, a Smith builds, a Patron runs the war council, and a Broker trades, while the Warden checks every citation. Between nations, the Brokers make a market: the seller's Broker names a price and gives a reason, and the buyer's Broker pays it or walks away. Every deal is a real listing and sale, signed from their own sub-accounts. What's left to the agents and what's a rule: Claude writes the seller's price and reason, kept between half and three times a fair price that `engine/prices.mjs` works out. The walk-away is a rule: the buyer walks if the price is over twice the fair price or more than it can pay. Which deals come up depends on what each nation is missing and what the others hold. Wars are each Patron's council's call.
 
 ## The sandbox
 
