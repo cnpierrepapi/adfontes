@@ -79,6 +79,7 @@ body.night .hint { color: #d9d3f5; }
 
 /* Nation views: sky, plaza, citizens. */
 .godpanel .views { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.godpanel .sheetgrip { display: none; }
 .godpanel .viewbtn { font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.82rem; border: 0; border-radius: 999px; padding: 7px 13px; cursor: pointer; background: #fff; color: var(--ink); box-shadow: 0 4px 12px rgba(29, 20, 48, 0.14); }
 .godpanel .viewbtn:disabled { opacity: 0.55; cursor: wait; }
 body.night .godpanel .viewbtn { background: rgba(255, 255, 255, 0.14); color: #f1ecff; }
@@ -304,9 +305,14 @@ body.night #panel .warline { color: #ff8aa5; background: rgba(232, 50, 94, 0.16)
   .standings .head { font-size: 0.74rem; }
   .standings ol, .standings .events { max-height: 34vh; overflow-y: auto; }
   body.panel-open .standings { display: none; }
-  .godpanel { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 55dvh; overflow-y: auto; border-radius: 22px 22px 0 0; padding-top: 22px; }
-  .godpanel::before { content: ""; position: absolute; top: 8px; left: 50%; width: 44px; height: 5px; margin-left: -22px; border-radius: 3px; background: rgba(29, 20, 48, 0.2); }
-  body.night .godpanel::before { background: rgba(255, 255, 255, 0.3); }
+  /* A short sheet that leaves the world in view; the grab bar opens it to most of the screen (11 Nov). */
+  .godpanel { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 34dvh; overflow-y: auto; border-radius: 22px 22px 0 0; padding-top: 24px; transition: max-height 0.25s ease; }
+  .godpanel.full { max-height: 80dvh; }
+  .godpanel .sheetgrip { display: block; position: absolute; top: 0; left: 50%; width: 120px; height: 24px; margin-left: -60px; border: 0; padding: 0; background: transparent; cursor: pointer; }
+  .godpanel .sheetgrip::before { content: ""; display: block; width: 44px; height: 5px; margin: 9px auto 0; border-radius: 3px; background: rgba(29, 20, 48, 0.25); }
+  body.night .godpanel .sheetgrip::before { background: rgba(255, 255, 255, 0.4); }
+  .godpanel .nums { margin: 6px 0; }
+  .godpanel h2 { font-size: 1.4rem; margin-bottom: 2px; }
   .walletmenu { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; max-height: 72dvh; }
   .plate { padding: 4px 9px; border-radius: 10px; }
   .plate b { font-size: 0.82rem; }

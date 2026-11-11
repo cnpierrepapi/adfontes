@@ -52,7 +52,11 @@ function showClan(c, status) {
     const t = c.tokens, pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
     named.append(...(named.childNodes.length ? [document.createElement("br")] : []), `Its Broker holds ${pl(t.research, "research token")}, ${pl(t.patents, "patent")} and ${pl(t.kits, "kit")} on NEAR, to trade.`);
   }
-  p.append(h, m, nums, line, ...(named.childNodes.length ? [named] : []), ...(war.textContent ? [war] : []), views);
+  // Phones (his note 11 Nov: the panel hid the world): the sheet opens short and a grab bar expands it.
+  p.classList.remove("full");
+  const grip = document.createElement("button"); grip.type = "button"; grip.className = "sheetgrip"; grip.setAttribute("aria-label", "Show more or less");
+  grip.addEventListener("click", () => { p.classList.toggle("full"); p.scrollTop = 0; });
+  p.append(grip, h, m, nums, ...(war.textContent ? [war] : []), line, ...(named.childNodes.length ? [named] : []), views);
   if (gods) p.append(gods.section(c, status)); // the god panel: bless, and your powers if you're a god here
   p.hidden = false;
   phoneSheet();
