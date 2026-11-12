@@ -219,6 +219,13 @@ export function allPapers() {
   fileCache ||= fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
   return fileCache;
 }
+/** The keys of every cached search with page size n ("query|n"), database or file (12 Nov: research reads the
+ *  closest one once the day's OpenAlex share is used). */
+export async function paperKeys(n) {
+  const p = await db();
+  if (p) return (await p.query("select key from papers_cache where key like $1", [`%|${n}`])).rows.map((r) => r.key);
+  return Object.keys(allPapers()).filter((k) => k.endsWith(`|${n}`));
+}
 export async function putPapers(key, papers) {
   const p = await db();
   if (p) return void (await p.query("insert into papers_cache (key, papers) values ($1,$2) on conflict (key) do nothing", [key, JSON.stringify(papers)]));

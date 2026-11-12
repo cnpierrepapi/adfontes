@@ -10,7 +10,7 @@ import fs from "node:fs";
 import { CFG, florinRates } from "./config.mjs";
 import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
-import { papersFor } from "./papers.mjs";
+import { papersFor, openAlexCut, openAlexBudget } from "./papers.mjs";
 import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhisper, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
 // Whispers to re-hear once (9 Nov, see the per-nation reverence step): nation id -> DAO proposal id.
@@ -23,6 +23,7 @@ import * as W from "./world.mjs";
 import { researchPrice, kitPrice } from "./prices.mjs";
 import * as TK from "./tokens.mjs";
 import * as MK from "./market.mjs";
+import * as B from "./budget.mjs";
 import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
 const MARKET_ON = process.env.ADF_MARKET === "1"; // the Brokers' market days (settling sales and royalties always run)
@@ -69,9 +70,10 @@ if (s.spend?.date !== today) s.spend = { date: today, usd: 0 };
 // The cap counts every network and survives wipes: one ledger in Postgres (store.spendOn/addSpend).
 // First run with the ledger: carry over what this world already spent today.
 if ((await store.spendOn(today)) === 0 && s.spend.usd > 0) await store.addSpend(today, s.spend.usd);
-const spendBase = await store.spendOn(today);
-setSpentToday(spendBase);
-onSpend((usd) => store.addSpend(today, usd));
+// The AI gods' pot (12 Nov) has its own row in the same ledger: "<date>|gods".
+const spendBase = await store.spendOn(today), godsBase = await store.spendOn(`${today}|gods`);
+setSpentToday(spendBase, godsBase);
+onSpend((usd, pot) => store.addSpend(pot === "gods" ? `${today}|gods` : today, usd));
 let capNoted = false;
 const chance = (p) => Math.random() < p;
 // Agent wallets (8 Nov): the Broker's buys and the Patron's war chest and walls are signed by the
@@ -403,8 +405,8 @@ for (let n = 0; n < days; n++) {
   // Fair share of the daily Claude cap: a nation at full pace costs about CFG.nationDayUsd a day.
   // With more nations than the cap feeds, every nation slows by the same factor (research turns
   // and draft spacing) instead of the first nations in the loop using the whole day's budget.
-  const share = Math.min(1, CFG.dailyCapUsd / (Math.max(1, alive.length) * CFG.nationDayUsd));
-  if (share < 1) console.log(`  ${alive.length} nations share the $${CFG.dailyCapUsd} cap: each runs at ${Math.round(share * 100)}% pace`);
+  const share = Math.min(1, CFG.citizensCapUsd / (Math.max(1, alive.length) * CFG.nationDayUsd));
+  if (share < 1) console.log(`  ${alive.length} nations share the citizens' $${CFG.citizensCapUsd} a day: each runs at ${Math.round(share * 100)}% pace`);
 
   // Dead clans: their mindmap becomes ruins, unowned.
   for (const c of INSTANT ? [] : onchain.filter((c) => !c.alive)) {
@@ -430,7 +432,12 @@ for (let n = 0; n < days; n++) {
     }
   }
 
-  for (const oc of live) {
+  // Fair share (12 Nov): the nations that waited longest for a Claude turn go first, so when the day's money
+  // runs out mid-turn it's the recently served who wait. A nation that made a Claude call is stamped.
+  let prevOc = null, prevCalls = meter.calls;
+  const stamp = () => { if (prevOc != null && meter.calls > prevCalls && s.clans[prevOc]) s.clans[prevOc].lastThoughtAt = Date.now(); };
+  for (const oc of B.fairOrder(live, s)) {
+    stamp(); prevOc = oc.id; prevCalls = meter.calls;
     if (!INSTANT && s.inProgress.done.includes(oc.id)) continue;
     const isNew = !s.clans[oc.id];
     const c = s.clans[oc.id] || W.initClan(s, oc);
@@ -888,9 +895,17 @@ for (let n = 0; n < days; n++) {
         } catch (e2) { log({ kind: "error", clan: oc.id, error: `reverence: ${String(e2.message || e2).slice(0, 180)}` }); }
       }
     }
+    stamp(); prevOc = null; // stamped before the checkpoint saves it
     if (!INSTANT) s.inProgress.done.push(oc.id);
     await checkpoint();
     if (stopRequested) { console.log("  checkpointed; exiting so the next run resumes this day"); await store.close(); process.exit(0); }
+  }
+  stamp(); // a last nation that left the loop early
+  // The OpenAlex line (75% of today's credits) crossed: one record a UTC day, so it shows in the world.
+  if (openAlexCut() && s.openAlexCutOn !== today) {
+    s.openAlexCutOn = today;
+    const b = openAlexBudget();
+    log({ kind: "budget", source: "openalex", remaining: b?.remaining ?? null, limit: b?.limit ?? null, note: "75% of today's OpenAlex searches used: research reads the paper cache until midnight UTC" });
   }
 
   // An instant turn ends here: no rulings sweep, fees, root or new day (the next day does those).

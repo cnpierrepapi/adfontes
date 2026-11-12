@@ -10,17 +10,23 @@ const env = Object.fromEntries(
 );
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY });
 const PRICE = { "claude-haiku-5-5": [0.1, 0.5], "claude-sonnet-5-5": [2, 10], "claude-opus-5-5": [4, 20] }; // $ per M tokens
-export const meter = { calls: 0, usd: 0 };
+export const meter = { calls: 0, usd: 0, gods: 0 }; // gods: the part of usd spent by the AI gods' pot
 
 // The daily cap (CFG.dailyCapUsd). run.mjs tells us what today cost before this process started;
 // a call only starts if its worst case still fits. Callers ask canSpend() first and skip the turn;
 // json() refuses as a last guard so nothing can slip past.
-let spentBefore = 0, spendHook = null;
-export function setSpentToday(usd) { spentBefore = usd; }
-/** Called with each call's cost as it lands, so the shared ledger is right even if a run dies. */
+// Two pots (his call 12 Nov): the AI gods share CFG.godsCapUsd, the citizens CFG.citizensCapUsd, and the
+// total never passes CFG.dailyCapUsd. Neither side can spend the other's share.
+let spentBefore = 0, godsBefore = 0, spendHook = null;
+export function setSpentToday(usd, godsUsd = 0) { spentBefore = usd; godsBefore = godsUsd; }
+/** Called with each call's cost (and its pot, "gods" or "citizens") as it lands, so the shared ledger is right even if a run dies. */
 export function onSpend(fn) { spendHook = fn; }
-export const spentToday = () => spentBefore + meter.usd;
-export const canSpend = (kind) => spentToday() + CFG.worstCallUsd[kind] <= CFG.dailyCapUsd;
+export const spentToday = (pot) => (pot === "gods" ? godsBefore + meter.gods : pot === "citizens" ? spentBefore + meter.usd - meter.gods : spentBefore + godsBefore + meter.usd);
+export const canSpend = (kind) => {
+  const w = CFG.worstCallUsd[kind] ?? CFG.worstCallUsd.council;
+  const inPot = kind === "god" ? spentToday("gods") + w <= CFG.godsCapUsd : spentToday("citizens") + w <= CFG.citizensCapUsd;
+  return inPot && spentToday() + w <= CFG.dailyCapUsd;
+};
 export class BudgetError extends Error {}
 
 // Test runs only (ADF_FAKE_LLM=1): no Claude call, $0. Scholars and Drafters return honest,
@@ -58,8 +64,8 @@ function fakeDraft({ chain }) {
 // The models think before they answer, and the thinking counts against max_tokens: with a short limit
 // a long prompt used it all up and the JSON came back cut off (9 Nov: every live whisper failed to be
 // heard this way). A cut-off answer is asked again once with four times the room.
-async function json(model, system, user, schema, maxTokens, retried = false) {
-  const kind = model === CFG.draftModel ? "draft" : model === CFG.councilModel ? "council" : "agent";
+async function json(model, system, user, schema, maxTokens, retried = false, as = null) {
+  const kind = as || (model === CFG.draftModel ? "draft" : model === CFG.councilModel ? "council" : "agent"); // as: "god" for the AI gods' pot
   if (!canSpend(kind)) throw new BudgetError(`daily cap $${CFG.dailyCapUsd} reached ($${spentToday().toFixed(4)} spent today)`);
   const msg = await client.messages.create({
     model,
@@ -72,8 +78,9 @@ async function json(model, system, user, schema, maxTokens, retried = false) {
   meter.calls++;
   const usd = (msg.usage.input_tokens * pin + msg.usage.output_tokens * pout) / 1e6;
   meter.usd += usd;
-  if (spendHook) await spendHook(usd).catch((e) => console.log("  spend ledger write failed:", String(e.message || e).slice(0, 120)));
-  if (msg.stop_reason === "max_tokens" && !retried) return json(model, system, user, schema, maxTokens * 4, true);
+  if (kind === "god") meter.gods += usd;
+  if (spendHook) await spendHook(usd, kind === "god" ? "gods" : "citizens").catch((e) => console.log("  spend ledger write failed:", String(e.message || e).slice(0, 120)));
+  if (msg.stop_reason === "max_tokens" && !retried) return json(model, system, user, schema, maxTokens * 4, true, as);
   const text = msg.content.find((b) => b.type === "text")?.text ?? "{}";
   return JSON.parse(text);
 }

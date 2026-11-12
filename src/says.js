@@ -88,7 +88,7 @@ function saysRaw(r, c) {
     case "sweep": return "The day's fees went to the treasury.";
     case "weather": return `The weather turned for the week of ${r.week}.`;
     case "error": return r.clan == null ? "A service didn't answer for a moment. The turn carried on." : `${c(r.clan)} had a bad day (a service didn't answer).`;
-    case "budget": return "The day's research budget ran out: research and drafts wait until tomorrow.";
+    case "budget": return r.source === "openalex" ? "The libraries are closing for the day: scholars work from papers they've already read until midnight." : "The day's research budget ran out: research and drafts wait until tomorrow.";
     case "waiting": return `${c(r.clan)}'s citizens wait in the plaza for their god's first whisper.`;
     case "reverence": return `${c(r.clan)}'s reverence: ${Object.entries(r.gods || {}).map(([g, v]) => `${godName(g)} ${v}`).join(", ") || "no gods"}${r.followed ? `; it follows ${godName(r.followed)}` : ""}.`;
     case "reverence-change": return `Reverence changed after a draft: ${(r.changes || []).map((x) => `${godName(x.god)} ${x.d > 0 ? "+" : ""}${x.d} (${x.why})`).join(", ")}.`;

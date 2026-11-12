@@ -58,12 +58,16 @@ export const CFG = {
   draftEveryMs: 24 * 3600e3, // at most one draft per nation per real day (SPEC §14)
 
   // Spend guard (his call, 7 Nov): never more than this on Claude in one UTC day, whatever happens.
-  dailyCapUsd: Number(process.env.ADF_DAILY_CAP) || 0.5, // his cap: $0.50 a UTC day on ALL Claude calls, every network together (ADF_DAILY_CAP: the fast-forward simulation only)
+  // His cap 12 Nov: $1 a UTC day on ALL Claude calls, every network together (was $0.50; ADF_DAILY_CAP: the
+  // fast-forward simulation only). The AI gods share one pot of a quarter of it; the citizens get the rest.
+  dailyCapUsd: Number(process.env.ADF_DAILY_CAP) || 1,
+  get godsCapUsd() { return +(this.dailyCapUsd * 0.25).toFixed(6); },
+  get citizensCapUsd() { return +(this.dailyCapUsd - this.godsCapUsd).toFixed(6); },
   // What one nation costs a day at full pace, measured on w6 (8 Nov): ~24 Haiku research calls at
   // ~$0.001 + one Sonnet draft at ~$0.035 + one Broker call. More nations than the cap feeds = all slow evenly.
   nationDayUsd: 0.065,
   // The most one call has cost so far, plus margin: a call only starts if it fits under the cap.
-  worstCallUsd: { agent: 0.002, draft: 0.05, council: 0.06 },
+  worstCallUsd: { agent: 0.002, draft: 0.05, council: 0.06, god: 0.03 }, // god: one Sonnet call deciding for the AI gods
   // Only the 2-hour schedule moves the world. A deploy starts the engine too; a run this soon
   // after the last one exits without doing anything (a cut-off day still resumes).
   minMinutesBetweenRuns: 110,
