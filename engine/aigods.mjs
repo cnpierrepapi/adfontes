@@ -119,7 +119,9 @@ export function fakePlan(sit) {
     // A recovery whisper names what's wrong right now (hunger, a Trickster, the war), as a real god's would.
     const parts = [n.mood === "hungry" ? "You are hungry: eat before you read" : "You are fed: read deeper", (n.tricksters || 0) ? "a trickster walks among you, check every citation" : "keep checking every citation", n.war ? `hold the walls against ${n.war} in this war` : ""].filter(Boolean);
     out.push({ kind: "whisper", clan: n.id, text: `${parts.join("; ")}. I am still here.` });
-    if (n.mood === "hungry" && left >= 0.15) { out.push({ kind: "bless", clan: n.id, near: 0.15 }); left -= 0.15; }
+    // Feed it to its daily need (what's missing from the last 24 h), at least the 0.1 that moves reverence.
+    const feed = Math.min(left, Math.max(0.15, +((n.need || 0) - (n.fed24h || 0)).toFixed(2)));
+    if (n.mood === "hungry" && feed >= 0.1) { out.push({ kind: "bless", clan: n.id, near: feed }); left -= feed; }
   }
   return out;
 }

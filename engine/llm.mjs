@@ -391,7 +391,7 @@ export async function godsPlan(sits, fake) {
   if (FAKE) return Object.fromEntries(sits.map((s) => [s.god, fake(s)]));
   const lines = sits.map((s) => [
     `GOD ${s.god} (${s.name}; temperament ${s.temperament}; may bless up to ${s.allowance.toFixed(2)} today; Acts of God left today: ${s.aogToday ? 0 : 1})`,
-    ...s.nations.map((n) => `  nation ${n.id} "${n.name}": its citizens' standing ${n.standing}/100, your reverence there ${n.myReverence}, Tricksters ${n.tricksters}, ${n.mood}${n.war ? `, at war with ${n.war}` : ""}, ${Math.round(n.florins)} florins`),
+    ...s.nations.map((n) => `  nation ${n.id} "${n.name}": its citizens' standing ${n.standing}/100, your reverence there ${n.myReverence}, Tricksters ${n.tricksters}, ${n.mood} (needs ${n.need} NEAR a day to eat; got ${n.fed24h} in the last day; under half the need = hungry)${n.war ? `, at war with ${n.war}` : ""}, ${Math.round(n.florins)} florins`),
     ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}`)),
     ...Object.entries(s.gifts || {}).flatMap(([c, gs]) => gs.map((g) => `  gift ${g.id} in nation ${c} waits for a ruling (warden ${g.warden_passed ? "passed" : "failed"} it)`)),
   ].join("\n")).join("\n\n");
