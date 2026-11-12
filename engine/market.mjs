@@ -109,4 +109,22 @@ export function royaltiesFor(s, points, buyer) {
   return out;
 }
 
+/** Gas money for an agent wallet (his rule 12 Nov): under 0.1 NEAR spendable, top it up to 0.2.
+ *  Returns the NEAR to send, or 0. */
+export const GAS = { min: 0.1, topTo: 0.2 };
+export function gasTopUp(spendable) {
+  if (!(spendable < GAS.min)) return 0;
+  return +(GAS.topTo - Math.max(0, spendable)).toFixed(6);
+}
+
+/** Does this nation's Broker already have a token, as the contract counts it (market.rs market_buy):
+ *  it holds it now, or (copies) its nation bought it before, even if the copy isn't minted yet.
+ *  `sales` = the market's sales list (chain.marketSales). Any buy path asks this first (turn 58). */
+export async function alreadyHas(chain, buyer, token, sales = []) {
+  const held = await chain.mtBalances(chain.agentId(buyer, "Broker"), [token]).catch(() => null);
+  if (held && BigInt(held[0] || 0) > 0n) return true;
+  if (token[0] === "p") return false;
+  return (sales || []).some((x) => Number(x.buyer) === Number(buyer) && x.token_id === token);
+}
+
 export { kindOf };

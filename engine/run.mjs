@@ -162,6 +162,18 @@ for (let n = 0; n < days; n++) {
   // The market's listings, read once a run (null: a world contract from before the market).
   let marketNow;
   const listingsNow = async () => (marketNow === undefined ? (marketNow = await chain.marketListings(0)) : marketNow);
+  // Every sale so far (read once a turn, kept current as this turn buys): the contract refuses a copy
+  // to a nation that bought it before, minted or not (turn 58, Striklar).
+  let salesNow;
+  const salesSoFar = async () => (salesNow === undefined ? (salesNow = (await chain.marketSales(0).catch(() => null)) || []) : salesNow);
+  /** The one door for every market buy (12 Nov): a Broker never buys what its nation already has.
+   *  Returns the buy, or null when it already has it (nothing sent, nothing paid). */
+  async function buyChecked(buyer, listingId, why, token) {
+    if (await MK.alreadyHas(chain, buyer, token, await salesSoFar())) return null;
+    const r = await chain.marketBuy(buyer, listingId, why);
+    salesNow.push({ buyer, token_id: token, listing: listingId });
+    return r;
+  }
   /** A sale, completed the moment it's made (his call 9 Nov: no waiting for the next turn): the
    *  buyer's copy of a research token or kit is minted straight to its Broker's wallet, and the sale
    *  is marked done so the turn's settling never applies it twice. applied: the caller already
@@ -236,11 +248,8 @@ for (let n = 0; n < days; n++) {
       s.walked[wk] = { at: Date.now(), price: ask.price };
       return { walked: true, ask };
     }
-    // The buyer already holds this on NEAR (10 Nov: "You already have that"): no deal, nothing to pay.
-    if (token[0] !== "p") {
-      const mine = await chain.mtBalances(chain.agentId(buyer, "Broker"), [token]).catch(() => null);
-      if (mine && BigInt(mine[0] || 0) > 0n) return { walked: true, quiet: true, ask };
-    }
+    // The buyer already has this (holds it, or bought it before): no deal, nothing to list or pay.
+    if (await MK.alreadyHas(chain, buyer, token, await salesSoFar())) return { walked: true, quiet: true, ask };
     let listTx = null;
     if (!shelf) {
       // Its own token, made now if it isn't on NEAR yet (research written earlier this same turn is
@@ -281,7 +290,7 @@ for (let n = 0; n < days; n++) {
       }
     }
     let b;
-    try { b = await chain.marketBuy(buyer, ask.listing, buyerWhy); }
+    try { b = await buyChecked(buyer, ask.listing, buyerWhy, token); if (!b) throw new Error("You already have that"); }
     catch (e) {
       // Bought it before (the contract remembers every buyer of a copy): skip quietly, and don't ask
       // again for a day.
@@ -311,6 +320,15 @@ for (let n = 0; n < days; n++) {
       // The same walk-away as a direct deal (cold audit 11 Nov: a Broker bought at 2.2x fair here): an
       // offer over twice its fair price never reaches the Broker.
       .filter((o) => o.price <= o.fair * WALK);
+    // Nothing it already has reaches the Broker (12 Nov): held now (one read for all offers) or bought before.
+    if (offers.length) {
+      const held = await chain.mtBalances(chain.agentId(oc.id, "Broker"), offers.map((o) => o.token_id)).catch(() => null);
+      const sold = await salesSoFar();
+      for (let i = offers.length - 1; i >= 0; i--) {
+        const o = offers[i];
+        if ((held && BigInt(held[i] || 0) > 0n) || (o.token_id[0] !== "p" && sold.some((x) => Number(x.buyer) === oc.id && x.token_id === o.token_id))) offers.splice(i, 1);
+      }
+    }
     if (!sell.length && !offers.length && !mine.length) return 0;
     const m = await brokerMarket({ field: c.field, temperament: c.mbti, florins, sellable: sell, mine: mine.map((x) => ({ id: x.id, token_id: x.token_id, price: x.price })), offers, open: Object.keys(c.frontier) });
     let openN = mine.length;
@@ -334,7 +352,8 @@ for (let n = 0; n < days; n++) {
     }
     const o = offers.find((y) => y.id === m.buy);
     if (!o || o.price >= florins) return 0;
-    const r = await chain.marketBuy(oc.id, o.id, m.buy_why);
+    const r = await buyChecked(oc.id, o.id, m.buy_why, o.token_id);
+    if (!r) return 0;
     const l = all.find((y) => y.id === o.id);
     if (l && l.kind === "sale") l.open = false; // a patent is gone for the next nation this run
     log({ kind: "market-buy", clan: oc.id, listing: o.id, seller: o.seller, token: o.token_id, title: o.title, price: o.price, fair: +o.fair.toFixed(4), why: String(m.buy_why).slice(0, 200), tx: r.hash, signer: r.signer });
@@ -461,8 +480,9 @@ for (let n = 0; n < days; n++) {
         try { const made = await chain.ensureAgents(oc.id); c.agentWallets = 2; if (made.length) log({ kind: "wallets", clan: oc.id, accounts: made }); }
         catch (e) { log({ kind: "error", clan: oc.id, error: `agent wallets: ${String(e.message || e).slice(0, 160)}` }); }
       }
-      // Gas money: every sale is two or three transactions the traders sign. Scheduled turns only.
-      if (c.agentWallets === 2 && !INSTANT && chain.ensureGas) {
+      // Gas money (his rule 12 Nov): every turn, instant ones too, a Broker or Patron under 0.1 NEAR is
+      // topped up to 0.2 before anything it signs (turn 58: Helios's Broker sat at 0.0303 and two sales failed).
+      if (c.agentWallets === 2 && chain.ensureGas) {
         for (const role of ["Broker", "Patron"]) {
           try { const sent = await chain.ensureGas(oc.id, role); if (sent) log({ kind: "gas", clan: oc.id, role, near: sent }); }
           catch (e) { log({ kind: "error", clan: oc.id, error: `gas for the ${role}: ${String(e.message || e).slice(0, 120)}` }); }

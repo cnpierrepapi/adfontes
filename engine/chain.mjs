@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { NETWORKS } from "./config.mjs";
 import { connectSim } from "./chain-sim.mjs";
+import { gasTopUp } from "./market.mjs";
 
 const YOCTO = 10n ** 24n;
 export const toYocto = (near) => (BigInt(Math.round(near * 1e6)) * YOCTO) / 1_000_000n;
@@ -214,14 +215,17 @@ export function connect(net) {
       return null; // made but not readable yet: the next turn picks it up
     },
     /** Send whatever is waiting at a nation's named account on to its DAO. Returns { near, hash } or null. */
-    /** Keep an agent wallet in gas money (every sale is 2 or 3 transactions it signs): below `min`
-     *  NEAR, the operator sends `amount`. Returns the NEAR sent, or 0. */
-    async ensureGas(clanId, role, min = 0.03, amount = 0.05) {
+    /** Keep an agent wallet in gas money (his rule 12 Nov, engine/market.mjs gasTopUp): under 0.1 NEAR
+     *  spendable (balance less what its storage locks), the operator tops it up to 0.2. Returns the NEAR sent, or 0. */
+    async ensureGas(clanId, role) {
       const id = walletOf(clanId, role, op.accountId);
       const a = await provider.query({ request_type: "view_account", finality: "final", account_id: id }).catch(() => null);
-      if (!a || BigInt(a.amount) >= BigInt(Math.round(min * 1e6)) * 10n ** 18n) return 0;
-      await op.transfer({ receiverId: id, amount: BigInt(Math.round(amount * 1e6)) * 10n ** 18n });
-      return amount;
+      if (!a) return 0;
+      const spendable = Number((BigInt(a.amount) - BigInt(a.storage_usage) * 10n ** 19n) / 10n ** 18n) / 1e6;
+      const send = gasTopUp(spendable);
+      if (!send) return 0;
+      await op.transfer({ receiverId: id, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
+      return send;
     },
     async forwardAlias(alias) {
       const a = await provider.query({ request_type: "view_account", finality: "final", account_id: alias });

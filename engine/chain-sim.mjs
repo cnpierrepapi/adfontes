@@ -4,6 +4,7 @@
 // rules: mint adds florins (the backing doesn't grow), burn removes them, trade moves them.
 // Each engine turn is its own process, so every change is written straight back to the file.
 import fs from "node:fs";
+import { gasTopUp } from "./market.mjs";
 
 const MINT_MAX = 100;
 const UNIT = 10n ** 16n; // engine/chain.mjs toUnits: florins x 1e6 x 1e16
@@ -17,6 +18,17 @@ export function connectSim(file) {
   const tx = (value = null) => ({ hash: `sim-${S.config.day}-${++n}-${Date.now().toString(36)}`, value });
   const clan = (id) => { const c = S.clans.find((x) => x.id === Number(id)); if (!c || !c.alive) throw new Error(`No live clan ${id}`); return c; };
   const add = (c, u) => { c.florins = (BigInt(c.florins) + u).toString(); };
+  // Gas, as on NEAR (12 Nov): an agent wallet signs only with ~0.031 NEAR spare (the transaction's
+  // worst-case prepaid gas) and each signed call burns ~0.001. A wallet with no recorded balance (copies
+  // seeded before 12 Nov) counts as 0.2. S.gas: { [account]: NEAR }.
+  const GAS_NEED = 0.031, GAS_USED = 0.001;
+  const sign = (account) => {
+    S.gas ||= {};
+    const have = S.gas[account] ?? 0.2;
+    if (have < GAS_NEED) throw new Error(`Not enough balance for ${account} (balance: ${BigInt(Math.round(have * 1e6)) * 10n ** 18n}, cost: ${BigInt(Math.round(GAS_NEED * 1e6)) * 10n ** 18n})`);
+    S.gas[account] = +(have - GAS_USED).toFixed(6);
+  };
+  const traderOf = (id) => `trader${id}.sim-operator`;
   return {
     world: "sim.local",
     operator: "sim-operator",
@@ -73,6 +85,7 @@ export function connectSim(file) {
     mtBalances: async (owner, ids) => ids.map((t) => (S.mt || {})[`${owner}|${t}`] || "0"),
     // The marketplace, as the contract does it (contracts/world/src/market.rs), in the sim's file.
     marketList: async (id, tokenId, florins, reason) => {
+      sign(traderOf(id));
       S.market ||= { listings: [], sales: [] };
       const open = S.market.listings.filter((l) => l.seller === id && l.open);
       if (open.length >= 10) throw new Error("A nation can have at most 10 open listings");
@@ -80,11 +93,14 @@ export function connectSim(file) {
       const l = { id: S.market.listings.length, seller: id, token_id: tokenId, price: florins, kind: tokenId.startsWith("p:") ? "sale" : "copy", open: true, day: S.config.day, reason, sold: 0 };
       S.market.listings.push(l); save(); return { ...tx(l.id), signer: `trader${id}.sim-operator` };
     },
-    marketDelist: async (id, listingId) => { const l = S.market?.listings[listingId]; if (!l || l.seller !== id || !l.open) throw new Error("Not your open listing"); l.open = false; save(); return tx(); },
+    marketDelist: async (id, listingId) => { sign(traderOf(id)); const l = S.market?.listings[listingId]; if (!l || l.seller !== id || !l.open) throw new Error("Not your open listing"); l.open = false; save(); return tx(); },
     marketBuy: async (id, listingId, reason) => {
       const l = S.market?.listings[listingId];
       if (!l || !l.open) throw new Error("That listing is closed");
       if (l.seller === id) throw new Error("That's your own listing");
+      sign(traderOf(id));
+      // As market.rs: a copy is refused if the buyer's Broker holds it or its nation bought it before.
+      if (l.kind === "copy" && (BigInt((S.mt || {})[`${traderOf(id)}|${l.token_id}`] || 0) > 0n || (S.market.sales || []).some((x) => x.buyer === id && x.token_id === l.token_id))) throw new Error("Smart contract panicked: You already have that");
       const b = clan(id), sl = clan(l.seller), u = units(l.price);
       if (BigInt(b.florins) < u) throw new Error("Buyer can't afford it");
       add(b, -u); add(sl, u);
@@ -92,11 +108,17 @@ export function connectSim(file) {
       const sale = { id: S.market.sales.length, listing: l.id, buyer: id, seller: l.seller, token_id: l.token_id, price: l.price, day: S.config.day, reason };
       S.market.sales.push(sale); save(); return { ...tx(sale.id), signer: `trader${id}.sim-operator` };
     },
-    ensureGas: async () => 0, // the stand-in charges no gas
+    ensureGas: async (id, role) => {
+      const account = `${role === "Broker" ? "trader" : "patron"}${id}.sim-operator`;
+      S.gas ||= {};
+      const send = gasTopUp(S.gas[account] ?? 0.2);
+      if (send) { S.gas[account] = +((S.gas[account] ?? 0) + send).toFixed(6); save(); }
+      return send;
+    },
     marketListings: async (from = 0) => (S.market?.listings || []).slice(from),
     marketSales: async (from = 0) => (S.market?.sales || []).slice(from),
-    agentBuy: async function (buyer, seller, florins, memo) { const r = await this.trade(buyer, seller, florins, memo); return { ...r, signer: `trader${buyer}.sim-operator` }; },
-    agentSpend: async function (id, florins, memo) { const r = await this.burn(id, florins, memo); return { ...r, signer: `patron${id}.sim-operator` }; },
+    agentBuy: async function (buyer, seller, florins, memo) { sign(traderOf(buyer)); save(); const r = await this.trade(buyer, seller, florins, memo); return { ...r, signer: `trader${buyer}.sim-operator` }; },
+    agentSpend: async function (id, florins, memo) { sign(`patron${id}.sim-operator`); save(); const r = await this.burn(id, florins, memo); return { ...r, signer: `patron${id}.sim-operator` }; },
     setRoot: async (day, root) => { S.roots[day] = root; save(); return tx(); },
     getRoot: async (day) => S.roots[day] ?? null,
   };
