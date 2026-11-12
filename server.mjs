@@ -419,7 +419,7 @@ function makeApi(NET) {
         }
       }));
       rows.sort((a, b) => (b.pct ?? -1e9) - (a.pct ?? -1e9));
-      const top = standings(s, clans).find((r) => inRanking(r)) ?? null; // the beta's first nine leave the ranking after the hackathon (src/season.js)
+      const top = standings(s, clans, new Set((await store.aiGods(NET).catch(() => [])).map((g) => g.account))).find((r) => inRanking(r)) ?? null; // AI-led nations don't rank (12 Nov) // the beta's first nine leave the ranking after the hackathon (src/season.js)
       return { day: s.day, net: NET, explorer: EXPLORER, florin_value: near(totals.florin_value), jackpot: near(totals.jackpot), jackpot_share: 14, leader: top ? { id: top.id, name: top.name, standing: Math.round(top.standing * 10) / 10 } : null, stakes: rows };
     });
   },

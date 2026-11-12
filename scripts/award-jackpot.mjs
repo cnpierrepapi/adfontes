@@ -12,7 +12,9 @@ const API = process.env.ADF_UPSTREAM || "https://adfontes.fun";
 const W = await (await fetch(`${API}/api/world?net=${NET}`)).json();
 
 // Same order as the site's table (src/live/standings.js) and engine/reverence.mjs standings().
-const ranked = W.clans.filter((c) => c.alive !== false && !c.fallen)
+// Nations led by an AI god (their followed god is in W.ai) don't rank (12 Nov).
+const aiGods = new Set(W.ai || []);
+const ranked = W.clans.filter((c) => c.alive !== false && !c.fallen && !aiGods.has(c.reverence?.followed))
   .map((c) => ({ id: c.id, name: c.name, standing: c.reverence?.standing ?? 0 }))
   .sort((a, b) => b.standing - a.standing || a.id - b.id);
 const fallen = W.clans.filter((c) => c.fallen).map((c) => c.name);

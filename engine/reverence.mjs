@@ -351,10 +351,11 @@ export async function godActions({ chain, s, oc, rv, day, changes, hear = null }
 
 /** The season standings (SPEC §14): nations still standing, ranked by the reverence of the god they
  *  follow, ties to the older nation (same order as the site's table). A nation that fell in war is
- *  out of the standings and out of the jackpot (his call 8 Nov). clans = [{ id, alive }] from chain. */
-export function standings(s, clans) {
-  return clans.filter((c) => c.alive !== false && s.clans[c.id] && !s.clans[c.id].fallen)
+ *  out of the standings and out of the jackpot (his call 8 Nov). clans = [{ id, alive }] from chain.
+ *  ai: the AI gods' accounts; a nation led by one (its followed god) doesn't rank or win the jackpot (12 Nov). */
+export function standings(s, clans, ai = new Set()) {
+  return clans.filter((c) => c.alive !== false && s.clans[c.id] && !s.clans[c.id].fallen && !ai.has(s.rev?.[c.id]?.followed))
     .map((c) => { const rv = s.rev?.[c.id]; return { id: c.id, name: c.name, standing: rv?.followed ? rv.gods[rv.followed]?.r ?? 0 : 0 }; })
     .sort((a, b) => b.standing - a.standing || a.id - b.id);
 }
-export const jackpotWinner = (s, clans) => standings(s, clans)[0] ?? null;
+export const jackpotWinner = (s, clans, ai) => standings(s, clans, ai)[0] ?? null;
