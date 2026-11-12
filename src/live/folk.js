@@ -73,9 +73,10 @@ export function createFolk({ scene, islands, renderer, camera }) {
     // Things to walk round: every building, tree and fountain on the island (town-space x, z, radius).
     const blocks = [], houseBlocks = []; // houseBlocks: the island's own houses and trees, which can be cleared
     for (const o of town?.children ?? []) {
-      if (o.name === "folk" || o === isl.userData.lamps) continue; // ourselves, and the lamp lights
+      if (o.name === "folk" || o === isl.userData.lamps || o.userData.shell) continue; // ourselves, the lamp lights, the town's merged shape
       if (!o.visible) continue; // cleared earlier for the town
-      const size = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+      // A merged building keeps the footprint it had before the merge (src/scene.js mergeStatic).
+      const size = o.userData.size ? new THREE.Vector3(...o.userData.size) : new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
       if (!isFinite(size.x) || size.x === 0) continue;
       const b = [o.position.x, o.position.z, o.userData.kind === "tree" ? Math.max(size.x, size.z) * 0.14 + r * 0.02 : Math.max(size.x, size.z) * 0.55 + r * 0.04];
       blocks.push(b);
@@ -102,6 +103,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
         o.visible = false;
         blocks.splice(blocks.indexOf(b), 1);
       }
+      isl.userData.reshell?.(); // the town's one shape, rebuilt without the houses just cleared (src/scene.js townShell)
     }
     life.blocks = blocks; // every footprint on the island: nobody walks through them (SPEC §14b)
     // Rounds (the cart, the watchman) are checked leg by leg on the finished town: stops with no

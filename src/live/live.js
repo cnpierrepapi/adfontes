@@ -19,7 +19,7 @@ import { buildMind, mindBase } from "./mind.js";
 import { createFolk } from "./folk.js";
 import { TIERS, pickTier, readDevice, chosen, createStepper } from "./quality.js";
 import { citizenGlow } from "./citizens.js";
-import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mesh, school, fallUniforms, range, pick } from "../scene.js";
+import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mesh, school, fallUniforms, range, pick, mergeStatic, townShell, mergeInto } from "../scene.js";
 
 CameraControls.install({ THREE });
 
@@ -181,6 +181,8 @@ export async function startLive(canvas, hud, opts = {}) {
         m.position.set(o.position.x + out.x, o.userData.lamp * r, o.position.z + out.z);
         lamps.add(m);
       }
+      mergeInto(lamps, lampMat); // one shape for every lamp on the island (12 Nov)
+      lamps.userData.noMerge = true; // not a building: the town shape and footprints leave it alone
       town.add(lamps);
       lamps.visible = theme === "night";
       isl.userData.lamps = lamps;
@@ -966,7 +968,7 @@ export async function startLive(canvas, hud, opts = {}) {
       const focused = id !== focusId || isl.userData.rose === "rising" ? 0 : zoomK * (1 - THREE.MathUtils.smoothstep(offOf(id), m.layout.reach + 1, m.layout.reach + 6));
       // Every nation's sky can be seen dimly from the whole world, day or night (his note 8 Nov: by day
       // they all vanished when the clock turned). Flown in: only your nation's sky.
-      const near = Math.max(focused, isl.userData.rose !== "rising" && focusId == null ? (theme === "night" ? 0.38 : 0.34) : 0);
+      const near = Math.max(focused, isl.userData.rose !== "rising" && focusId == null && TIERS[tierName].skies !== false ? (theme === "night" ? 0.38 : 0.34) : 0);
       m.update(near, px, focused);
       if (id === focusId) focusNear = focused;
     }
@@ -1028,9 +1030,10 @@ function buildClanIsland(c, r, status, sprays) {
   // North Pole: snow on top, ice below, red roofs, and the pole itself.
   const isl = island(r, dead ? { grass: 0xb9b1a6, rock: 0x8f857c } : pole ? { grass: 0xf4f8ff, rock: 0x9fb6cc } : { grass: status === "neglected" ? 0xc8b46a : pick(PAL.grass), rock: pick(PAL.rock) });
   const town = new THREE.Group();
+  town.userData.noMerge = true; // its buildings merge one by one (the townsfolk read each one), see mergeIsland
   isl.add(town);
   const accent = pole ? 0xd8202a : FIELD_COLOR[c.field] ?? pick(PAL.dome);
-  if (pole && !dead) isl.add(northPole(r)); // on the island itself: the plaza's close-up town replaces `town`
+  if (pole && !dead) { const np = northPole(r); np.userData.noMerge = true; isl.add(np); } // on the island itself: the plaza's close-up town replaces `town`
   if (dead) {
     // Broken pillars: what's left of the temple.
     for (let i = 0; i < 6; i++) {
@@ -1040,7 +1043,7 @@ function buildClanIsland(c, r, status, sprays) {
       col.rotation.z = range(-0.4, 0.4);
       town.add(col);
     }
-    return isl;
+    return mergeIsland(isl, town);
   }
   const tp = temple(r * 0.5, accent);
   tp.userData.lamp = 0.16;
@@ -1066,6 +1069,7 @@ function buildClanIsland(c, r, status, sprays) {
   }
   if (c.clean_gifts > 0) {
     const f = fountain(r * 0.16, sprays);
+    f.userData.noMerge = true; // its water moves
     f.position.set(-r * 0.45, 0, r * 0.3);
     town.add(f);
   }
@@ -1073,10 +1077,23 @@ function buildClanIsland(c, r, status, sprays) {
   const a = 0.7;
   wf.position.set(Math.cos(a) * r * 0.96, 0.02, Math.sin(a) * r * 0.96);
   wf.rotation.y = -a + Math.PI / 2;
+  wf.userData.noMerge = true; // a flowing shader
   isl.add(wf);
   const m = mist(30, r * 0.5, sprays);
+  m.userData.noMerge = true;
   m.position.set(Math.cos(a) * r * 1.25, -(r * 4 + 10) + 0.5, Math.sin(a) * r * 1.25);
   isl.add(m);
+  return mergeIsland(isl, town);
+}
+// Fewer draw calls (12 Nov): each building merges inside itself (same group, place, tags and footprint), then
+// the island's own rocks merge; anything marked noMerge (water, mist, the pole) is left as it was.
+function mergeIsland(isl, town) {
+  for (const o of town.children) if (!o.userData.noMerge) mergeStatic(o);
+  mergeStatic(isl);
+  // Then the whole town draws as one shape; the buildings stay as groups (folk.js reads and hides them and
+  // calls reshell after).
+  townShell(town);
+  isl.userData.reshell = () => townShell(town);
   return isl;
 }
 
@@ -1111,5 +1128,6 @@ function bridge(curve, weight) {
     plank.lookAt(curve.getPoint(Math.min(1, t + 0.01)));
     g.add(plank);
   }
+  mergeStatic(g); // ~130 planks -> one shape (12 Nov)
   return g;
 }

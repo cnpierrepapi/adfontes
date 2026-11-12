@@ -44,3 +44,6 @@ ok(moved === null && fixed.tier() === "high", "a player who chose High is never 
 // The 30 fps cap: on low, a frame that comes too soon is skipped.
 ok(st.shouldDraw(10) === false && st.shouldDraw(34) === true, "low draws at most ~30 times a second");
 ok(createStepper({ start: "high", auto: true, clock: () => 0 }).shouldDraw(10) === true, "high draws every frame");
+// Step 2b: on low, only the nation you're looking at shows its star map (the dim far-off skies were ~720
+// draws with 100 nations); medium and high keep them.
+ok(TIERS.low.skies === false && TIERS.medium.skies !== false && TIERS.high.skies !== false, "low hides the far-off star maps; medium and high keep them");

@@ -1,6 +1,7 @@
 // The hero world: bright floating islands with temples, waterfalls, fountains, schools of
 // fish-birds and tiny agents. Everything is built in code (no model files).
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 export const PAL = {
   skyTop: 0x6fe3ff,
@@ -45,6 +46,47 @@ const flatMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading:
 
 export function mesh(geo, color, jitter) {
   return new THREE.Mesh(facetColors(geo, color, jitter), flatMat);
+}
+
+/** Merge the still pieces under `root` that share the flat material into one drawn shape per shadow setting
+ *  (12 Nov: ~3,400 draw calls a frame with 13 nations, most of them single planks and rocks). The merged
+ *  shape stays in `root`'s own space, so `root` keeps its place, size and tags. Skips: anything under an
+ *  object with userData.noMerge (animated or read by other code), skinned or instanced meshes, other materials.
+ *  Tested in tests/merge.test.mjs. */
+export function mergeStatic(root) {
+  root.updateMatrixWorld(true);
+  // The size as three.js measured it before (a box of each piece's box): the townsfolk walk round buildings
+  // by this footprint, so it's kept exactly (a merged shape measures tighter).
+  if (!root.userData.size) root.userData.size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3()).toArray();
+  const inv = root.matrixWorld.clone().invert();
+  const buckets = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh || o.material !== flatMat || o.isSkinnedMesh || o.isInstancedMesh || o.userData.noMerge) return;
+    for (let p = o.parent; p && p !== root; p = p.parent) if (p.userData.noMerge) return;
+    const g = o.geometry;
+    const key = `${o.castShadow}|${o.receiveShadow}|${Object.keys(g.attributes).sort().join(",")}|${g.index ? "i" : "n"}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(o);
+  });
+  let merged = 0;
+  for (const list of buckets.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map((o) => o.geometry.clone().applyMatrix4(inv.clone().multiply(o.matrixWorld)));
+    const geo = mergeGeometries(geos, false);
+    for (const g of geos) g.dispose();
+    if (!geo) continue;
+    const m = new THREE.Mesh(geo, flatMat);
+    m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow;
+    m.userData.merged = list.length;
+    for (const o of list) { o.removeFromParent(); o.geometry.dispose(); }
+    root.add(m);
+    merged += list.length;
+  }
+  // Groups left empty by the merge are dropped (they drew nothing). (A building keeps its group: see townShell.)
+  const empty = [];
+  root.traverse((o) => { if (o !== root && o.isGroup && !o.children.length && !o.userData.noMerge && Object.keys(o.userData).length === 0) empty.push(o); });
+  for (const o of empty) o.removeFromParent();
+  return merged;
 }
 
 // One floating island: a grass cap with an overhanging lip, a cliff band, and a layered rock
@@ -369,4 +411,52 @@ export function school(n, color, sprays, radius, y) {
     }
   });
   return g;
+}
+
+/** One drawn shape for a whole town (12 Nov). Each building (already merged by mergeStatic) stays in `town` as
+ *  its own group, with its place, tags and footprint, because the townsfolk read them and the close-up town
+ *  hides some; but its pieces stop drawing and the visible buildings draw together as one shape (one per
+ *  shadow setting) inside `town`. Call again after hiding or showing a building. Matrices are taken from
+ *  inside the town, so a town mid-rise (scaled) is baked in at full size. Tested in tests/merge.test.mjs. */
+export function townShell(town) {
+  for (const old of town.children.filter((c) => c.userData.shell)) { old.removeFromParent(); old.geometry.dispose(); }
+  const buckets = new Map();
+  for (const o of town.children) {
+    if (o.userData.noMerge || o.userData.shell) continue;
+    o.updateMatrix();
+    o.traverse((m) => {
+      if (m === o || !m.isMesh || m.material !== flatMat) return;
+      m.visible = false; // drawn by the shell
+      if (!o.visible) return;
+      // The piece's matrix relative to the town: building matrix x each step down to the piece.
+      const rel = o.matrix.clone();
+      const chain = [];
+      for (let p = m; p && p !== o; p = p.parent) chain.unshift(p);
+      for (const p of chain) { p.updateMatrix(); rel.multiply(p.matrix); }
+      const key = `${m.castShadow}|${m.receiveShadow}|${Object.keys(m.geometry.attributes).sort().join(",")}|${m.geometry.index ? "i" : "n"}`;
+      if (!buckets.has(key)) buckets.set(key, { cast: m.castShadow, recv: m.receiveShadow, geos: [] });
+      buckets.get(key).geos.push(m.geometry.clone().applyMatrix4(rel));
+    });
+  }
+  for (const b of buckets.values()) {
+    const geo = b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos, false);
+    if (b.geos.length > 1) for (const g of b.geos) g.dispose();
+    if (!geo) continue;
+    const shell = new THREE.Mesh(geo, flatMat);
+    shell.castShadow = b.cast; shell.receiveShadow = b.recv;
+    shell.userData.shell = true;
+    town.add(shell);
+  }
+}
+
+/** Merge every mesh directly under `group` that uses `material` into one (lamps: many small spheres). */
+export function mergeInto(group, material) {
+  const list = group.children.filter((m) => m.isMesh && m.material === material);
+  if (list.length < 2) return;
+  const geos = list.map((m) => { m.updateMatrix(); return m.geometry.clone().applyMatrix4(m.matrix); });
+  const geo = mergeGeometries(geos, false);
+  for (const g of geos) g.dispose();
+  if (!geo) return;
+  for (const m of list) { m.removeFromParent(); m.geometry.dispose(); }
+  group.add(new THREE.Mesh(geo, material));
 }
