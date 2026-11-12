@@ -446,3 +446,5 @@ body.night .plate .hp small { color: #ff8b7f; }
 .plate .hp[data-side="even"] u { background: linear-gradient(90deg, #c98d00, #f0c040); }
 .plate .hp[data-side="winning"] small { color: #1f7a3a; }
 body.night .plate .hp[data-side="winning"] small { color: #7fe39a; }
+/* AI gods' tag (12 Nov) */
+.aitag { font-style: normal; font-family: var(--mono); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em; padding: 1px 5px; border-radius: 6px; background: #7c5cff; color: #fff; vertical-align: 1px; }

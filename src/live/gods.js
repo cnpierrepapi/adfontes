@@ -4,7 +4,7 @@
 import { createWallet, toYocto, near, failure, TGAS } from "./wallet.js";
 import * as C from "./calls.js";
 import { api } from "../net.js";
-import { godName } from "../says.js";
+import { godName, isAi } from "../says.js";
 
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
@@ -401,12 +401,12 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       rev.append(el("h4", { textContent: "Reverence" }));
       const who = (a) => (a === account ? "you" : godName(a));
       if (R.waiting) rev.append(el("p", { className: "fine warn", textContent: "Its citizens are waiting in the plaza for their god's first whisper. Nothing gets researched until then." }));
-      else if (R.followed) rev.append(el("p", { className: "fine" }, `Its citizens follow ${who(R.followed)}${R.claimed_by ? " (an outside god who claimed this nation after it turned on its own)" : ""}. Standing: `, el("b", { textContent: String(R.standing) }), " of 100."));
+      else if (R.followed) rev.append(el("p", { className: "fine" }, `Its citizens follow ${who(R.followed)}${R.claimed_by && R.gods?.[R.claimed_by]?.outsider ? " (an outside god who claimed this nation after it turned on its own)" : ""}. Standing: `, el("b", { textContent: String(R.standing) }), " of 100."));
       else rev.append(el("p", { className: "fine warn", textContent: "Its citizens follow no god right now." }));
       const list = el("div", { className: "revlist" });
       for (const [a, g] of Object.entries(R.gods).sort((x, y) => y[1].r - x[1].r)) {
         const bar = el("i", {}); bar.style.width = `${g.r}%`;
-        list.append(el("div", { className: `revrow${a === account ? " me" : ""}` }, el("span", { textContent: who(a) + (g.outsider ? " (outside god)" : "") }), el("span", { className: "bar" }, bar), el("b", { textContent: String(g.r) }), g.enemies ? el("small", { textContent: `${g.enemies} enem${g.enemies === 1 ? "y" : "ies"}` }) : null));
+        list.append(el("div", { className: `revrow${a === account ? " me" : ""}` }, el("span", {}, who(a), ...(isAi(a) ? [" ", el("i", { className: "aitag", textContent: "AI", title: "An AI god: Claude decides what it does" })] : []), g.outsider ? " (outside god)" : ""), el("span", { className: "bar" }, bar), el("b", { textContent: String(g.r) }), g.enemies ? el("small", { textContent: `${g.enemies} enem${g.enemies === 1 ? "y" : "ies"}` }) : null));
       }
       rev.append(list);
       const mine = R.gods[account];

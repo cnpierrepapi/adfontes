@@ -5,6 +5,7 @@
 // Each engine turn is its own process, so every change is written straight back to the file.
 import fs from "node:fs";
 import { gasTopUp } from "./market.mjs";
+import { guard as aiGuard } from "./aigods.mjs";
 
 const MINT_MAX = 100;
 const UNIT = 10n ** 16n; // engine/chain.mjs toUnits: florins x 1e6 x 1e16
@@ -48,7 +49,35 @@ export function connectSim(file) {
       if (method === "get_last_proposal_id") return list.length;
       if (method === "get_proposals") return list.slice(args.from_index, args.from_index + args.limit);
       if (method === "get_proposal") return list[args.id] ?? null;
+      // A council's policy, as Sputnik answers it: gods vote in their own role; a motion bond of 0.01 NEAR.
+      if (method === "get_policy") { const c = S.clans.find((x) => x.dao === dao); return { proposal_bond: "10000000000000000000000", roles: [{ name: "gods", kind: { Group: (c?.gods || []).map((g) => g.account) } }], default_vote_policy: { weight_kind: "RoleWeight", quorum: "0", threshold: [1, 2] } }; }
       return [];
+    },
+    // AI gods (12 Nov), as on the real chain: every call passes the same guard; a blessing raises the god's
+    // put_in (the engine reads that as a blessing); a motion lands in the nation's DAO already voted through
+    // (its fellow AI gods vote yes), the way scripts/sim-gods.mjs writes them.
+    aiEnsure: async () => false,
+    aiBalance: async (account) => (S.aiBal ||= {})[account] ?? 1,
+    aiTopUp: async (account, min, to) => { S.aiBal ||= {}; const have = S.aiBal[account] ?? 1; if (have >= min) return 0; S.aiBal[account] = to; save(); return +(to - have).toFixed(4); },
+    aiSend: async (account, calls) => {
+      let last = null;
+      for (const c0 of calls) {
+        const c = c0.bind ? c0.bind(last) : c0;
+        aiGuard(c, "sim.local");
+        if (c.method === "bless") {
+          const cl = clan(c.args.clan_id), g = cl.gods.find((x) => x.account === account);
+          if (!g) throw new Error("Not a god of that nation");
+          const y = BigInt(c.deposit);
+          g.put_in = (BigInt(g.put_in) + y).toString(); cl.total_in = (BigInt(cl.total_in || 0) + y).toString();
+          S.aiBal ||= {}; S.aiBal[account] = +((S.aiBal[account] ?? 1) - Number(y / 10n ** 18n) / 1e6).toFixed(6);
+        } else if (c.method === "add_proposal") {
+          const list = ((S.daos ||= {})[c.receiver] ||= []);
+          last = list.length;
+          list.push({ id: last, proposer: account, status: "Approved", description: c.args.proposal.description, kind: c.args.proposal.kind });
+        }
+      }
+      save();
+      return { ...tx(last), proposal: last, signer: account };
     },
     tick: async (day) => { S.config.day = day; save(); return tx(); },
     spawn: async (id, name, role) => { (S.agents[id] ||= []).push({ name, role, clan_id: Number(id), alive: true, stunted_until: 0, born_day: S.config.day }); save(); return tx(); },

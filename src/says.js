@@ -47,6 +47,10 @@ export function setEnded(list) {
 const GOD_NAMES = new Map();
 export function setNames(map) { for (const [a, n] of Object.entries(map || {})) GOD_NAMES.set(a, n); }
 export const godName = (a) => GOD_NAMES.get(String(a)) ?? "a god";
+// AI gods (12 Nov): their names carry a small AI tag on the page.
+const AI = new Set();
+export function setAi(list) { AI.clear(); for (const a of list || []) AI.add(String(a)); }
+export const isAi = (a) => AI.has(String(a));
 /** The name of an ended nation, for its sealed records; null for any other id. */
 export const endedName = (id) => ENDED.get(Number(id)) ?? null;
 export function says(r, clanName) {

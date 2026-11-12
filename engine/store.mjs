@@ -25,6 +25,8 @@ async function db() {
     create table if not exists llm_spend (date text primary key, usd double precision not null default 0);
     create table if not exists logins (id text primary key, net text not null, account text not null, salt text not null, auth text not null, iv text not null, ct text not null, at timestamptz default now());
     create table if not exists god_names (account text primary key, name text unique not null, at timestamptz default now());
+    create table if not exists ai_gods (account text primary key, net text not null, name text not null, temperament text, at timestamptz default now());
+    create table if not exists ai_actions (id serial primary key, net text not null, at bigint not null, god text not null, action jsonb not null, done boolean not null default false, result text);
   `);
   await ready;
   return pool;
@@ -36,6 +38,20 @@ async function db() {
 // God names (12 Nov, engine/godnames.mjs): each account gets one name for good, never shared. The table's
 // unique name column settles two servers naming at once: the loser re-reads and takes the next free one.
 const NAMES_FILE = () => `${DIR}/god_names.json`;
+/** Give an account a chosen name (an AI god is named before it acts). False if the name or account is taken. */
+export async function claimGodName(account, name) {
+  const p = await db();
+  if (p) return (await p.query("insert into god_names (account, name) values ($1, $2) on conflict do nothing", [account, name])).rowCount === 1;
+  const all = fs.existsSync(NAMES_FILE()) ? JSON.parse(fs.readFileSync(NAMES_FILE(), "utf8")) : {};
+  if (all[account] || Object.values(all).includes(name)) return false;
+  all[account] = name; fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(NAMES_FILE(), JSON.stringify(all)); return true;
+}
+/** Every name given so far. */
+export async function takenNames() {
+  const p = await db();
+  if (p) return (await p.query("select name from god_names")).rows.map((r) => r.name);
+  return Object.values(fs.existsSync(NAMES_FILE()) ? JSON.parse(fs.readFileSync(NAMES_FILE(), "utf8")) : {});
+}
 export async function godNames(accounts) {
   const want = [...new Set((accounts || []).filter(Boolean).map(String))];
   const p = await db();
@@ -58,6 +74,49 @@ export async function godNames(accounts) {
     }
   }
   return Object.fromEntries(want.map((a) => [a, byAcct.get(a) ?? nameFor(a, taken)]));
+}
+
+// AI gods (12 Nov, engine/aigods.mjs): who they are, and the actions waiting to go out over the 2 hours.
+const AI_FILE = () => `${DIR}/ai.json`;
+const aiFile = () => (fs.existsSync(AI_FILE()) ? JSON.parse(fs.readFileSync(AI_FILE(), "utf8")) : { gods: {}, actions: [], next: 1 });
+const aiSave = (m) => { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(AI_FILE(), JSON.stringify(m)); };
+export async function aiGods(net) {
+  const p = await db();
+  if (p) return (await p.query("select account, name, temperament from ai_gods where net = $1", [net])).rows;
+  return Object.values(aiFile().gods).filter((g) => g.net === net);
+}
+export async function addAiGod(net, account, name, temperament) {
+  const p = await db();
+  if (p) return void (await p.query("insert into ai_gods (account, net, name, temperament) values ($1,$2,$3,$4) on conflict (account) do nothing", [account, net, name, temperament]));
+  const m = aiFile(); m.gods[account] ||= { account, net, name, temperament }; aiSave(m);
+}
+/** Queue planned actions: [{ at, god, ...action }]. Anything still waiting from the last plan is dropped first. */
+export async function queueAiActions(net, list) {
+  const p = await db();
+  if (p) {
+    await p.query("delete from ai_actions where net = $1 and done = false", [net]);
+    for (const a of list) { const { at, god, ...action } = a; await p.query("insert into ai_actions (net, at, god, action) values ($1,$2,$3,$4)", [net, at, god, JSON.stringify(action)]); }
+    return;
+  }
+  const m = aiFile(); m.actions = m.actions.filter((x) => x.net !== net || x.done);
+  for (const a of list) { const { at, god, ...action } = a; m.actions.push({ id: m.next++, net, at, god, action, done: false, result: null }); }
+  aiSave(m);
+}
+export async function dueAiActions(net, now, limit = 3) {
+  const p = await db();
+  if (p) return (await p.query("select id, at, god, action from ai_actions where net = $1 and done = false and at <= $2 order by at limit $3", [net, now, limit])).rows;
+  return aiFile().actions.filter((x) => x.net === net && !x.done && x.at <= now).sort((a, b) => a.at - b.at).slice(0, limit);
+}
+export async function finishAiAction(id, result) {
+  const p = await db();
+  if (p) return void (await p.query("update ai_actions set done = true, result = $2 where id = $1", [id, String(result).slice(0, 300)]));
+  const m = aiFile(); const x = m.actions.find((y) => y.id === id); if (x) { x.done = true; x.result = String(result).slice(0, 300); } aiSave(m);
+}
+/** Today's actions by one god (for its daily allowance and one Act of God a day). */
+export async function aiActionsSince(net, god, since) {
+  const p = await db();
+  if (p) return (await p.query("select action, result from ai_actions where net = $1 and god = $2 and done = true and at >= $3", [net, god, since])).rows;
+  return aiFile().actions.filter((x) => x.net === net && x.god === god && x.done && x.at >= since);
 }
 
 const LOGINS = () => `${DIR}/logins.json`;

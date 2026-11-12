@@ -10,6 +10,7 @@
 import { spawn } from "node:child_process";
 import { connect } from "./chain.mjs";
 import * as store from "./store.mjs";
+import { runDue } from "./aiact.mjs";
 
 const NETS = process.argv.slice(2).filter((a) => a === "testnet" || a === "mainnet");
 if (!NETS.length) NETS.push("testnet");
@@ -30,6 +31,7 @@ for (const net of NETS) {
     fresh: new Map(), // nation id -> { since, runs, next }
     lastDay: s.lastRunAt || 0, dayDueAt: null,
     queue: new Map(), // nation id -> fresh?
+    aiTouched: new Set(), // nations an AI god just acted on: their instant turn skips research
     dayQueued: false,
   };
   say(`${net}: watching; ${worlds[net].known.size} nations known, last day ${s.lastRunAt ? new Date(s.lastRunAt).toISOString() : "never"}`);
@@ -108,7 +110,12 @@ async function work() {
       } else if (W.queue.size) {
         const ids = [...W.queue.keys()], fresh = [...W.queue.values()].some(Boolean);
         W.queue.clear();
-        await run(W.net, ["--instant", ids.join(","), ...(fresh ? ["--fresh"] : [])]);
+        const quiet = ids.filter((id) => W.aiTouched.has(id)); for (const id of quiet) W.aiTouched.delete(id);
+        await run(W.net, ["--instant", ids.join(","), ...(fresh ? ["--fresh"] : []), ...(quiet.length ? ["--no-research", quiet.join(",")] : [])]);
+      } else if (W.net === "testnet") {
+        // AI gods (12 Nov): send the next due action; the next look sees it and runs that nation's instant turn.
+        const touched = await runDue({ net: W.net, chain: W.chain, limit: 1, log: say }).catch((e) => { say(`${W.net}: AI gods: ${String(e.message || e).slice(0, 120)}`); return []; });
+        for (const id of touched || []) W.aiTouched.add(id);
       }
     }
   } finally { busy = false; }

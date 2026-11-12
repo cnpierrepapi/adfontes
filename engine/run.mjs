@@ -24,6 +24,7 @@ import { researchPrice, kitPrice } from "./prices.mjs";
 import * as TK from "./tokens.mjs";
 import * as MK from "./market.mjs";
 import * as B from "./budget.mjs";
+import { planGods } from "./aiact.mjs";
 import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
 const MARKET_ON = process.env.ADF_MARKET === "1"; // the Brokers' market days (settling sales and royalties always run)
@@ -40,6 +41,9 @@ const days = process.argv.includes("--days") ? Number(process.argv[process.argv.
 // s.pending, which become the first records of the next day (proven with its root) and which the
 // site shows live. Started by engine/loop.mjs; a normal day runs exactly as before.
 const INSTANT = process.argv.includes("--instant") ? process.argv[process.argv.indexOf("--instant") + 1].split(",").map(Number) : null;
+// Nations whose instant turn an AI god's action triggered (12 Nov): it answers the action but doesn't research,
+// or ~1,000 extra research calls a day would eat the citizens' Claude budget by midday.
+const NO_RESEARCH = new Set(process.argv.includes("--no-research") ? process.argv[process.argv.indexOf("--no-research") + 1].split(",").map(Number) : []);
 const FRESH = process.argv.includes("--fresh");
 const chain = connect(net);
 const s = await store.ensureWorld(net, chain.world); // a new world contract on testnet starts clean
@@ -700,7 +704,7 @@ for (let n = 0; n < days; n++) {
 
       // Research: each able Scholar takes its turns on the Patron's chosen point.
       // An instant turn: one research turn by one Scholar (in turn), not the day's full share.
-      const scholars = eff.waiting || atWar ? [] : able("Scholar");
+      const scholars = eff.waiting || atWar || (INSTANT && NO_RESEARCH.has(oc.id)) ? [] : able("Scholar");
       const instantScholar = INSTANT ? scholars[(c.instantTurns = (c.instantTurns || 0) + 1) % Math.max(1, scholars.length)] : null;
       for (const sch of scholars) {
         if (INSTANT && sch !== instantScholar) continue;
@@ -1163,6 +1167,13 @@ for (let n = 0; n < days; n++) {
   delete s.inProgress;
   await store.saveState(net, s);
   console.log(`  root ${root.slice(0, 16)}... on chain (${rr.hash}) | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)} | today (UTC): $${spentToday().toFixed(4)} of $${CFG.dailyCapUsd}`);
+}
+
+// AI gods (12 Nov, engine/aiact.mjs): after a scheduled turn is sealed, plan their next two hours. A failed
+// plan is logged and the gods sit quiet until the next turn; it never touches the sealed turn.
+if (!INSTANT) {
+  try { const p = await planGods({ net, s, onchain: await chain.clans() }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
+  catch (e) { console.log(`  AI gods: no plan this turn: ${String(e.message || e).slice(0, 200)}`); }
 }
 
 const t = await chain.totals();

@@ -357,3 +357,59 @@ export function draftTurn({ field, chain, gaps }) {
     8000,
   );
 }
+
+// ---- AI gods (12 Nov, engine/aigods.mjs): one Sonnet call plans for every AI god, from the gods' own pot ----
+const GODS_PLAN = {
+  type: "object", additionalProperties: false, required: ["gods"],
+  properties: {
+    gods: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false, required: ["god", "actions"],
+        properties: {
+          god: { type: "string" },
+          actions: {
+            type: "array",
+            items: {
+              type: "object", additionalProperties: false, required: ["kind", "clan"],
+              properties: {
+                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire"] },
+                clan: { type: "integer" }, text: { type: "string" }, near: { type: "number" },
+                report: { type: "string" }, verdict: { type: "string", enum: ["Stunt", "Kill"] }, gift: { type: "integer" }, target: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+/** Plans the next two hours for every AI god at once. sits = [{ god, name, temperament, allowance, clans,
+ *  nations: [{ id, name, standing, myReverence, tricksters, mood, war, florins }], reports, gifts, aogToday }].
+ *  Returns { [god]: actions[] } (checked afterwards by aigods.validatePlan). */
+export async function godsPlan(sits, fake) {
+  if (FAKE) return Object.fromEntries(sits.map((s) => [s.god, fake(s)]));
+  const lines = sits.map((s) => [
+    `GOD ${s.god} (${s.name}; temperament ${s.temperament}; may bless up to ${s.allowance.toFixed(2)} today; Acts of God left today: ${s.aogToday ? 0 : 1})`,
+    ...s.nations.map((n) => `  nation ${n.id} "${n.name}": its citizens' standing ${n.standing}/100, your reverence there ${n.myReverence}, Tricksters ${n.tricksters}, ${n.mood}${n.war ? `, at war with ${n.war}` : ""}, ${Math.round(n.florins)} florins`),
+    ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}`)),
+    ...Object.entries(s.gifts || {}).flatMap(([c, gs]) => gs.map((g) => `  gift ${g.id} in nation ${c} waits for a ruling (warden ${g.warden_passed ? "passed" : "failed"} it)`)),
+  ].join("\n")).join("\n\n");
+  const r = await json(
+    CFG.draftModel,
+    "You play the AI gods of AD FONTES, a world of small nations whose citizens read real research. Each god plans the next two hours. " +
+      "Your first job is RECOVERY: many of your nations turned away from their gods (standing near 0), Tricksters faking research moved in, and the people are hungry. " +
+      "What works: whisper (one or two plain, specific sentences about what the nation should do next, grounded in its situation; citizens judge it, empty or flattering words lose reverence), " +
+      "bless with NEAR (0.1 or more; feeds hungry citizens, lifts reverence up to 60, each blessing in a day counts less), " +
+      "rule on a waiting gift (reward it; an unruled gift costs reverence), smite a reported Trickster (Stunt or Kill; you judge the claim blind, a wrong smite of an honest citizen costs you), " +
+      "and at most one Act of God a day on another nation (fire on a nation hoarding florins or bullying in war; never your own). " +
+      "Plan 6 to 9 actions per god, most-fallen nation first, varied (not all blessings). Never more blessing NEAR than the god may spend today. " +
+      "Write every whisper in the god's own voice, matching its temperament.",
+    `Your gods and their nations now:\n\n${lines}`,
+    GODS_PLAN,
+    3000,
+    false,
+    "god",
+  );
+  return Object.fromEntries((r.gods || []).map((g) => [g.god, g.actions || []]));
+}

@@ -189,9 +189,11 @@ function makeApi(NET) {
         // Every god's name (12 Nov, engine/godnames.mjs): the game shows these, never an account id.
         const godAccounts = [...clans.flatMap((c) => (c.gods || []).map((g) => g.account)), ...Object.values(s.rev || {}).flatMap((rv) => [...Object.keys(rv.gods || {}), rv.followed, rv.claimedBy])];
         const names = await store.godNames(godAccounts).catch((e) => { console.error("god names", e); return {}; });
+        // Which gods are AI (12 Nov, engine/aigods.mjs): the page tags them.
+        const ai = (await store.aiGods(NET).catch(() => [])).map((g) => g.account);
         return {
           net: NET, world: WORLD, explorer: EXPLORER, day: cfg.day, season: cfg.season, paused: cfg.paused,
-          weather, clock, names,
+          weather, clock, names, ai,
           totals: { balance: near(totals.balance), owed: near(totals.liabilities), backing: near(totals.backing), florins: florins(totals.florins), florin_value: near(totals.florin_value), minted: florins(totals.minted), burned: florins(totals.burned) },
         // The season jackpot (SPEC §14): 14% of everything put in, held by the world contract and
         // paid to the winning nation's gods after the season ends. Both networks.

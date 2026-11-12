@@ -8,6 +8,8 @@ import path from "node:path";
 import { NETWORKS } from "./config.mjs";
 import { connectSim } from "./chain-sim.mjs";
 import { gasTopUp } from "./market.mjs";
+import { guard as aiGuard, godSeed, sendChecked } from "./aigods.mjs";
+import { returned } from "../src/live/calls.js";
 
 const YOCTO = 10n ** 24n;
 export const toYocto = (near) => (BigInt(Math.round(near * 1e6)) * YOCTO) / 1_000_000n;
@@ -83,6 +85,12 @@ function agentKeyPair(opKey, world, clanId, role) {
   return KeyPair.fromString(`ed25519:${baseEncode(Buffer.concat([seed, Buffer.from(pub)]))}`);
 }
 
+/** An AI god's key: from the operator key and its account (engine/aigods.mjs godSeed). */
+function godKeyPair(opKey, world, account) {
+  const seed = godSeed(opKey, world, account);
+  return KeyPair.fromString(`ed25519:${baseEncode(Buffer.concat([seed, Buffer.from(ed25519.getPublicKey(seed))]))}`);
+}
+
 export function connect(net) {
   // The fast-forward simulation (scripts/sim-week.mjs): a stand-in chain in a local file, never testnet.
   if (process.env.ADF_SIM_CHAIN) return connectSim(process.env.ADF_SIM_CHAIN);
@@ -130,6 +138,64 @@ export function connect(net) {
     giftDraft: (clanId, hash, passed) => call("gift", { clan_id: clanId, draft_hash: hash, warden_passed: passed }),
     setRoot: (day, root) => call("set_root", { day, root }),
     getRoot: (day) => view("get_root", { day }),
+    // ---- AI gods (12 Nov, engine/aigods.mjs) ----
+    /** Make an AI god's account (<name>.<operator>) with its derived key and a starting balance, once. */
+    async aiEnsure(account, fundNear = 0.5) {
+      const kp = godKeyPair(opKey, world, account);
+      const exists = await provider.query({ request_type: "view_account", finality: "final", account_id: account }).then(() => true, () => false);
+      if (exists) return false;
+      if (!account.endsWith("." + op.accountId)) throw new Error("an AI god's account must sit under the operator");
+      await op.signAndSendTransaction({ receiverId: account, actions: [actions.createAccount(), actions.transfer(BigInt(Math.round(fundNear * 1e6)) * 10n ** 18n), actions.addFullAccessKey(kp.getPublicKey())] });
+      return true;
+    },
+    /** Its spendable NEAR. */
+    async aiBalance(account) {
+      const a = await provider.query({ request_type: "view_account", finality: "final", account_id: account });
+      return Number((BigInt(a.amount) - BigInt(a.storage_usage) * 10n ** 19n) / 10n ** 18n) / 1e6;
+    },
+    /** Top an AI god up to `to` NEAR from the operator when it's under `min`. Returns NEAR sent. */
+    async aiTopUp(account, min, to) {
+      const have = await this.aiBalance(account).catch(() => null);
+      if (have == null || have >= min) return 0;
+      const send = +(to - have).toFixed(4);
+      await op.transfer({ receiverId: account, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
+      return send;
+    },
+    /** Send an AI god's calls (src/live/calls.js shapes), in order. Every call passes the guard first: no
+     *  withdraw, no claim, no leaving, ever. A call with `bind` gets the id the one before it returned. */
+    async aiSend(account, calls) {
+      const acct = new Account(account, provider, godKeyPair(opKey, world, account).toString());
+      let value = null, proposal = null; const hashes = []; // proposal: the motion's number (add_proposal's answer)
+      for (const c0 of calls) {
+        const c = c0.bind ? c0.bind(value) : c0;
+        aiGuard(c, world);
+        // Before sending: what "it landed" would look like (12 Nov: an RPC 500 on a motion that had landed).
+        const putBefore = c.method === "bless" ? BigInt((await view("list_clans", { limit: 100 })).find((x) => x.id === c.args.clan_id)?.gods.find((g) => g.account === account)?.put_in ?? 0) : null;
+        const landed = async () => {
+          if (c.method === "bless") { const g = (await view("list_clans", { limit: 100 })).find((x) => x.id === c.args.clan_id)?.gods.find((x) => x.account === account); return g && BigInt(g.put_in) > putBefore ? { value: null, hash: null } : null; }
+          if (c.method === "add_proposal") {
+            const last = await provider.callFunction({ contractId: c.receiver, method: "get_last_proposal_id", args: {} });
+            const ps = await provider.callFunction({ contractId: c.receiver, method: "get_proposals", args: { from_index: Math.max(0, last - 5), limit: 5 } });
+            const p = ps.reverse().find((x) => x.proposer === account && x.description === c.args.proposal.description);
+            return p ? { value: p.id, hash: null } : null;
+          }
+          if (c.method === "act_proposal") { const p = await provider.callFunction({ contractId: c.receiver, method: "get_proposal", args: { id: c.args.id } }); return p?.votes?.[account] ? { value: null, hash: null } : null; }
+          return null;
+        };
+        const r = await sendChecked({
+          send: async () => {
+            const o = await acct.callFunctionRaw({ contractId: c.receiver, methodName: c.method, args: c.args, deposit: BigInt(c.deposit || 0), gas: BigInt(c.gas) });
+            const fail = o.receipts_outcome.find((x) => x.outcome.status.Failure);
+            if (fail) throw new Error(`${c.method} refused: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 200)}`);
+            return { value: returned(o), hash: o.transaction.hash };
+          },
+          landed,
+        });
+        value = r.value; if (r.hash) hashes.push(r.hash);
+        if (c.method === "add_proposal") proposal = r.value;
+      }
+      return { hash: hashes.at(-1) ?? null, hashes, value, proposal };
+    },
     // ---- agent wallets ----
     agentId: (clanId, role) => walletOf(clanId, role, op.accountId),
     /** Make sure this nation's Broker and Patron have their wallets: create, fund, register. */
