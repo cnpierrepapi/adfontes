@@ -1,6 +1,7 @@
 import { startLive } from "./live.js";
 import { createWeatherSound, weatherKind } from "./sound.js";
 import { switchNet, MAINNET_OPEN } from "../net.js";
+import { chosen, KEY } from "./quality.js";
 import { endedName } from "../says.js";
 import { createRoute } from "./route.js";
 import { playCinematic } from "./intro.js";
@@ -115,6 +116,14 @@ $("home").addEventListener("click", () => live.home());
 // The network switch (testnet / mainnet) is hidden: the game reads web2 (12 Nov) and mainnet is closed.
 // switchNet + MAINNET_OPEN (src/net.js) stay for when it opens.
 $("net").hidden = true;
+// Graphics (12 Nov, src/live/quality.js): Auto, Low, High. A change reloads the page (smoothing is set when the
+// 3D view starts). Auto shows what it picked.
+{
+  const q = $("quality"), word = q.querySelector(".word");
+  const show = () => { const c = chosen(), now = live.quality?.().tier; word.textContent = c === "auto" ? "Auto" : c === "low" ? "Low" : "High"; q.title = c === "auto" ? `Graphics: auto, running ${now ?? "…"} for this machine. Tap for Low.` : `Graphics: ${c}. Tap for ${c === "low" ? "High" : "Auto"}.`; };
+  show(); setInterval(show, 5000);
+  q.addEventListener("click", () => { const next = { auto: "low", low: "high", high: "auto" }[chosen()]; try { localStorage.setItem(KEY, next); } catch {} toast(`Graphics: ${next === "auto" ? "Auto" : next === "low" ? "Low" : "High"}. Reloading…`); setTimeout(() => location.reload(), 600); });
+}
 setTimeout(() => ($("hint").style.opacity = 0), 9000);
 // A short line at the bottom for wallet news (a refused connection, nothing to smite).
 function toast(text) {

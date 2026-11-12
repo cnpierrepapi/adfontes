@@ -178,8 +178,10 @@ export function createFolk({ scene, islands, renderer, camera }) {
     }
     return building.get(id);
   }
-  // Keep every nation's people (a handful of nations, built once); only a very big world lets go.
-  function trim(id) { for (const k of [...crowds.keys()]) if (k !== id && crowds.size > 12) dropCrowd(k); }
+  // Keep the last few nations' people (the graphics tier sets how many: low 2, medium 4, high 12).
+  let maxTowns = 12;
+  function trim(id) { for (const k of [...crowds.keys()]) if (k !== id && crowds.size > maxTowns) dropCrowd(k); }
+  function setTowns(n) { maxTowns = Math.max(1, n | 0); for (const k of [...crowds.keys()]) if (crowds.size > maxTowns) dropCrowd(k); }
 
   /** Page load: fetch the kit at once, then build each nation's people one by one in idle time. */
   async function preload(ids) {
@@ -513,7 +515,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
   function setWar(id, stations) { if (stations?.length) warStations.set(id, stations); else warStations.delete(id); }
   // The citizen kit starts downloading the moment the page opens (10 Nov), not after every sky loads.
   ensureKit().catch(() => {});
-  return { setAgents, focus, update, pick, launch, smite, preload, crowds, shots, dayRecords, retown, errand, setWar, ready: (id) => crowds.has(id) };
+  return { setAgents, focus, update, pick, launch, smite, preload, setTowns, crowds, shots, dayRecords, retown, errand, setWar, ready: (id) => crowds.has(id) };
 }
 
 // A star-gun, almost a citizen's height (citizen-local metres; the barrel runs along +Y):

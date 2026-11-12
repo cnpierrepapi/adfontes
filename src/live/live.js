@@ -17,6 +17,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { createEffects } from "./effects.js";
 import { buildMind, mindBase } from "./mind.js";
 import { createFolk } from "./folk.js";
+import { TIERS, pickTier, readDevice, chosen, createStepper } from "./quality.js";
 import { citizenGlow } from "./citizens.js";
 import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mesh, school, fallUniforms, range, pick } from "../scene.js";
 
@@ -45,12 +46,18 @@ export async function startLive(canvas, hud, opts = {}) {
   const api = netApi; // this world's API (testnet or mainnet, src/net.js)
 
   // ---- renderer, labels, scene ----
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: !!opts.stills });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Graphics quality (12 Nov, src/live/quality.js): the player's choice, else picked from the device. Stills
+  // keep today's look. The GPU's name comes from a throwaway context, read before the real one is made.
+  const pick = chosen();
+  let tierName = opts.stills ? "high" : pick !== "auto" ? pick : (() => { const c = document.createElement("canvas"), gl = c.getContext("webgl2") || c.getContext("webgl"); const d = readDevice(gl); gl?.getExtension("WEBGL_lose_context")?.loseContext(); return pickTier(d); })();
+  const stepper = createStepper({ start: tierName, auto: pick === "auto" && !opts.stills });
+  const T0 = TIERS[tierName];
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: T0.antialias, preserveDrawingBuffer: !!opts.stills, powerPreference: tierName === "low" ? "low-power" : "default" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, T0.pixelRatio));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.12;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = T0.shadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   const labels = new CSS2DRenderer({ element: hud.plates });
 
@@ -657,7 +664,9 @@ export async function startLive(canvas, hud, opts = {}) {
   }
   // Every nation's people are built in the background as soon as their sky is in, so flying in
   // shows them at once instead of waiting for the 6.7 MB citizen kit and the shader compiles.
-  Promise.allSettled(W.clans.map((c) => loadMind(c.id))).then(() => { if (!opts.stills) folk.preload([...islands.keys()]); });
+  // Towns at page load: as many as the tier allows, nearest the view first (low: none until you fly in).
+  folk.setTowns?.(T0.towns);
+  Promise.allSettled(W.clans.map((c) => loadMind(c.id))).then(() => { if (!opts.stills) folk.preload([...islands.keys()].sort((a, b) => islands.get(a).position.length() - islands.get(b).position.length()).slice(0, T0.preload)); });
   // A finished corpus: if you're watching that nation, its Scholar fires the star into the sky
   // with the star-gun (it lights when it lands); otherwise the star just lights in place.
   // A made-up citation misfires (the Warden's ring follows from its own record).
@@ -856,7 +865,7 @@ export async function startLive(canvas, hud, opts = {}) {
   // ---- post: depth of field on what you're looking at + bloom on HDR effects (desktop) ----
   const lowPower = !opts.stills && (matchMedia("(pointer: coarse)").matches || innerWidth < 900);
   let composer = null, bokeh = null;
-  if (!lowPower) {
+  if (!lowPower && T0.bloom) {
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     bokeh = new BokehPass(scene, camera, { focus: 30, aperture: 0.00003, maxblur: 0.004 }); // gentle: far haze softens, focus stays crisp
@@ -885,7 +894,24 @@ export async function startLive(canvas, hud, opts = {}) {
   const tmpV = new THREE.Vector3(), tmpT = new THREE.Vector3();
   let prevAz = controls.azimuthAngle, bank = 0, frameN = 0, folkFor = null;
   const baseFov = 46;
+  // The quality stepper (12 Nov): low draws at most 30 times a second; a slow machine steps down a tier,
+  // and the lighter settings apply at once (antialias, fixed at start, waits for the next visit).
+  let lastDraw = performance.now();
+  function applyTier(name) {
+    const T = TIERS[name];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, T.pixelRatio));
+    if (!T.bloom && composer) { composer.dispose?.(); composer = null; bokeh = null; }
+    if (!T.shadows && renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; }); }
+    folk.setTowns?.(T.towns);
+    resize();
+    console.info(`[quality] ${name}`);
+  }
   function frame() {
+    const nowMs = performance.now();
+    if (!stepper.shouldDraw(nowMs - lastDraw)) { requestAnimationFrame(frame); return; }
+    const stepped = stepper.frame(nowMs - lastDraw);
+    lastDraw = nowMs;
+    if (stepped) { tierName = stepped; applyTier(stepped); }
     const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
     // Idle: after 20 s without input the gods' view slowly orbits.
     if (performance.now() - lastInput > 20000 && !flying) controls.rotate(dt * 0.035, 0, false);
@@ -974,7 +1000,7 @@ export async function startLive(canvas, hud, opts = {}) {
   frame();
   setTheme(opts.theme || "night");
   // setWars: show war lines without a world refresh (the intro recorder; display only).
-  return { setViewShift: (px) => { viewShift = Math.max(0, Math.round(px)); resize(); }, setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, poll: pollNow, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, feed, standingsRank: () => standings.ranks?.() ?? {} };
+  return { quality: () => ({ tier: tierName, auto: pick === "auto", memory: { ...renderer.info.memory }, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, towns: folk.crowds.size }), setViewShift: (px) => { viewShift = Math.max(0, Math.round(px)); resize(); }, setWars: (w) => { W.wars = w; updateWars(); }, world: W, flyTo, home, controls, camera, fx, riseNation, minds, loadMind, setTheme, theme: () => theme, folk, viewPlaza, refresh, poll: pollNow, smite, missed: () => missed, onRecord: (f) => recordHooks.add(f), islands, feed, standingsRank: () => standings.ranks?.() ?? {} };
 }
 
 // A clan's island: size from its mindmap, town from its state.
