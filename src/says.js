@@ -117,7 +117,7 @@ function saysRaw(r, c) {
     case "bless": return r.text ?? (r.mode === "rescue" ? `A god who had drifted away rushed back to ${c(r.clan)} with ${n2(r.near)} grace.` : `A god blessed ${c(r.clan)} with ${n2(r.near)} grace.`);
     // The marketplace (his calls 9 Nov): only the Brokers trade, from their own wallets.
     case "listed": return `${c(r.clan)}'s Broker put ${thing(r)} up for sale at ${fl(r.price)}.`;
-    case "correction": return `${c(r.clan)}: a counting bug had paid some of its gods reverence twice. Taken back: ${(r.changes || []).map((x) => `${Math.abs(x.d)}`).join(", ")}.`;
+    case "correction": return /lift/i.test(r.why || "") ? `${c(r.clan)}: a fresh start. Its people turn back to ${(r.changes || []).map((x) => `${godName(x.god)} (+${Math.round(x.d)})`).join(" and ")}.` : `${c(r.clan)}: a counting bug had paid some of its gods reverence twice. Taken back: ${(r.changes || []).map((x) => `${Math.abs(x.d)}`).join(", ")}.`;
     case "delisted": return `${c(r.clan)}'s Broker took ${thing(r)} off the market.`;
     case "market-buy": return `${c(r.clan)}'s Broker bought ${thing(r, c(r.seller))} for ${fl(r.price)}.`;
     case "market-sale": {

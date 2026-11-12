@@ -15,7 +15,7 @@ import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhispe
 import * as RV from "./reverence.mjs";
 // Whispers to re-hear once (9 Nov, see the per-nation reverence step): nation id -> DAO proposal id.
 const REHEAR_9NOV = { 2: 17, 3: 4, 6: 4 };
-import { overpaid } from "./revfix.mjs";
+import { overpaid, floorReverence } from "./revfix.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
 import { newName } from "./names.mjs";
@@ -152,6 +152,13 @@ for (let n = 0; n < days; n++) {
     }
     for (const [cid, gods] of Object.entries(flourish)) for (const [god, v] of Object.entries(gods)) if (s.rev[cid]?.gods[god]) s.rev[cid].gods[god].flourish = v;
     s.fixes = { ...(s.fixes || {}), revDouble9Nov: Date.now() };
+  }
+  // One-time reverence floor (his call 12 Nov ~22:35 UTC, engine/revfix.mjs): every seated god under 35 rises to
+  // 35-45; logged as a correction record, sealed with this turn.
+  if (net === "testnet" && !process.env.ADF_SIM_CHAIN && !s.fixes?.revFloor12Nov && s.rev) {
+    const raised = floorReverence(s, await chain.clans(), "floor-12nov");
+    for (const [cid, changes] of Object.entries(raised)) log({ kind: "correction", clan: Number(cid), changes, why: "A one-time lift (12 Nov): every god with a seat starts from at least 35, so the nations can be won back." });
+    s.fixes = { ...(s.fixes || {}), revFloor12Nov: Date.now() };
   }
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.

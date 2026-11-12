@@ -112,6 +112,17 @@ export async function finishAiAction(id, result) {
   if (p) return void (await p.query("update ai_actions set done = true, result = $2 where id = $1", [id, String(result).slice(0, 300)]));
   const m = aiFile(); const x = m.actions.find((y) => y.id === id); if (x) { x.done = true; x.result = String(result).slice(0, 300); } aiSave(m);
 }
+/** The queue at a glance: waiting, the next one's time, and today's sent / failed (the loop's status line). */
+export async function aiQueueStatus(net, since) {
+  const p = await db();
+  if (p) {
+    const r = (await p.query("select sum(case when not done then 1 else 0 end)::int waiting, min(case when not done then at end)::text next, sum(case when done and at >= $2 and result like 'ok%' then 1 else 0 end)::int sent, sum(case when done and at >= $2 and result like 'error%' then 1 else 0 end)::int failed from ai_actions where net = $1", [net, since])).rows[0];
+    return { waiting: r.waiting || 0, next: r.next ? Number(r.next) : null, sent: r.sent || 0, failed: r.failed || 0 };
+  }
+  const a = aiFile().actions.filter((x) => x.net === net);
+  const w = a.filter((x) => !x.done);
+  return { waiting: w.length, next: w.length ? Math.min(...w.map((x) => x.at)) : null, sent: a.filter((x) => x.done && x.at >= since && /^ok/.test(x.result || "")).length, failed: a.filter((x) => x.done && x.at >= since && /^error/.test(x.result || "")).length };
+}
 /** Today's actions by one god (for its daily allowance and one Act of God a day). */
 export async function aiActionsSince(net, god, since) {
   const p = await db();

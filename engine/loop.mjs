@@ -120,6 +120,8 @@ async function work() {
         if (Date.now() - (W.lastDiscover || 0) > 10 * 60e3) { W.lastDiscover = Date.now(); const ai = await discoverAiGods({ net: W.net, chain: W.chain }).catch(() => []); if (ai.length) { say(`${W.net}: ${ai.length} AI god(s) found on chain: ${ai.map((g) => g.name).join(", ")}`); W.planNow = true; } }
         // New AI gods start at once: plan their two hours now rather than at the next turn.
         if (W.planNow) { W.planNow = false; await run(W.net, ["--plan-only"]); }
+        // A status line every 10 minutes: the AI gods' queue (waiting, next, sent and failed today).
+        if (Date.now() - (W.lastAiStatus || 0) > 10 * 60e3) { W.lastAiStatus = Date.now(); const q = await store.aiQueueStatus(W.net, Date.now() - 86400e3).catch((e) => ({ error: String(e.message || e).slice(0, 100) })); say(`${W.net}: AI gods: ${q.error ? `queue unreadable: ${q.error}` : `${q.waiting} waiting, next ${q.next ? new Date(q.next).toISOString().slice(11, 19) : "-"}, ${q.sent} sent and ${q.failed} failed in the last day`}`); }
         const touched = await runDue({ net: W.net, chain: W.chain, limit: 1, log: say }).catch((e) => { say(`${W.net}: AI gods: ${String(e.message || e).slice(0, 120)}`); return []; });
         for (const id of touched || []) W.aiTouched.add(id);
       }

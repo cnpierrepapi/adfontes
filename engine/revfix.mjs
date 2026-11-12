@@ -53,3 +53,32 @@ export function overpaid(records) {
   for (const [c, gods] of Object.entries(fl)) for (const [g, v] of Object.entries(gods)) { const to = MOVED[`${c}:${g}`] ?? g; (flourish[c] ||= {})[to] = Math.max(flourish[c][to] || 0, v); }
   return { over, flourish, detail };
 }
+
+// His call 12 Nov (~22:35 UTC): reverence was too low for most gods after the AI takeover. One time only:
+// every god holding a seat in a living, unfallen nation gets at least 35, spread 35-45 by a seeded roll so
+// some sit higher; anyone already at 35 or more keeps theirs; outside gods and fallen nations are untouched.
+// Each nation then follows its most revered god again. Returns { [clan]: changes } for the sealed record.
+export const FLOOR = { min: 35, spread: 10 };
+export function floorReverence(s, onchain, seed) {
+  let h = 2166136261; for (const ch of String(seed)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const roll = () => { h = (h + 0x6d2b79f5) >>> 0; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const out = {};
+  for (const c of [...onchain].sort((a, b) => a.id - b.id)) {
+    const rv = s.rev?.[c.id];
+    if (!c.alive || !rv || s.clans?.[c.id]?.fallen) continue;
+    const changes = [];
+    for (const g of c.gods || []) {
+      const me = rv.gods[g.account];
+      if (!me || me.outsider || me.r >= FLOOR.min) continue;
+      const to = +(FLOOR.min + roll() * FLOOR.spread).toFixed(1);
+      changes.push({ god: g.account, d: +(to - me.r).toFixed(2), why: `reverence floor (12 Nov): raised from ${+me.r.toFixed(1)} to ${to}` });
+      me.r = to;
+    }
+    if (!changes.length) continue;
+    // Follow the most revered god again (an outside claimer below the seated gods steps back).
+    const top = Object.entries(rv.gods).sort((a, b) => b[1].r - a[1].r)[0];
+    if (top) { rv.followed = top[0]; if (rv.claimedBy && rv.gods[rv.claimedBy]?.outsider && rv.claimedBy !== top[0]) rv.claimedBy = null; }
+    out[c.id] = changes;
+  }
+  return out;
+}
