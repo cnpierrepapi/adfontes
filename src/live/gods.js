@@ -196,7 +196,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const blob = new Blob([JSON.stringify(k, null, 2)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `adfontes-${k.account.slice(0, 8)}.json` });
     a.click(); URL.revokeObjectURL(a.href);
-    toast("Key saved. Anyone with this file controls the account, so keep it private. MyNearWallet can import it too.");
+    toast("Key saved. Anyone with this file controls the account, so keep it private.");
   }
 
   // ---------------------------------------------------------------- the confirm card

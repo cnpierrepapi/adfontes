@@ -62,14 +62,16 @@ process.on("unhandledRejection", (e) => console.error("unhandled rejection:", St
 // Reverence (SPEC §12m) as the site sees it: who the nation follows and how much each god is revered.
 // A nation's standing is the reverence of the god it follows.
 // A nation's war, as the site shows it (engine/war.mjs).
-function warInfo(s, id) {
+// burned: { [warId]: { [clanId]: points burned off it in that war } }, from the sealed battle records.
+function warInfo(s, id, burned = {}) {
   const st = s.clans[id] || {};
   const w = Object.values(s.wars || {}).find((v) => v.status === "on" && (v.a === id || v.b === id));
   const base = { walls: +(st.walls || 0).toFixed(1), fairGame: Object.values(s.drafts || {}).some((d) => d.clan === id && d.passed) };
   if (!w) return base;
   const enemy = w.a === id ? w.b : w.a;
   return { ...base, id: w.id, enemy, since: w.startedDay, rounds: w.rounds || 0, attacker: w.a === id, offer: w.offer?.by ?? null,
-    hp: Math.max(0, Object.keys(st.owned || {}).length - 1), enemyHp: Math.max(0, Object.keys(s.clans[enemy]?.owned || {}).length - 1) };
+    hp: Math.max(0, Object.keys(st.owned || {}).length - 1), enemyHp: Math.max(0, Object.keys(s.clans[enemy]?.owned || {}).length - 1),
+    burned: burned[w.id]?.[id] || 0, enemyBurned: burned[w.id]?.[enemy] || 0 };
 }
 function revOf(s, id) {
   const rv = s.rev?.[id];
@@ -167,6 +169,16 @@ function makeApi(NET) {
           patron: await view("get_agent_wallet", { clan_id: c.id, role: "Patron" }).catch(() => null),
         }]))));
         const weather = last.records.find((r) => r.kind === "weather") ?? null;
+        // Points each side has lost in each war on now (the health bars over warring nations): the
+        // burned lists of its battle records, from the turn it started. Sealed turns are kept in memory.
+        const burned = {};
+        for (const w of Object.values(s.wars || {}).filter((v) => v.status === "on")) {
+          const per = (burned[w.id] = { [w.a]: 0, [w.b]: 0 });
+          for (let d = w.startedDay ?? s.day; d <= s.day; d++) {
+            const day = await dayOf(d).catch(() => null);
+            for (const r of day?.records || []) if (r.kind === "battle" && r.war === w.id) for (const [cid, side] of Object.entries(r.sides || {})) if (cid in per) per[cid] += side.burned?.length || 0;
+          }
+        }
         // The world clock now (SPEC §14), not as of the last engine turn: the sky turns on time.
         let clock = null;
         if (s.clock?.startNear) {
@@ -194,7 +206,7 @@ function makeApi(NET) {
               // A nation that lost a war has fallen (the chain still holds it so its gods can claim).
               id: c.id, name: c.name, dao: c.dao, alive: c.alive && !st.fallen, gods: c.gods.length,
               fallen: st.fallen ?? null,
-              war: warInfo(s, c.id),
+              war: warInfo(s, c.id, burned),
               // What the nation holds: florins, and what they're worth in NEAR at today's florin value.
               florins: florins(c.florins), worth: +(florins(c.florins) * near(totals.florin_value)).toFixed(4),
               // What it can spend (11 Nov): less its gods' ring-fenced grant (granted NEAR at today's

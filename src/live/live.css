@@ -431,3 +431,12 @@ body.night .walletmenu { border-color: rgba(255, 184, 0, 0.45); }
 body.night .walletpick.primary { color: var(--ink); }
 body.night .walletmenu .txin { background: rgba(255, 255, 255, 0.95); color: var(--ink); }
 body.night .walletpick.primary, body .walletpick.primary { background: linear-gradient(135deg, #ffe08a, #ffb800); color: #1d1430; }
+
+/* War health bar on a warring nation's plate (12 Nov). Shown at every zoom, phones too. */
+.plate .hp { display: grid; gap: 2px; margin-top: 3px; font-style: normal; min-width: 96px; }
+.plate .hp em { display: block; height: 7px; border-radius: 4px; background: rgba(60, 20, 20, 0.25); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(120, 30, 30, 0.35); }
+.plate .hp u { display: block; height: 100%; border-radius: 4px; text-decoration: none; transition: width 0.6s ease, background 0.6s ease; }
+.plate .hp small { font-family: var(--mono); font-size: 0.62rem; color: #a3271f; font-weight: 700; }
+body.night .plate .hp small { color: #ff8b7f; }
+.plates.far .plate .hp small { display: none; }
+@media (max-width: 640px) { .plate .hp { min-width: 64px; } .plate .hp em { height: 5px; } .plate .hp small { display: none; } }

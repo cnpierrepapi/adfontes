@@ -1,10 +1,9 @@
-// The gods' wallet (SPEC §12j): connect with Meteor, MyNearWallet or HOT, read the chain straight
+// The gods' wallet (SPEC §12j): connect with Meteor or HOT, read the chain straight
 // from the browser, and send exactly the call the confirm card showed. Nothing here ever sees a key:
 // the wallet signs, we only hand it the transaction.
 import "./buffer-shim.js"; // must stay the first import
 import { setupWalletSelector, actionCreators } from "@near-wallet-selector/core";
 import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";
-import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
 import { returned } from "./calls.js";
 
 const RPC = { testnet: "https://near-testnet.drpc.org", mainnet: "https://rpc.mainnet.fastnear.com" }; // testnet: dRPC (9 Nov)
@@ -48,7 +47,7 @@ export async function createWallet(net) {
   }
 
   // HOT has no testnet, so it's offered only when the world runs on mainnet.
-  const modules = [setupMeteorWallet(), setupMyNearWallet()];
+  const modules = [setupMeteorWallet()];
   if (net === "mainnet") {
     const { setupHotWallet } = await import("@near-wallet-selector/hot-wallet");
     modules.push(setupHotWallet());
@@ -135,7 +134,7 @@ export async function createWallet(net) {
     const { KeyPair } = await import("@near-js/crypto");
     const pk = KeyPair.fromRandom("ed25519").getPublicKey();
     const tx = createTransaction("someone.testnet", pk, c.receiver, 1n, [actionCreators.functionCall(c.method, enc.encode(JSON.stringify(c.args)), BigInt(c.gas), BigInt(c.deposit))], new Uint8Array(32));
-    // The very step Meteor and MyNearWallet take to hand the transaction over (their bundles call Buffer).
+    // The very step Meteor takes to hand the transaction over (their bundles call Buffer).
     return Buffer.from(encodeTransaction(tx)).toString("base64").length;
   }
   // A signer with the same signAndSendTransaction shape the wallets have, for the browser key.

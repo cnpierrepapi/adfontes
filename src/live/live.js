@@ -191,6 +191,7 @@ export async function startLive(canvas, hud, opts = {}) {
     isl.add(lbl);
     isl.userData.plate = plate;
     isl.userData.plateObj = lbl;
+    if (status !== "dead") setHealth(isl, c.war);
     return isl;
   }
   // His call 10 Nov: a nation whose last god claimed out leaves the map (no ruins). One that fell in
@@ -371,6 +372,28 @@ export async function startLive(canvas, hud, opts = {}) {
   // Plain red, not HDR: an over-bright red washed out to white and looked like an ordinary path.
   const warMat = new THREE.MeshBasicMaterial({ color: 0xff2238, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false });
   const warLinks = new Map();
+  // A health bar on a warring nation's plate (12 Nov): knowledge points left of what it would hold
+  // without the war (left + burned in this war). Empty = the island falls. Gone when the war ends.
+  function setHealth(isl, war) {
+    const plate = isl.userData.plate;
+    if (!plate) return;
+    let bar = plate.querySelector(".hp");
+    if (!war?.id || isl.userData.status === "dead") { bar?.remove(); return; }
+    if (!bar) {
+      bar = document.createElement("i");
+      bar.className = "hp";
+      bar.innerHTML = `<em><u></u></em><small></small>`;
+      plate.append(bar);
+    }
+    const left = war.hp ?? 0, full = Math.max(1, left + (war.burned ?? 0));
+    const k = Math.max(0, Math.min(1, left / full));
+    const fill = bar.querySelector("u");
+    fill.style.width = `${(k * 100).toFixed(1)}%`;
+    fill.style.background = k > 0.6 ? "#3fae5a" : k > 0.3 ? "#e0a325" : "#d23c32";
+    bar.querySelector("small").textContent = `at war · ${left}/${full}`;
+    bar.title = `${left} knowledge points left; ${war.burned ?? 0} burned in this war. At 0 the nation falls.`;
+  }
+
   function updateWars() {
     const want = new Set((W.wars || []).map((w) => pairKey(w.a, w.b)));
     for (const [k, m] of warLinks) if (!want.has(k)) { m.removeFromParent(); m.geometry.dispose(); warLinks.delete(k); }
@@ -544,7 +567,7 @@ export async function startLive(canvas, hud, opts = {}) {
       for (const route of (await api("trades?days=20")).routes || []) addRoute(route);
       updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
       W.wars = now.wars || []; updateWars(); warLayer.update(now);
-      for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; } }
+      for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; setHealth(isl, c.war); } }
       for (let d = Math.max(1, lastDay); d <= now.day; d++) { const recs = cut(fresh(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)), d)); if (!recs.length) continue; folk.dayRecords(recs, d); fx.enqueue(holdBack(bigFirst(recs))); }
       W.jackpot = now.jackpot;
       standings.update(now);

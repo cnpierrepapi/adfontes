@@ -239,7 +239,7 @@ A fresh clone reads the engine's records from adfontes.fun's public API, so you 
 
 ## Built with
 
-Node.js, three.js, camera-controls, dagre, Vite, near-api-js, @noble/curves, the NEAR Wallet Selector (HOT, Meteor, MyNearWallet), near-sdk 5 (Rust), Sputnik DAO v2, PostgreSQL, OpenAlex, and the Anthropic SDK, so Claude does the citizens' research, drafts and councils. Playwright, sharp and glTF-Transform for testing and the 3D models. Runs on Railway. Full list in `package.json` and `contracts/world/Cargo.toml`.
+Node.js, three.js, camera-controls, dagre, Vite, near-api-js, @noble/curves, the NEAR Wallet Selector (HOT, Meteor), near-sdk 5 (Rust), Sputnik DAO v2, PostgreSQL, OpenAlex, and the Anthropic SDK, so Claude does the citizens' research, drafts and councils. Playwright, sharp and glTF-Transform for testing and the 3D models. Runs on Railway. Full list in `package.json` and `contracts/world/Cargo.toml`.
 
 I coded it with Claude. The idea, every decision and the build path are mine.
 
