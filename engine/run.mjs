@@ -53,7 +53,7 @@ const sinceLast = (Date.now() - (s.lastRunAt || 0)) / 60000;
 // A new nation brings a new day at once (his call 7 Nov): a nation on chain the world hasn't seen yet
 // skips the wait.
 const unseen = (await chain.clans()).some((c) => c.alive && !s.clans[c.id]);
-if (!INSTANT && !process.argv.includes("--force") && !unseen && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
+if (!INSTANT && !process.argv.includes("--force") && !process.argv.includes("--plan-only") && !unseen && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
   console.log(`last run ${sinceLast.toFixed(0)} min ago (under ${CFG.minMinutesBetweenRuns}): nothing to do, the schedule runs the next day`);
   await store.close();
   process.exit(0);
@@ -78,6 +78,15 @@ if ((await store.spendOn(today)) === 0 && s.spend.usd > 0) await store.addSpend(
 const spendBase = await store.spendOn(today), godsBase = await store.spendOn(`${today}|gods`);
 setSpentToday(spendBase, godsBase);
 onSpend((usd, pot) => store.addSpend(pot === "gods" ? `${today}|gods` : today, usd));
+// --plan-only (12 Nov): plan the AI gods' next two hours now and stop. Nothing else in the world moves and
+// the state isn't saved (the loop asks for this when it finds new AI gods, rather than waiting for the turn).
+const PLAN_ONLY = process.argv.includes("--plan-only");
+if (PLAN_ONLY) {
+  try { const p = await planGods({ net, s, onchain: await chain.clans(), chain }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
+  catch (e) { console.log(`  AI gods: no plan: ${String(e.message || e).slice(0, 200)}`); }
+  await store.close();
+  process.exit(0);
+}
 let capNoted = false;
 const chance = (p) => Math.random() < p;
 // Agent wallets (8 Nov): the Broker's buys and the Patron's war chest and walls are signed by the

@@ -35,7 +35,9 @@ for (const net of NETS) {
     dayQueued: false,
   };
   say(`${net}: watching; ${worlds[net].known.size} nations known, last day ${s.lastRunAt ? new Date(s.lastRunAt).toISOString() : "never"}`);
-  if (net === "testnet") { const ai = await discoverAiGods({ net, chain: worlds[net].chain }).catch((e) => { say(`${net}: AI gods not checked: ${String(e.message || e).slice(0, 100)}`); return []; }); if (ai.length) say(`${net}: ${ai.length} AI god(s) found on chain: ${ai.map((g) => g.name).join(", ")}`); }
+  if (net === "testnet") { const ai = await discoverAiGods({ net, chain: worlds[net].chain }).catch((e) => { say(`${net}: AI gods not checked: ${String(e.message || e).slice(0, 100)}`); return []; }); if (ai.length) { say(`${net}: ${ai.length} AI god(s) found on chain: ${ai.map((g) => g.name).join(", ")}`); worlds[net].planNow = true; }
+    // AI gods with nothing waiting to send (a restart, or found earlier): plan now, not at the next turn.
+    if ((await store.aiGods(net)).length && !(await store.dueAiActions(net, Number.MAX_SAFE_INTEGER, 1)).length) worlds[net].planNow = true; }
 }
 // The database stays open: the loop reads the AI gods' queue every tick (engine/aiact.mjs runDue).
 
@@ -115,7 +117,9 @@ async function work() {
         await run(W.net, ["--instant", ids.join(","), ...(fresh ? ["--fresh"] : []), ...(quiet.length ? ["--no-research", quiet.join(",")] : [])]);
       } else if (W.net === "testnet") {
         // AI gods (12 Nov): send the next due action; the next look sees it and runs that nation's instant turn.
-        if (Date.now() - (W.lastDiscover || 0) > 10 * 60e3) { W.lastDiscover = Date.now(); const ai = await discoverAiGods({ net: W.net, chain: W.chain }).catch(() => []); if (ai.length) say(`${W.net}: ${ai.length} AI god(s) found on chain: ${ai.map((g) => g.name).join(", ")}`); }
+        if (Date.now() - (W.lastDiscover || 0) > 10 * 60e3) { W.lastDiscover = Date.now(); const ai = await discoverAiGods({ net: W.net, chain: W.chain }).catch(() => []); if (ai.length) { say(`${W.net}: ${ai.length} AI god(s) found on chain: ${ai.map((g) => g.name).join(", ")}`); W.planNow = true; } }
+        // New AI gods start at once: plan their two hours now rather than at the next turn.
+        if (W.planNow) { W.planNow = false; await run(W.net, ["--plan-only"]); }
         const touched = await runDue({ net: W.net, chain: W.chain, limit: 1, log: say }).catch((e) => { say(`${W.net}: AI gods: ${String(e.message || e).slice(0, 120)}`); return []; });
         for (const id of touched || []) W.aiTouched.add(id);
       }

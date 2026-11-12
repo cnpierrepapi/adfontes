@@ -129,3 +129,11 @@ ok(fake.some((a) => a.kind === "rule" && a.gift === 5) && fake.some((a) => a.kin
   ok((await store.godNames([`lugh.${op}`]))[`lugh.${op}`] === "Lugh", "an AI god shows under its own god name");
   fs.rmSync(dir, { recursive: true, force: true });
 }
+// 10. New AI gods start at once (12 Nov: the takeover landed ~85 min before the next turn, and the nations are
+//     hungry): when the loop finds new AI gods on chain, it plans their two hours straight away (run.mjs --plan-only).
+{
+  const fs = await import("node:fs");
+  const run = fs.readFileSync(new URL("./run.mjs", import.meta.url), "utf8"), loop = fs.readFileSync(new URL("./loop.mjs", import.meta.url), "utf8");
+  ok(/--plan-only/.test(run) && /PLAN_ONLY[\s\S]{0,400}planGods\(/.test(run), "run.mjs --plan-only plans the AI gods and touches nothing else");
+  ok(/planNow = true/.test(loop) && /"--plan-only"/.test(loop), "the loop asks for a plan as soon as it finds new AI gods");
+}

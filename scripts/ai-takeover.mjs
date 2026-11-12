@@ -42,7 +42,7 @@ if (!SEND || !plan.length) { await store.close(); } else {
 
 const ownerFile = arg("--owner-key", `.keys/${world}.json`);
 const ok = JSON.parse(fs.readFileSync(ownerFile, "utf8")); // never printed
-const provider = new JsonRpcProvider({ url: "https://near-testnet.drpc.org" });
+const provider = new JsonRpcProvider({ url: "https://rpc.testnet.fastnear.com" }); // steadier than dRPC for sends (12 Nov: two 500s)
 const owner = new Account(ok.account_id, provider, ok.private_key);
 if (ok.account_id !== (await chain.config()).owner) throw new Error(`${ownerFile} is not the world's owner`);
 for (const p of plan) {
@@ -50,7 +50,11 @@ for (const p of plan) {
   await chain.aiEnsure(p.to, 0.6);
   if (!(await store.claimGodName(p.to, p.name))) console.log(`(name ${p.name} was already given; kept)`);
   await store.addAiGod("testnet", p.to, p.name, temperamentOf(p.name));
-  const r = await owner.callFunctionRaw({ contractId: world, methodName: "move_god", args: { clan_id: p.clan, from: p.from, to: p.to }, deposit: 2n * 10n ** 22n, gas: 200n * 10n ** 12n });
+  // An RPC error after sending (a 500 on a move that landed, 12 Nov): look on chain before trying again.
+  const movedNow = async () => (await chain.clans()).find((c) => c.id === p.clan).gods.some((g) => g.account === p.to);
+  let r = null;
+  try { r = await A.sendChecked({ send: () => owner.callFunctionRaw({ contractId: world, methodName: "move_god", args: { clan_id: p.clan, from: p.from, to: p.to }, deposit: 2n * 10n ** 22n, gas: 200n * 10n ** 12n }), landed: async () => ((await movedNow()) ? { transaction: { hash: "(landed)" }, receipts_outcome: [] } : null) }); }
+  catch (e) { console.log(`FAILED ${String(e.message || e).slice(0, 200)}`); continue; }
   const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
   if (fail) { console.log(`FAILED ${JSON.stringify(fail.outcome.status.Failure).slice(0, 200)}`); continue; }
   await new Promise((res) => setTimeout(res, 3000)); // testnet views lag a write
