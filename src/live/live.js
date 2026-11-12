@@ -387,10 +387,13 @@ export async function startLive(canvas, hud, opts = {}) {
     }
     const left = war.hp ?? 0, full = Math.max(1, left + (war.burned ?? 0));
     const k = Math.max(0, Math.min(1, left / full));
-    const fill = bar.querySelector("u");
-    fill.style.width = `${(k * 100).toFixed(1)}%`;
-    fill.style.background = k > 0.6 ? "#3fae5a" : k > 0.3 ? "#e0a325" : "#d23c32";
-    bar.querySelector("small").textContent = `at war · ${left}/${full}`;
+    // Winning or losing (his call 12 Nov: the two sides' bars must differ by colour, not just length):
+    // the side with more of its island left is winning; equal health = more points left; else even.
+    const eLeft = war.enemyHp ?? 0, eK = eLeft / Math.max(1, eLeft + (war.enemyBurned ?? 0));
+    const side = k > eK + 1e-9 ? "winning" : k < eK - 1e-9 ? "losing" : left > eLeft ? "winning" : left < eLeft ? "losing" : "even";
+    bar.dataset.side = side;
+    bar.querySelector("u").style.width = `${(k * 100).toFixed(1)}%`;
+    bar.querySelector("small").textContent = `${side} · ${left}/${full}`;
     bar.title = `${left} knowledge points left; ${war.burned ?? 0} burned in this war. At 0 the nation falls.`;
   }
 

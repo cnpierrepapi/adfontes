@@ -440,3 +440,9 @@ body.night .walletpick.primary, body .walletpick.primary { background: linear-gr
 body.night .plate .hp small { color: #ff8b7f; }
 .plates.far .plate .hp small { display: none; }
 @media (max-width: 640px) { .plate .hp { min-width: 64px; } .plate .hp em { height: 5px; } .plate .hp small { display: none; } }
+/* Winning green, losing red, even amber (12 Nov). */
+.plate .hp[data-side="winning"] u { background: linear-gradient(90deg, #2f9e4f, #5fd27a); }
+.plate .hp[data-side="losing"] u { background: linear-gradient(90deg, #b3261e, #ef5a4c); }
+.plate .hp[data-side="even"] u { background: linear-gradient(90deg, #c98d00, #f0c040); }
+.plate .hp[data-side="winning"] small { color: #1f7a3a; }
+body.night .plate .hp[data-side="winning"] small { color: #7fe39a; }
