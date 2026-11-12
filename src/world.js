@@ -18,14 +18,14 @@ const says = (r) => saysWith(r, clanName);
 
 async function loadWorld() {
   W = await api("world");
-  const net = W.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet, the practice world";
+  const net = "the live world";
   const phase = W.clock?.phase ? ` · ${W.clock.phase}` : "";
   $("where").textContent = `${seasonLabel()} · turn ${W.day}${phase} · ${net} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   if (W.weather) {
     const w = W.weather;
     const mood = w.change > 0.1 ? "hot" : w.change < -0.05 ? "cold" : "mild";
     $("weather").className = `weather ${mood}`;
-    $("weather").textContent = `${mood === "hot" ? "Hot week" : mood === "cold" ? "Cold week" : "Mild week"}: NEAR was $${w.price.toFixed(2)} (${w.change > 0 ? "+" : ""}${(w.change * 100).toFixed(1)}%) in the week of ${w.week}. ${mood === "hot" ? "Agents rush." : mood === "cold" ? "Agents slow down and get careful." : ""}`;
+    $("weather").textContent = `${mood === "hot" ? "Hot week" : mood === "cold" ? "Cold week" : "Mild week"} in the week of ${w.week}. ${mood === "hot" ? "Agents rush." : mood === "cold" ? "Agents slow down and get careful." : ""}`;
   }
 
   $("clans").replaceChildren(
@@ -35,12 +35,12 @@ async function loadWorld() {
         el("p", { className: "meta", textContent: `${c.field ?? "?"} · ${c.mbti ?? ""} · ${c.gods} god${c.gods === 1 ? "" : "s"}${c.alive ? "" : " · gone"}` }),
         el("div", { className: "nums" },
           el("div", {}, String(c.points), el("small", { textContent: "points on its mindmap" })),
-          el("div", {}, String(Math.round(c.florins ?? 0)), el("small", { textContent: `florins, worth ${n2(c.worth ?? 0)} NEAR` })),
+          el("div", {}, String(Math.round(c.florins ?? 0)), el("small", { textContent: `florins, worth ${n2(c.worth ?? 0)} grace` })),
           el("div", {}, String(c.clean_gifts), el("small", { textContent: "clean gifts" })),
         ),
         el("p", { className: "line" }, el("b", { textContent: "Deepest line: " }), c.line.length ? c.line.join(" → ") : "nothing yet"),
         c.whisper ? el("p", { className: "line", textContent: `Its gods whisper: "${c.whisper}"` }) : "",
-        el("p", { className: "line" }, el("a", { href: `https://${W.net === "mainnet" ? "" : "testnet."}nearblocks.io/address/${c.dao}`, target: "_blank", rel: "noopener", textContent: "its DAO on NEAR" })),
+        el("p", { className: "line" }, el("a", { href: `https://${W.net === "mainnet" ? "" : "testnet."}nearblocks.io/address/${c.dao}`, target: "_blank", rel: "noopener", textContent: "its council's public record ↗" })),
       ),
     ),
   );
@@ -136,10 +136,10 @@ $("prove-form").addEventListener("submit", async (e) => {
   const onchain = await rootOnNear(p.rpc, p.world, d);
   const ok = h === onchain;
   out.replaceChildren(
-    el("div", { className: `verdict ${ok ? "yes" : "no"}`, textContent: ok ? `Matches NEAR. This is exactly what happened on turn ${d}.` : "Doesn't match. This record isn't what was sealed that day." }),
+    el("div", { className: `verdict ${ok ? "yes" : "no"}`, textContent: ok ? `Matches the public record. This is exactly what happened on turn ${d}.` : "Doesn't match. This record isn't what was sealed that day." }),
     el("div", { textContent: `The record: ${says(p.record)}` }),
     el("div", { textContent: `Your browser got: ${h}` }),
-    el("div", {}, `NEAR holds: ${onchain} (read from `, el("a", { href: `${p.explorer}/address/${p.world}`, target: "_blank", rel: "noopener", textContent: p.world }), ")"),
+    el("div", {}, `The public record holds: ${onchain} (read from `, el("a", { href: `${p.explorer}/address/${p.world}`, target: "_blank", rel: "noopener", textContent: p.world }), ")"),
     el("div", { textContent: `${p.path.length} steps up the tree from this record to the day's fingerprint.` }),
   );
 });

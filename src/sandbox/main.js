@@ -73,7 +73,7 @@ async function tick() {
 // ---- the bar: where the copy stands, fast-forward, a fresh copy ----
 function showBar() {
   $("turn").textContent = `Copy of turn ${st.seed_day ?? "?"} · +${st.turns} turn${st.turns === 1 ? "" : "s"}`;
-  $("dial").textContent = `Sandbox · a copy, nothing here is on NEAR`;
+  $("dial").textContent = `Sandbox · a copy, nothing here touches the real world`;
   $("run").textContent = st.running ? `running ${st.done} of ${st.target}…` : st.error ? "a turn failed, try again" : st.pending ? "the shock lands on the next turn" : st.newer ? `The live world has moved on${st.newer.nations ? ` (${st.newer.nations} nations now)` : ""}. Fresh copy to catch up.` : "";
   $("reset").classList.toggle("newer", !!st.newer);
   for (const b of $("bar").querySelectorAll(".sb-ff button")) b.disabled = !!st.running;
@@ -250,7 +250,7 @@ window.__sandbox = { get st() { return st; }, live: () => live };
 // ---- start: reuse this tab's copy if it's still there, else offer a new one ----
 const info = await get("info").catch(() => null);
 $("start-p").textContent = info?.base_day
-  ? `This is a copy of the live world as it stood at turn ${info.base_day}: the same nations, florins, citizens, wars and gods. The same engine runs it, with stand-in minds instead of Claude, and nothing in it touches NEAR. Rain fire on a nation or start a bully war, then run it ahead a day or a week.`
+  ? `This is a copy of the live world as it stood at turn ${info.base_day}: the same nations, florins, citizens, wars and gods. The same engine runs it, with stand-in minds instead of Claude, and nothing in it touches the real world. Rain fire on a nation or start a bully war, then run it ahead a day or a week.`
   : "The sandbox is taking its first copy of the live world. Give it a minute.";
 if (id) st = await get(`${id}/state`).catch(() => { sessionStorage.removeItem(KEY); id = null; return null; });
 if (st) await open(); else $("go").addEventListener("click", async () => {

@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import pg from "pg";
 import { sha256, leafOf } from "./world.mjs";
+import { nameFor } from "./godnames.mjs";
 
 const URL = process.env.DATABASE_URL;
 // Local files live here (the fast-forward simulation uses its own folder: ADF_STATE_DIR).
@@ -23,6 +24,7 @@ async function db() {
     create table if not exists sponsored (net text, account text, at timestamptz default now(), tx text, primary key (net, account));
     create table if not exists llm_spend (date text primary key, usd double precision not null default 0);
     create table if not exists logins (id text primary key, net text not null, account text not null, salt text not null, auth text not null, iv text not null, ct text not null, at timestamptz default now());
+    create table if not exists god_names (account text primary key, name text unique not null, at timestamptz default now());
   `);
   await ready;
   return pool;
@@ -31,6 +33,33 @@ async function db() {
 // Email log-ins (11 Nov): id = a peppered hash of the email (the email itself is never stored), auth =
 // a hash of the login token the browser derives from the passphrase, ct = the NEAR key encrypted in
 // the browser with a key from the same passphrase. Nothing here can sign anything.
+// God names (12 Nov, engine/godnames.mjs): each account gets one name for good, never shared. The table's
+// unique name column settles two servers naming at once: the loser re-reads and takes the next free one.
+const NAMES_FILE = () => `${DIR}/god_names.json`;
+export async function godNames(accounts) {
+  const want = [...new Set((accounts || []).filter(Boolean).map(String))];
+  const p = await db();
+  const byAcct = new Map(), taken = new Set();
+  if (!p) {
+    const all = fs.existsSync(NAMES_FILE()) ? JSON.parse(fs.readFileSync(NAMES_FILE(), "utf8")) : {};
+    for (const [a, n] of Object.entries(all)) { byAcct.set(a, n); taken.add(n); }
+    let changed = false;
+    for (const a of want.sort()) if (!byAcct.has(a)) { const n = nameFor(a, taken); byAcct.set(a, n); taken.add(n); all[a] = n; changed = true; }
+    if (changed) { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(NAMES_FILE(), JSON.stringify(all)); }
+    return Object.fromEntries(want.map((a) => [a, byAcct.get(a)]));
+  }
+  for (const r of (await p.query("select account, name from god_names")).rows) { byAcct.set(r.account, r.name); taken.add(r.name); }
+  for (const a of want) {
+    for (let tries = 0; !byAcct.has(a) && tries < 8; tries++) {
+      const n = nameFor(a, taken);
+      const r = await p.query("insert into god_names (account, name) values ($1, $2) on conflict do nothing", [a, n]);
+      if (r.rowCount === 1) { byAcct.set(a, n); taken.add(n); break; }
+      for (const x of (await p.query("select account, name from god_names where account = $1 or name = $2", [a, n])).rows) { taken.add(x.name); if (x.account === a) byAcct.set(a, x.name); }
+    }
+  }
+  return Object.fromEntries(want.map((a) => [a, byAcct.get(a) ?? nameFor(a, taken)]));
+}
+
 const LOGINS = () => `${DIR}/logins.json`;
 const loginFile = () => (fs.existsSync(LOGINS()) ? JSON.parse(fs.readFileSync(LOGINS(), "utf8")) : {});
 export async function getLogin(id) {

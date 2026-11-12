@@ -77,7 +77,7 @@ function threads(recs, name) {
     if (r.kind === "trade") {
       deals.push({ who: `${N(r.seller)}'s Broker`, side: "r", text: r.sellerWhy, rec: r });
       if (r.why) deals.push({ who: `${N(r.buyer)}'s Broker`, side: "l", text: r.why, rec: r });
-      deals.push({ note: `${N(r.buyer)} buys "${r.point}" for ${fl(r.price)} (fair price ${fl(r.fair)}), signed from its Broker's own wallet.` });
+      deals.push({ note: `${N(r.buyer)} buys "${r.point}" for ${fl(r.price)} (fair price ${fl(r.fair)}), paid by its Broker.` });
     } else deals.push({ note: `${N(r.clan)}'s Broker ${r.why.replace(/^walked away: /, "walked away. ")}`, rec: r });
   }
   return [
@@ -110,15 +110,15 @@ export async function startTalk(root, W) {
       el("small", {}, m.rec ? `turn ${m.rec._d}` : "", m.rec ? check(m.rec) : null));
   };
   const check = (rec) => {
-    const b = el("button", { type: "button", className: "talk-check", textContent: "check on NEAR" });
+    const b = el("button", { type: "button", className: "talk-check", textContent: "check the public record" });
     b.addEventListener("click", async () => {
       b.disabled = true; b.textContent = "checking…";
       try {
         const v = await verifyRecord(rec._d, rec._i);
-        b.textContent = v.error ? v.error : v.ok ? `✓ matches NEAR, turn ${rec._d}` : "✗ doesn't match";
-        b.title = v.ok ? `Your browser got ${v.mine}; NEAR holds ${v.onchain} (${v.steps} steps up the proof)` : "";
+        b.textContent = v.error ? v.error : v.ok ? `✓ matches the public record, turn ${rec._d}` : "✗ doesn't match";
+        b.title = v.ok ? `Your browser got ${v.mine}; the public record holds ${v.onchain} (${v.steps} steps up the proof)` : "";
         b.classList.add(v.ok ? "yes" : "no");
-      } catch { b.textContent = "NEAR didn't answer, try again"; b.disabled = false; }
+      } catch { b.textContent = "The public record didn't answer, try again"; b.disabled = false; }
     });
     return b;
   };

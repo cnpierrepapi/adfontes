@@ -68,7 +68,7 @@ export async function createWallet(net) {
 
   async function wallets() {
     const out = [];
-    if (net === "testnet") out.push({ id: "local", name: "Play with email", icon: "/favicon.svg", available: true, note: "Free. No wallet needed." });
+    if (net === "testnet") out.push({ id: "local", name: "Play with email", icon: "/favicon.svg", available: true, note: "Free. Nothing to install." });
     for (const m of selector.store.getState().modules) out.push({ id: m.id, name: m.metadata.name, icon: m.metadata.iconUrl, available: m.metadata.available !== false });
     return out;
   }
@@ -81,7 +81,7 @@ export async function createWallet(net) {
   }
   async function signIn(walletId) {
     if (walletId === "local") {
-      if (net !== "testnet") throw new Error("Playing without a wallet is for testnet only.");
+      if (net !== "testnet") throw new Error("Playing with email isn't open in this world.");
       if (!localKey()) {
         const { KeyPair } = await import("@near-js/crypto");
         const kp = KeyPair.fromRandom("ed25519");
@@ -116,7 +116,7 @@ export async function createWallet(net) {
     for (let c of calls) {
       if (c.bind) {
         const prev = returned(outs.at(-1));
-        if (prev == null) throw new Error("The proposal went in but its number didn't come back. Vote on it from Open proposals.");
+        if (prev == null) throw new Error("The motion went in but its number didn't come back. Vote on it from Open motions.");
         c = c.bind(prev);
       }
       let out;
@@ -160,9 +160,9 @@ export async function createWallet(net) {
           const j = await call(url, "query", { request_type: "view_access_key", finality: "optimistic", account_id: lk.account, public_key: pk.toString() }, 8000).catch(() => null);
           if (j?.result?.nonce != null) { ak = j.result; break; }
           // An unknown key comes back as a "result" carrying an error, not as an error.
-          if (j?.error || j?.result?.error) throw new Error(`NEAR doesn't know this browser's key for ${lk.account} yet. If you just made the account, wait a few seconds and try again.`);
+          if (j?.error || j?.result?.error) throw new Error(`The world doesn't know this browser yet. If you just made your account, wait a few seconds and try again.`);
         }
-        if (!ak) throw new Error("Couldn't reach NEAR. Nothing was sent. Try again.");
+        if (!ak) throw new Error("Couldn't reach the world. Nothing was sent. Try again.");
         const nonce = (BigInt(ak.nonce) > lastNonce ? BigInt(ak.nonce) : lastNonce) + 1n;
         lastNonce = nonce;
         const tx = createTransaction(lk.account, pk, receiverId, nonce, actions, baseDecode(ak.block_hash));
@@ -177,7 +177,7 @@ export async function createWallet(net) {
           // The chain itself said no (bad nonce, not enough NEAR, expired): no point trying elsewhere.
           if (j?.error?.cause?.name === "INVALID_TRANSACTION") { refused = j.error.data ?? j.error.cause; break; }
         }
-        if (refused) throw new Error(`NEAR refused it: ${JSON.stringify(refused).slice(0, 160)}`);
+        if (refused) throw new Error(`The world refused it: ${JSON.stringify(refused).slice(0, 160)}`);
         const t0 = Date.now();
         while (Date.now() - t0 < 120e3) {
           for (const url of SEND_RPCS) {
@@ -186,7 +186,7 @@ export async function createWallet(net) {
           }
           await new Promise((r) => setTimeout(r, 1000));
         }
-        throw new Error(handed ? "NEAR hasn't confirmed it yet. It may still go through: look again in a minute before trying again." : "Couldn't reach NEAR. Nothing was sent. Try again.");
+        throw new Error(handed ? "The world hasn't confirmed it yet. It may still go through: look again in a minute before trying again." : "Couldn't reach the world. Nothing was sent. Try again.");
       },
     };
   }
@@ -255,9 +255,9 @@ export function failure(outcome) {
     const f = o?.outcome?.status?.Failure;
     if (f) {
       const msg = JSON.stringify(f).match(/Smart contract panicked: ([^"\\]+)/)?.[1] ?? JSON.stringify(f).match(/"(ERR_[A-Z_]+)/)?.[1];
-      return msg || "the transaction failed";
+      return msg || "it didn't go through";
     }
   }
-  if (outcome?.status?.Failure) return "the transaction failed";
+  if (outcome?.status?.Failure) return "it didn't go through";
   return null;
 }

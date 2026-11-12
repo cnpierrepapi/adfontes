@@ -6,7 +6,7 @@ const TECH_LINE = {
   press: "Copies are cheap, so every sale of its research earns a little more.",
   spectacles: "Its Scholars can read by lamplight now and work right through the night.",
   clock: "Days run on time, and upkeep costs 30% less.",
-  bookkeeping: "It can take more NEAR before its citizens get lazy.",
+  bookkeeping: "It can take more grace before its citizens get lazy.",
   astrolabe: "It buys at half price and spots ruins from far off.",
 };
 
@@ -43,6 +43,10 @@ export function setEnded(list) {
   ENDED.clear();
   for (const e of list || []) if (e && e.id != null && e.name) ENDED.set(Number(e.id), e.name);
 }
+// Gods' names (12 Nov): the world sends every god's generated name; the game never shows an account id.
+const GOD_NAMES = new Map();
+export function setNames(map) { for (const [a, n] of Object.entries(map || {})) GOD_NAMES.set(a, n); }
+export const godName = (a) => GOD_NAMES.get(String(a)) ?? "a god";
 /** The name of an ended nation, for its sealed records; null for any other id. */
 export const endedName = (id) => ENDED.get(Number(id)) ?? null;
 export function says(r, clanName) {
@@ -51,8 +55,8 @@ export function says(r, clanName) {
 }
 function saysRaw(r, c) {
   switch (r.kind) {
-    case "alias": return `${c(r.clan)} got its own name on NEAR: ${r.account}.`;
-    case "forwarded": return `${n2(r.near)} NEAR came in at ${r.account} and went on to ${c(r.clan)}'s treasury.`;
+    case "alias": return `${c(r.clan)} got its own address in the public record.`;
+    case "forwarded": return `${n2(r.near)} grace came in at its address and went on to ${c(r.clan)}'s treasury.`;
     case "corpus": return `${r.scholar} of ${c(r.clan)} wrote up "${r.point}" from ${r.cites} citations${r.fake ? `, ${r.fake} of them made up` : ""}.${r.stir === "doubt" ? " It unsettles the citizens." : r.stir === "faith" ? " It lifts their faith." : ""}`;
     case "trade": return r.tool ? `${c(r.buyer)} bought a figure kit from ${c(r.seller)} for ${fl(r.price)}.` : `${c(r.buyer)} bought what ${c(r.seller)} knows about "${r.about ?? r.point}" for ${fl(r.price)}.`;
     case "broker": if (r.why?.startsWith("walked away")) return `${c(r.clan)}'s Broker walked away from ${c(r.seller)}'s ${r.wanted === "a figure kit" ? "figure kit" : `work on "${r.wanted}"`}: it asked ${fl(r.price)}, more than twice the fair ${fl(r.fair)}.`;
@@ -63,11 +67,11 @@ function saysRaw(r, c) {
     }
     case "fire": return r.cause === "god" ? `An Act of God: ${c(r.from)}'s gods rained fire on ${c(r.clan)}. ${fl(r.florins)} burned.` : `An Act of God: fire fell on ${c(r.clan)}${r.cause === "bully" ? (r.against != null ? ` as it declared war on ${c(r.against)}, a far smaller nation` : " for picking on a weaker nation") : r.cause === "famine" ? " for hoarding while others went hungry" : " for hoarding the world's florins"}. ${fl(r.florins)} burned.`;
     case "fire-refused": return `${c(r.clan)}'s gods called fire on ${c(r.target)}, but the heavens refused: ${r.why}.`;
-    case "warden": return `The Warden caught a made-up citation in ${c(r.clan)}'s work. ${r.fine != null ? `${fl(r.fine)} burned` : `${n2(r.bounty)} NEAR fine`}.`;
+    case "warden": return `The Warden caught a made-up citation in ${c(r.clan)}'s work. ${r.fine != null ? `${fl(r.fine)} burned` : `${n2(r.bounty)} grace fine`}.`;
     case "trickster": return `A Trickster called ${r.name} moved into ${c(r.clan)}. Its gods went quiet for a day.`;
     case "absorb": return `${c(r.clan)} reached "${r.via[0]}" and found ${r.points.length} point${r.points.length === 1 ? "" : "s"} of a dead nation's knowledge in the ruins.`;
     case "ruins": return `${c(r.clan)} died. Its ${r.points} points are ruins now, waiting to be found.`;
-    case "upkeep": return r.florins != null ? `${c(r.clan)} burned ${fl(r.paid ?? r.florins)} feeding ${r.agents} citizens.` : `${c(r.clan)} paid ${n2(r.paid ?? r.amount)} NEAR to keep ${r.agents} agents fed.`;
+    case "upkeep": return r.florins != null ? `${c(r.clan)} burned ${fl(r.paid ?? r.florins)} feeding ${r.agents} citizens.` : `${c(r.clan)} paid ${n2(r.paid ?? r.amount)} grace to keep ${r.agents} agents fed.`;
     case "mint": return `${c(r.clan)} earned ${fl(r.florins)}.`;
     case "team": return `${c(r.clan)} gathered its first citizens.`;
     case "founded": return `A new nation state rose: ${r.name}, a ${r.field} nation.`;
@@ -75,19 +79,19 @@ function saysRaw(r, c) {
     case "ruling": return `${c(r.clan)}'s gods ${r.status === "Rewarded" ? "rewarded" : r.status === "Punished" ? "punished" : "ignored"} a draft.`;
     case "tech": return `${c(r.clan)} has the ${r.name} now. ${TECH_LINE[r.tech] ?? ""}`.trim();
     case "rooted": return `${c(r.clan)}'s gods rooted out "${r.point}"${r.cut.length > 1 ? ` and ${r.cut.length - 1} point${r.cut.length === 2 ? "" : "s"} that grew from it` : ""}.${r.doubt ? " The citizens breathe easier." : " Nobody was worried about it."}`;
-    case "dawn": return "Dawn. NEAR turned up 3%, so the sun is up and the scholars work at full pace.";
-    case "dusk": return "Dusk. NEAR slipped 3%, so night falls and the scholars slow down.";
+    case "dawn": return "Dawn. The world's luck turned up, so the sun is up and the scholars work at full pace.";
+    case "dusk": return "Dusk. The world's luck slipped, so night falls and the scholars slow down.";
     case "needs":
-      return r.mood === "hungry" ? `${c(r.clan)} is hungry. Its citizens want ${n2(r.need)} NEAR a day and got far less.`
+      return r.mood === "hungry" ? `${c(r.clan)} is hungry. Its citizens want ${n2(r.need)} grace a day and got far less.`
         : r.mood === "sated" ? `${c(r.clan)} got more than it needs. Its citizens are getting lazy.`
         : r.was ? `${c(r.clan)} is content again.` : `${c(r.clan)} is content.`;
     case "sweep": return "The day's fees went to the treasury.";
-    case "weather": return `Weather: NEAR ${n2(r.price)} in the week of ${r.week}.`;
+    case "weather": return `The weather turned for the week of ${r.week}.`;
     case "error": return r.clan == null ? "A service didn't answer for a moment. The turn carried on." : `${c(r.clan)} had a bad day (a service didn't answer).`;
     case "budget": return "The day's research budget ran out: research and drafts wait until tomorrow.";
     case "waiting": return `${c(r.clan)}'s citizens wait in the plaza for their god's first whisper.`;
-    case "reverence": return `${c(r.clan)}'s reverence: ${Object.entries(r.gods || {}).map(([g, v]) => `${g.split(".")[0]} ${v}`).join(", ") || "no gods"}${r.followed ? `; it follows ${r.followed.split(".")[0]}` : ""}.`;
-    case "reverence-change": return `Reverence changed after a draft: ${(r.changes || []).map((x) => `${x.god.split(".")[0]} ${x.d > 0 ? "+" : ""}${x.d} (${x.why})`).join(", ")}.`;
+    case "reverence": return `${c(r.clan)}'s reverence: ${Object.entries(r.gods || {}).map(([g, v]) => `${godName(g)} ${v}`).join(", ") || "no gods"}${r.followed ? `; it follows ${godName(r.followed)}` : ""}.`;
+    case "reverence-change": return `Reverence changed after a draft: ${(r.changes || []).map((x) => `${godName(x.god)} ${x.d > 0 ? "+" : ""}${x.d} (${x.why})`).join(", ")}.`;
     case "report": return `In ${c(r.clan)}: ${r.claim}.`;
     case "report-settled": return `In ${c(r.clan)}: the report about ${r.accused} was ${r.truth ? "true" : "a grudge"}; ${r.outcome === "stunted" ? "they were stunted" : "nobody acted"}.`;
     // War (the finale): the citizens decide, the gods watch.
@@ -106,7 +110,7 @@ function saysRaw(r, c) {
     // A whisper, heard (9 Nov): one citizen says what they made of their god's words.
     case "heard": return `In ${c(r.clan)}, ${r.citizen ?? "a citizen"} on the god's words: "${r.says}"`;
     // A god's blessing (the live world's own carry their words in r.text; the season world's don't).
-    case "bless": return r.text ?? (r.mode === "rescue" ? `A god who had drifted away rushed back to ${c(r.clan)} with ${n2(r.near)} NEAR.` : `A god blessed ${c(r.clan)} with ${n2(r.near)} NEAR.`);
+    case "bless": return r.text ?? (r.mode === "rescue" ? `A god who had drifted away rushed back to ${c(r.clan)} with ${n2(r.near)} grace.` : `A god blessed ${c(r.clan)} with ${n2(r.near)} grace.`);
     // The marketplace (his calls 9 Nov): only the Brokers trade, from their own wallets.
     case "listed": return `${c(r.clan)}'s Broker put ${thing(r)} up for sale at ${fl(r.price)}.`;
     case "correction": return `${c(r.clan)}: a counting bug had paid some of its gods reverence twice. Taken back: ${(r.changes || []).map((x) => `${Math.abs(x.d)}`).join(", ")}.`;
@@ -119,11 +123,11 @@ function saysRaw(r, c) {
       return r.learned ? `${c(r.buyer)} learned "${r.learned}" from what it bought off ${c(r.seller)}.` : `${c(r.buyer)} already knew "${r.title}" but keeps the copy it bought.`;
     }
     case "royalty": return `${c(r.clan)} earned ${fl(r.florins)} in patent royalties. ${r.sales === 1 ? "Someone bought research" : `${r.sales} buys of research`} in its patents' chains.`;
-    case "tokens": if (r.minted === 1 && r.title) return `${c(r.for)}'s ${r.patents ? "patent" : r.kits ? "figure kit" : "research"} "${r.title}" is a token on NEAR now.`;
-      if (r.minted === 1) return `1 new token on NEAR: ${r.patents ? "a patent" : r.kits ? "a figure kit" : "research"}.`;
-      return `${r.minted} new tokens on NEAR: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
-    case "gas": return `${c(r.clan)}'s ${r.role} got ${n2(r.near)} NEAR for gas, to keep signing its trades.`;
-    case "tokens-moved": return `${c(r.clan)}'s tokens moved into its Broker's own wallet.`;
+    case "tokens": if (r.minted === 1 && r.title) return `${c(r.for)}'s ${r.patents ? "patent" : r.kits ? "figure kit" : "research"} "${r.title}" is the Broker's to trade now.`;
+      if (r.minted === 1) return `1 new thing for the Brokers to trade: ${r.patents ? "a patent" : r.kits ? "a figure kit" : "research"}.`;
+      return `${r.minted} new things for the Brokers to trade: ${r.research} research, ${r.patents} patent${r.patents === 1 ? "" : "s"}, ${r.kits} kit${r.kits === 1 ? "" : "s"}.`;
+    case "gas": return `${c(r.clan)}'s ${r.role} got ${n2(r.near)} grace to cover its fees.`;
+    case "tokens-moved": return `${c(r.clan)}'s research, patents and kits went to its Broker.`;
     case "fallen": return `${r.name} has ${r.surrendered ? "run out of money and surrendered" : "fallen"}. ${r.byName} took ${fl(r.loot)}${r.knowledge ? `, ${r.knowledge} point${r.knowledge === 1 ? "" : "s"} of its knowledge` : ""} and two of its people.`;
     default: return r.kind;
   }

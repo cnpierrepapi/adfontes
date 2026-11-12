@@ -10,7 +10,7 @@ export function offerTimelapse() {
   return new Promise((resolve) => {
     const card = el("div", { className: "tl-offer" },
       el("b", { textContent: "Try the sandbox" }),
-      el("small", { textContent: "A copy of this world you can shock. Rain fire on a nation or start a war, run it ahead a day or a week, and see if it gets back on its feet. Nothing in it touches NEAR." }));
+      el("small", { textContent: "A copy of this world you can shock. Rain fire on a nation or start a war, run it ahead a day or a week, and see if it gets back on its feet. Nothing in it touches the real world." }));
     const go = el("a", { className: "tl-go", href: "/timelapse/", textContent: "Open it" });
     const no = el("button", { type: "button", className: "tl-no", textContent: "Not now" });
     card.append(el("div", { className: "tl-row" }, go, no));

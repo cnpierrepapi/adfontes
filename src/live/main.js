@@ -24,7 +24,7 @@ function showClan(c, status) {
   const m = document.createElement("p"); m.className = "meta";
   m.textContent = `${[c.field, c.mbti, `${c.gods} god${c.gods === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}${status === "dead" ? " · ruins" : status === "rich" ? " · sated, so a bit lazy" : status === "neglected" ? ((c.tricksters || 0) > 0 ? " · neglected, a Trickster moved in" : " · hungry, it needs a blessing") : status === "new" ? " · new, waiting for its first day" : ""}`;
   const nums = document.createElement("div"); nums.className = "nums";
-  for (const [v, l] of [[c.points, "points on its mindmap"], [Math.round(c.florins ?? 0), `florins, worth ${n3(c.worth ?? 0)} NEAR`], [c.clean_gifts, "clean gifts"]]) {
+  for (const [v, l] of [[c.points, "points on its mindmap"], [Math.round(c.florins ?? 0), `florins, worth ${n3(c.worth ?? 0)} grace`], [c.clean_gifts, "clean gifts"]]) {
     const d = document.createElement("div"); d.textContent = v;
     const s = document.createElement("small"); s.textContent = l; d.append(s); nums.append(d);
   }
@@ -43,14 +43,11 @@ function showClan(c, status) {
   else if (c.war && !c.war.fairGame) war.textContent = "Safe from war until its first patent passes.";
   // Its named account (9 Nov): anything sent there goes on to the nation's treasury, its DAO.
   const named = document.createElement("p"); named.className = "named";
-  if (c.alias) {
-    const a = document.createElement("a"); a.href = `${W.explorer}/address/${c.alias}`; a.target = "_blank"; a.rel = "noopener"; a.textContent = c.alias;
-    named.append("Named account: ", a, ". NEAR sent here ends up in its treasury.");
-  }
+  // (Its named account, a NEAR address, isn't shown: the game reads web2, 12 Nov. /judge lists it.)
   // What its DAO holds as NEP-245 tokens: research copies, patents (one of a kind), figure kits.
   if (c.tokens && (c.tokens.research || c.tokens.patents || c.tokens.kits)) {
     const t = c.tokens, pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-    named.append(...(named.childNodes.length ? [document.createElement("br")] : []), `Its Broker holds ${pl(t.research, "research token")}, ${pl(t.patents, "patent")} and ${pl(t.kits, "kit")} on NEAR, to trade.`);
+    named.append(...(named.childNodes.length ? [document.createElement("br")] : []), `Its Broker holds ${pl(t.research, "piece")} of research, ${pl(t.patents, "patent")} and ${pl(t.kits, "kit")}, to trade.`);
   }
   // Phones (his note 11 Nov: the panel hid the world): the sheet opens short and a grab bar expands it.
   p.classList.remove("full");
@@ -99,15 +96,14 @@ function showDial(W) {
   const c = W.clock;
   if (c) {
     const mood = soundKind(W);
-    const pct = `${c.change > 0 ? "+" : ""}${(c.change * 100).toFixed(1)}%`;
     $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
-    if (phone()) { $("dial").textContent = `turn ${W.day} · ${c.phase === "day" ? "☀" : "☾"} · NEAR $${c.price.toFixed(2)} (${pct})`; return; } // one short line on phones
-    $("dial").textContent = `${seasonLabel()} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"} · NEAR $${c.price.toFixed(2)} (${pct})${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : ` · testnet${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)}` : ""}`}`;
+    if (phone()) { $("dial").textContent = `turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"}`; return; } // one short line on phones
+    $("dial").textContent = `${seasonLabel()} · turn ${W.day} · ${c.phase === "day" ? "☀ day" : "☾ night"}${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} grace` : ""}`;
     return;
   }
   const w = W.weather, mood = w ? weatherKind(w.change) : "";
   $("dial").className = `dial ${mood === "storm" ? "cold" : mood}`;
-  $("dial").textContent = `${seasonLabel()} · turn ${W.day}${w ? ` · ${MOOD_WORD[mood]} week, NEAR $${w.price.toFixed(2)} (${w.change > 0 ? "+" : ""}${(w.change * 100).toFixed(1)}%)` : ""}${W.net === "mainnet" ? (W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : "") : " · testnet"}`;
+  $("dial").textContent = `${seasonLabel()} · turn ${W.day}${w ? ` · ${MOOD_WORD[mood]} week` : ""}${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} grace` : ""}`;
 }
 const W = live.world;
 showDial(W);
@@ -116,14 +112,9 @@ liveApi = live;
 if (!forcedTheme && W.clock?.phase === "day") { theme = "day"; live.setTheme(theme); }
 function onDay(now) { showDial(now); sound.setKind(soundKind(now)); }
 $("home").addEventListener("click", () => live.home());
-// Testnet (practice, free test NEAR) or mainnet (real NEAR): same world, same rules.
-const netBtn = $("net");
-netBtn.innerHTML = W.net === "mainnet" ? `◉ <span class="word">Mainnet</span>` : `○ <span class="word">Testnet</span>`;
-netBtn.classList.toggle("main", W.net === "mainnet");
-netBtn.addEventListener("click", () => {
-  if (!MAINNET_OPEN) return toast("Mainnet opens after the hackathon. The first version was retired on 10 November; this season plays on testnet.");
-  switchNet(W.net === "mainnet" ? "testnet" : "mainnet");
-});
+// The network switch (testnet / mainnet) is hidden: the game reads web2 (12 Nov) and mainnet is closed.
+// switchNet + MAINNET_OPEN (src/net.js) stay for when it opens.
+$("net").hidden = true;
 setTimeout(() => ($("hint").style.opacity = 0), 9000);
 // A short line at the bottom for wallet news (a refused connection, nothing to smite).
 function toast(text) {

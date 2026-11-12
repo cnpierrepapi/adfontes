@@ -28,8 +28,8 @@ export function daoPower(world, dao, bond, method, args, description) {
   const kind = daoKind(world, method, args);
   const yes = (id) => ({ receiver: dao, method: "act_proposal", args: { id, action: "VoteApprove", proposal: kind }, show: { id, action: "VoteApprove" }, deposit: 0n, gas: T(GAS.vote), note: "Your yes vote on it." });
   return [
-    { receiver: dao, method: "add_proposal", args: { proposal: { description, kind } }, show: { proposal: { description, kind: { FunctionCall: { receiver_id: world, actions: [{ method_name: method, args, deposit: "0" }] } } } }, deposit: BigInt(bond), gas: T(GAS.propose), note: `Proposes it to the nation's DAO. The ${near(bond)} NEAR bond comes back to you when the proposal passes or expires.` },
-    { ...yes("the new proposal's number"), bind: (proposalId) => yes(Number(proposalId)), note: "Your yes vote on it. Your wallet asks a second time, once the proposal has its number." },
+    { receiver: dao, method: "add_proposal", args: { proposal: { description, kind } }, show: { proposal: { description, kind: { FunctionCall: { receiver_id: world, actions: [{ method_name: method, args, deposit: "0" }] } } } }, deposit: BigInt(bond), gas: T(GAS.propose), note: `Puts it to the nation's council. The ${near(bond)} grace comes back to you when the motion passes or runs out.` },
+    { ...yes("the new motion's number"), bind: (proposalId) => yes(Number(proposalId)), note: "Your yes vote on it. Meteor asks a second time, once the motion has its number." },
   ];
 }
 

@@ -1,3 +1,4 @@
+import { godName } from "../says.js";
 import { inRanking } from "../season.js";
 // The season standings (SPEC §12k step 3, ranked by reverence per §12m): a small table in the HUD.
 // Nations ranked by the reverence of the god they follow; an arrow for how each moved since you
@@ -24,12 +25,12 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
 
   function draw(rows) {
     if (!rows) return;
-    head.textContent = `${open ? "▾" : "▸"} Season standings${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} NEAR` : ""}`;
+    head.textContent = `${open ? "▾" : "▸"} Season standings${W.jackpot ? ` · jackpot ${W.jackpot.near.toFixed(3)} grace` : ""}`;
     list.hidden = !open;
     list.replaceChildren(...rows.map((r, i) => {
       const was = seen[r.id];
       const move = was == null ? "" : was > i + 1 ? `▲${was - i - 1}` : was < i + 1 ? `▼${i + 1 - was}` : "";
-      const li = el("li", { title: r.waiting ? "waiting for its god's first whisper" : `follows ${r.follows ?? "no god"}` },
+      const li = el("li", { title: r.waiting ? "waiting for its god's first whisper" : `follows ${r.follows ? godName(r.follows) : "no god"}` },
         el("span", { className: "n", textContent: String(i + 1) }),
         el("span", { className: "name", textContent: r.name }),
         el("span", { className: `mv ${move.startsWith("▲") ? "up" : move ? "down" : ""}`, textContent: move }),

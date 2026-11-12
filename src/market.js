@@ -13,7 +13,7 @@ const KIND = { research: "Research", patent: "Patent", kit: "Figure kit" };
 let names = {}, explorer = "https://testnet.nearblocks.io";
 // Ended nations are taken off the market by the API (10 Nov), so every id here is a nation in play.
 const who = (id) => names[id] ?? `nation ${id}`;
-const txLink = (tx, text = "NEAR ↗") => (tx ? el("a", { className: "near", href: `${explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: text, title: "Open this transaction on NEAR" }) : null);
+const txLink = (tx, text = "Public record ↗") => (tx ? el("a", { className: "near", href: `${explorer}/txns/${tx}`, target: "_blank", rel: "noopener", textContent: text, title: "Open its public record" }) : null);
 // Price against fair: "12 florins (1.5x fair)".
 const vsFair = (price, fair) => (fair ? ` (${n2(price / fair)}x the fair price today)` : "");
 
@@ -22,7 +22,7 @@ async function load() {
   if (M.error) throw new Error(M.error);
   names = Object.fromEntries(W.clans.map((c) => [c.id, c.name]));
   explorer = M.explorer;
-  $("where").textContent = `the marketplace · ${M.net === "mainnet" ? "NEAR mainnet" : "NEAR testnet"} · turn ${M.day} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  $("where").textContent = `the marketplace · turn ${M.day} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
   const note = $("note");
   note.hidden = M.counts.listings > 0;
   note.textContent = "Nothing has been listed yet. The Brokers' market days haven't started on this world. The patents below already earn royalties from the ordinary trades, though.";
@@ -43,7 +43,7 @@ async function load() {
     el("p", { className: "mprice" }, el("b", { textContent: fl(l.price) }), vsFair(l.price, l.fair)),
     el("p", { className: "mseller", textContent: `Sold by ${who(l.seller)}'s Broker since turn ${l.day}${l.copy && l.sold ? `, ${l.sold} sold` : ""}` }),
     l.reason ? el("blockquote", { textContent: l.reason }) : null,
-    txLink(l.tx, "Listing on NEAR ↗"),
+    txLink(l.tx, "Listing's public record ↗"),
   ));
   $("open").replaceChildren(...(cards.length ? cards : [el("p", { className: "mempty", textContent: "Nothing on sale right now." })]));
 

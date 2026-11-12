@@ -186,9 +186,12 @@ function makeApi(NET) {
           try { await extendHours(clockCache, s.clock.startNear); } catch { /* feed down: last known hours */ }
           clock = clockAt(clockCache.rows, Date.now());
         }
+        // Every god's name (12 Nov, engine/godnames.mjs): the game shows these, never an account id.
+        const godAccounts = [...clans.flatMap((c) => (c.gods || []).map((g) => g.account)), ...Object.values(s.rev || {}).flatMap((rv) => [...Object.keys(rv.gods || {}), rv.followed, rv.claimedBy])];
+        const names = await store.godNames(godAccounts).catch((e) => { console.error("god names", e); return {}; });
         return {
           net: NET, world: WORLD, explorer: EXPLORER, day: cfg.day, season: cfg.season, paused: cfg.paused,
-          weather, clock,
+          weather, clock, names,
           totals: { balance: near(totals.balance), owed: near(totals.liabilities), backing: near(totals.backing), florins: florins(totals.florins), florin_value: near(totals.florin_value), minted: florins(totals.minted), burned: florins(totals.burned) },
         // The season jackpot (SPEC §14): 14% of everything put in, held by the world contract and
         // paid to the winning nation's gods after the season ends. Both networks.
@@ -616,7 +619,7 @@ async function loginPost(req, res, what) {
 async function sponsorPost(req, res) {
   const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
   const pool = process.env.SPONSOR_ACCOUNT_ID, key = process.env.SPONSOR_PRIVATE_KEY;
-  if (!pool || !key) return json(503, { error: "Sponsorship isn't set up." });
+  if (!pool || !key) return json(503, { error: "Free starting grace isn't set up." });
   let body = "";
   for await (const chunk of req) { body += chunk; if (body.length > 512) return json(413, { error: "Too long." }); }
   let account = "", publicKey = "";
@@ -624,18 +627,18 @@ async function sponsorPost(req, res) {
   // Play without a wallet (9 Nov): {public_key} -> the pool makes the player a named account
   // (amber-quill-417.<pool>), funded to found a nation, with that key on it. Same limits as below.
   if (publicKey) return sponsorNamed(req, res, json, pool, key, publicKey);
-  if (!/^[a-z0-9_\-.]{2,64}$/.test(account) || !(account.endsWith(".testnet") || /^[0-9a-f]{64}$/.test(account))) return json(400, { error: "That isn't a testnet account." });
+  if (!/^[a-z0-9_\-.]{2,64}$/.test(account) || !(account.endsWith(".testnet") || /^[0-9a-f]{64}$/.test(account))) return json(400, { error: "That account isn't one we know." });
   if (account.startsWith("adf-") || account === pool) return json(400, { error: "That account belongs to the world." });
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
   const today = (sponsorByIp.get(ip) || []).filter((t) => Date.now() - t < 24 * 3600e3);
   if (today.length >= 2) return json(429, { error: "Two sponsorships a day from one connection. Try again tomorrow, or bless a nation instead." });
-  if (await store.wasSponsored("testnet", account)) return json(409, { error: "This account was already sponsored once. Bless a nation instead." });
+  if (await store.wasSponsored("testnet", account)) return json(409, { error: "This account already got its starting grace. Bless a nation instead." });
   // A brand-new implicit account (a key made in the browser: Play without a wallet) has no account on
   // chain until NEAR is sent to it; the transfer creates it. Named accounts must already exist.
   const have = (await balanceOf(account)) ?? (/^[0-9a-f]{64}$/.test(account) ? 0n : null);
-  if (have == null) return json(404, { error: "That account doesn't exist on testnet yet." });
+  if (have == null) return json(404, { error: "That account doesn't exist yet." });
   if (have >= SPONSOR.perNation) return json(400, { error: "You already have enough to found a nation." });
-  if ((await nationsLeft(pool)) < 1) return json(410, { error: "New testnet nations are full for now. Bless a nation to become one of its gods." });
+  if ((await nationsLeft(pool)) < 1) return json(410, { error: "New nations are full for now. Bless a nation to become one of its gods." });
   try {
     const amount = SPONSOR.perNation - have;
     const tx = await topUp(pool, key, account, amount);
@@ -652,11 +655,11 @@ async function sponsorPost(req, res) {
 }
 
 async function sponsorNamed(req, res, json, pool, key, publicKey) {
-  if (!PUBLIC_KEY.test(publicKey)) return json(400, { error: "That isn't a NEAR public key." });
+  if (!PUBLIC_KEY.test(publicKey)) return json(400, { error: "That sign-in didn't look right. Try again." });
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
   const today = (sponsorByIp.get(ip) || []).filter((t) => Date.now() - t < 24 * 3600e3);
   if (today.length >= 2) return json(429, { error: "Two sponsorships a day from one connection. Try again tomorrow, or bless a nation instead." });
-  if ((await nationsLeft(pool)) < 1) return json(410, { error: "New testnet nations are full for now. Bless a nation to become one of its gods." });
+  if ((await nationsLeft(pool)) < 1) return json(410, { error: "New nations are full for now. Bless a nation to become one of its gods." });
   sponsorByIp.set(ip, [...today, Date.now()]); // counted before the send, so two quick clicks can't both pass
   try {
     const { account, tx } = await createNamed(pool, key, publicKey, SPONSOR.perNation);
