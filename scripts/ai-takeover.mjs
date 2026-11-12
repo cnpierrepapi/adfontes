@@ -23,7 +23,9 @@ const world = chain.world, op = chain.operator;
 const KEEP = new Set((arg("--keep", "olive-codex-852.adf-pool1-hf0w8.testnet")).split(","));
 const only = arg("--only") ? Number(arg("--only")) : null;
 const clans = (await chain.clans()).filter((c) => c.alive && (only == null || c.id === only));
+// Names already given: this store's, and the live world's (its database is only reachable inside Railway).
 const taken = new Set(await store.takenNames());
+if (world === "w6.adf-pool1-hf0w8.testnet") for (const n of Object.values((await (await fetch("https://adfontes.fun/api/world")).json()).names || {})) taken.add(n);
 const plan = [];
 for (const c of clans) {
   if (/^north pole$/i.test(c.name)) continue;

@@ -109,3 +109,23 @@ ok(fake.some((a) => a.kind === "rule" && a.gift === 5) && fake.some((a) => a.kin
   const loop = fs.readFileSync(new URL("./loop.mjs", import.meta.url), "utf8");
   ok(!/store\.close\(\)/.test(loop), "loop.mjs keeps its database open (it sends the AI gods' actions)");
 }
+// 9. The chain is the record (12 Nov: the live database can't be reached from outside Railway): the engine
+//    finds AI gods on chain (a seat held by <a god's name>.<operator>), registers them and fixes their names.
+{
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "adf-disc-"));
+  process.env.ADF_STATE_DIR = dir; process.env.DATABASE_URL = "";
+  const store = await import("./store.mjs?disc"), { discoverAiGods } = await import("./aiact.mjs");
+  const op = "adfontes-mw1fjpfx.testnet";
+  const chain = { operator: op, clans: async () => [
+    { id: 1, alive: true, gods: [{ account: `lugh.${op}` }, { account: "olive-codex-852.adf-pool1-hf0w8.testnet" }] },
+    { id: 2, alive: true, gods: [{ account: `ahura-mazda.${op}` }, { account: `trader2.${op}` }, { account: `nobody-known.${op}` }] },
+  ] };
+  const found = await discoverAiGods({ net: "testnet", chain, store });
+  ok(found.map((g) => g.name).sort().join(",") === "Ahura Mazda,Lugh", `AI gods found on chain by their account names (${found.map((g) => g.name)})`);
+  ok(!found.some((g) => /trader|olive|nobody/.test(g.account)), "agent wallets, human gods and unknown names aren't AI gods");
+  const again = await discoverAiGods({ net: "testnet", chain, store });
+  ok(again.length === 0 && (await store.aiGods("testnet")).length === 2, "finding them twice registers nothing twice");
+  ok((await store.godNames([`lugh.${op}`]))[`lugh.${op}`] === "Lugh", "an AI god shows under its own god name");
+  fs.rmSync(dir, { recursive: true, force: true });
+}

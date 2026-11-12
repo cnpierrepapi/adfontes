@@ -8,6 +8,7 @@ import * as C from "../src/live/calls.js";
 import * as store from "./store.mjs";
 import { godsPlan, canSpend } from "./llm.mjs";
 import { CFG } from "./config.mjs";
+import { NAMES } from "./godnames.mjs";
 
 export const ALLOWANCE = 2; // NEAR an AI god may bless with in a UTC day (testnet NEAR from the sponsor pool)
 const TEMPERAMENTS = ["devout", "stern", "generous", "patient", "fiery", "playful", "watchful", "proud"];
@@ -46,8 +47,26 @@ export async function situations({ net, s, onchain, now = Date.now() }) {
   return out;
 }
 
+/** The chain is the record (12 Nov): a seat held by <a god's name>.<operator> is an AI god. Registers any not yet
+ *  known and fixes its name; returns the new ones. (The takeover runs from this PC, which can't reach the database.) */
+export async function discoverAiGods({ net, chain, store: st = store }) {
+  const known = new Set((await st.aiGods(net)).map((g) => g.account));
+  const byAccount = new Map(NAMES.map((n) => [A.accountFor(n, chain.operator), n]));
+  const found = [];
+  for (const c of (await chain.clans()).filter((x) => x.alive)) for (const g of c.gods || []) {
+    const name = byAccount.get(g.account);
+    if (!name || known.has(g.account)) continue;
+    known.add(g.account);
+    await st.addAiGod(net, g.account, name, temperamentOf(name));
+    await st.claimGodName(g.account, name);
+    found.push({ account: g.account, name });
+  }
+  return found;
+}
+
 /** Plan the next span for every AI god and queue it. Quiet (no plan, no error) when the gods' pot is spent. */
-export async function planGods({ net, s, onchain, start = Date.now(), span = 2 * 3600e3, seed = String(start) }) {
+export async function planGods({ net, s, onchain, chain = null, start = Date.now(), span = 2 * 3600e3, seed = String(start) }) {
+  if (chain) await discoverAiGods({ net, chain });
   const sits = await situations({ net, s, onchain, now: start });
   if (!sits.length) return { gods: 0, actions: 0, why: "no AI gods" };
   if (!canSpend("god")) return { gods: sits.length, actions: 0, why: `the AI gods' $${CFG.godsCapUsd} for today is spent` };

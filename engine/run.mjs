@@ -1172,7 +1172,7 @@ for (let n = 0; n < days; n++) {
 // AI gods (12 Nov, engine/aiact.mjs): after a scheduled turn is sealed, plan their next two hours. A failed
 // plan is logged and the gods sit quiet until the next turn; it never touches the sealed turn.
 if (!INSTANT) {
-  try { const p = await planGods({ net, s, onchain: await chain.clans() }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
+  try { const p = await planGods({ net, s, onchain: await chain.clans(), chain }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
   catch (e) { console.log(`  AI gods: no plan this turn: ${String(e.message || e).slice(0, 200)}`); }
 }
 
