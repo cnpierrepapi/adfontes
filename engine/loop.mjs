@@ -36,7 +36,7 @@ for (const net of NETS) {
   };
   say(`${net}: watching; ${worlds[net].known.size} nations known, last day ${s.lastRunAt ? new Date(s.lastRunAt).toISOString() : "never"}`);
 }
-await store.close();
+// The database stays open: the loop reads the AI gods' queue every tick (engine/aiact.mjs runDue).
 
 // ---- one engine run at a time ----
 let busy = false, child = null;

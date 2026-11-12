@@ -102,3 +102,10 @@ ok(fake.some((a) => a.kind === "rule" && a.gift === 5) && fake.some((a) => a.kin
   ok(/aiTouched/.test(loop) && /--no-research/.test(loop), "the loop names the nations an AI god just acted on, so their instant turn skips research");
   ok(/whispersToday/.test(act), "the planner counts each god's whispers today");
 }
+// 8. The always-on loop reads the AI gods' queue all day, so it must never close the database (12 Nov: it did,
+//    after startup, and every tick then failed with "Cannot use a pool after calling end on the pool").
+{
+  const fs = await import("node:fs");
+  const loop = fs.readFileSync(new URL("./loop.mjs", import.meta.url), "utf8");
+  ok(!/store\.close\(\)/.test(loop), "loop.mjs keeps its database open (it sends the AI gods' actions)");
+}
