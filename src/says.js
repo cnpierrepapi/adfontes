@@ -114,7 +114,8 @@ function saysRaw(r, c) {
     // A whisper, heard (9 Nov): one citizen says what they made of their god's words.
     case "heard": return `In ${c(r.clan)}, ${r.citizen ?? "a citizen"} on the god's words: "${r.says}"`;
     // A god's blessing (the live world's own carry their words in r.text; the season world's don't).
-    case "bless": return r.text ?? (r.mode === "rescue" ? `A god who had drifted away rushed back to ${c(r.clan)} with ${n2(r.near)} grace.` : `A god blessed ${c(r.clan)} with ${n2(r.near)} grace.`);
+    case "outsiders-gone": return `${c(r.clan)} belongs to its own gods again. The outside gods let go.`;
+    case "bless": return r.god && !r.text ? `${godName(r.god)} blessed ${c(r.clan)} with ${n2(r.near)} grace.` : r.text ?? (r.mode === "rescue" ? `A god who had drifted away rushed back to ${c(r.clan)} with ${n2(r.near)} grace.` : `A god blessed ${c(r.clan)} with ${n2(r.near)} grace.`);
     // The marketplace (his calls 9 Nov): only the Brokers trade, from their own wallets.
     case "listed": return `${c(r.clan)}'s Broker put ${thing(r)} up for sale at ${fl(r.price)}.`;
     case "correction": return /lift/i.test(r.why || "") ? `${c(r.clan)}: a fresh start. Its people turn back to ${(r.changes || []).map((x) => `${godName(x.god)} (+${Math.round(x.d)})`).join(" and ")}.` : `${c(r.clan)}: a counting bug had paid some of its gods reverence twice. Taken back: ${(r.changes || []).map((x) => `${Math.abs(x.d)}`).join(", ")}.`;

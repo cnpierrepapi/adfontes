@@ -108,8 +108,16 @@ export async function queueAiActions(net, list) {
 }
 export async function dueAiActions(net, now, limit = 3) {
   const p = await db();
-  if (p) return (await p.query("select id, at, god, action from ai_actions where net = $1 and done = false and at <= $2 order by at limit $3", [net, now, limit])).rows;
-  return aiFile().actions.filter((x) => x.net === net && !x.done && x.at <= now).sort((a, b) => a.at - b.at).slice(0, limit);
+  if (p) return (await p.query("select id, at, god, action from ai_actions where net = $1 and done = false and result is null and at <= $2 order by at limit $3", [net, now, limit])).rows;
+  return aiFile().actions.filter((x) => x.net === net && !x.done && x.result == null && x.at <= now).sort((a, b) => a.at - b.at).slice(0, limit);
+}
+/** Claim an action before sending it (13 Nov): true once; a restarted engine can never send it twice. */
+export async function claimAiAction(id) {
+  const p = await db();
+  if (p) return (await p.query("update ai_actions set result = 'sending' where id = $1 and done = false and result is null", [id])).rowCount === 1;
+  const m = aiFile(); const x = m.actions.find((y) => y.id === id);
+  if (!x || x.done || x.result != null) return false;
+  x.result = "sending"; aiSave(m); return true;
 }
 export async function finishAiAction(id, result) {
   const p = await db();

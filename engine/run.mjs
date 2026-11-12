@@ -160,6 +160,10 @@ for (let n = 0; n < days; n++) {
     for (const [cid, changes] of Object.entries(raised)) log({ kind: "correction", clan: Number(cid), changes, why: "A one-time lift (12 Nov): every god with a seat starts from at least 35, so the nations can be won back." });
     s.fixes = { ...(s.fixes || {}), revFloor12Nov: Date.now() };
   }
+  // AI gods have full control of their nations (his call 13 Nov): no outside god stays in an AI-led nation, and
+  // an AI-led nation never turns to one (RV.follow with AI_SET).
+  const AI_SET = new Set((await store.aiGods(net).catch(() => [])).map((g) => g.account));
+  if (AI_SET.size) for (const [cid, gods] of Object.entries(RV.dropOutsiders(s, await chain.clans(), AI_SET))) log({ kind: "outsiders-gone", clan: Number(cid), gods, why: "its AI gods have full control: the outside gods let go" });
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
   // Patent royalties owed this turn: { [clan]: { florins, patents: [], n } }, paid in settleMarket.
@@ -499,7 +503,7 @@ for (let n = 0; n < days; n++) {
       // Born (10 Nov): its reverence starts now and the founding, team and reverence go out at once, so
       // the page can raise the island with its people on it. Wallets and the named account follow.
       // (and the founder is the god it follows from the first moment, not from the end of the first turn)
-      if (isNew) { RV.ensure(s, oc, day, { fresh: true }); RV.follow(s, oc.id, []); await checkpoint(); }
+      if (isNew) { RV.ensure(s, oc, day, { fresh: true }); RV.follow(s, oc.id, [], AI_SET); await checkpoint(); }
       const able = (role) => agents.filter((a) => a.role === role && a.alive && a.stunted_until <= day);
       // Their Broker and Patron get their own NEAR wallets on first sight (once per nation).
       // Version 2 (9 Nov): the Broker's market wallet, trader<id>; a nation set up before it gets one now.
@@ -589,7 +593,7 @@ for (let n = 0; n < days; n++) {
         const acts = await RV.godActions({ chain, s, oc, rv, day, changes: revCh, hear });
         for (const r of acts) log(r);
         if (acts.length) c.lastActAt = Date.now(); // a god acted: no Trickster for 24 hours
-        RV.follow(s, oc.id, revCh);
+        RV.follow(s, oc.id, revCh, AI_SET);
         const fol = rv.followed && rv.gods[rv.followed];
         if (fol?.outsider) fol.text = Object.values(s.rev).find((o) => o !== rv && o.followed === rv.followed)?.gods[rv.followed]?.text ?? fol.text;
         eff = RV.effects(rv);
@@ -897,7 +901,7 @@ for (let n = 0; n < days; n++) {
       const firstReport = INSTANT && FRESH && !Object.values(s.reports || {}).some((x) => x.clan === oc.id) && Object.values(s.corpora).some((x) => x.clan === oc.id);
       const rep = RV.maybeReport(s, oc.id, day, living, evidence, firstReport ? () => 0 : Math.random);
       if (rep) log(rep);
-      RV.follow(s, oc.id, revCh);
+      RV.follow(s, oc.id, revCh, AI_SET);
       log(RV.record(rv, oc.id, revCh));
       revDone = true;
       } catch (e) { revDone = true; log({ kind: "error", clan: oc.id, error: `reverence: ${String(e.message || e).slice(0, 180)}` }); }
@@ -910,7 +914,7 @@ for (let n = 0; n < days; n++) {
           if (!INSTANT) RV.fade(rv, day, new Set(living.map((a) => a.name)), revCh, c.mood === "hungry" ? CFG.needs.hungryFade : 1);
           if (!INSTANT) RV.stirDrift(rv, c, revCh);
           if (!INSTANT) for (const r of RV.lapseReports(s, rv, oc.id, day, revCh)) log(r);
-          RV.follow(s, oc.id, revCh);
+          RV.follow(s, oc.id, revCh, AI_SET);
           log(RV.record(rv, oc.id, revCh));
         } catch (e2) { log({ kind: "error", clan: oc.id, error: `reverence: ${String(e2.message || e2).slice(0, 180)}` }); }
       }

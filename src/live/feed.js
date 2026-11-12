@@ -6,6 +6,7 @@
 // Citizens who speak to you (a whisper heard, a report, a Patron's reason for war) appear in a
 // dialogue box (src/live/dialogue.js), never as text here.
 import { api } from "../net.js";
+import { godName } from "../says.js";
 import { createDialogue } from "./dialogue.js";
 
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
@@ -103,6 +104,11 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
       case "mint": return ["✦", `${name(r.clan)} earned ${(+r.florins).toFixed(1)} florins.`, r.clan];
       case "heard": return ["✉", `${r.citizen ?? "A citizen"} heard a whisper: reverence ${r.delta >= 0 ? "+" : ""}${r.delta}.`, r.clan];
       case "gift": return ["📜", `${name(r.clan)} drafted an invention.`, r.clan];
+      // What the gods do, AI gods included (13 Nov: none of it showed for nations you aren't a god of).
+      case "bless": return ["✦", `${r.god ? godName(r.god) : "A god"} blessed ${name(r.clan)} with ${(+r.near).toFixed(2)} grace.`, r.clan];
+      case "ruling": return ["📜", `${name(r.clan)}'s gods ${r.status === "Rewarded" ? "rewarded" : r.status === "Punished" ? "punished" : "ignored"} a draft.`, r.clan];
+      case "correction": return /lift/i.test(r.why || "") ? ["☀", `${name(r.clan)} turns back to its gods: a fresh start.`, r.clan] : null;
+      case "outsiders-gone": return ["🏛", `${name(r.clan)} belongs to its own gods again.`, r.clan];
       default: return null;
     }
   }
@@ -110,10 +116,12 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
   function heard(r) {
     const l = line(r);
     if (!l) return;
-    const ours = mine.size ? involves(r) : BIG.has(r.kind);
+    // The whole world's events (13 Nov: when you're a god, only your own nations' showed, so everything the AI
+    // gods did vanished). Yours stay highlighted.
+    const ours = true;
     if (!ours) return;
-    just.prepend(item(l[0], l[1], [], mine.size > 0, l[2]));
-    while (just.children.length > 6) just.lastChild.remove();
+    just.prepend(item(l[0], l[1], [], mine.size > 0 && involves(r), l[2]));
+    while (just.children.length > 8) just.lastChild.remove();
     justHead.hidden = false;
   }
 

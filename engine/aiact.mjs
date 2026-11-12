@@ -103,6 +103,8 @@ export async function runDue({ net, chain, now = Date.now(), limit = 2, log = ()
   const onchain = await chain.clans();
   const ai = new Set((await store.aiGods(net)).map((g) => g.account));
   for (const row of due) {
+    // Claimed first: if the engine restarts mid-send, the action is never sent a second time.
+    if (!(await store.claimAiAction(row.id))) continue;
     const a = { ...row.action, god: row.god };
     let result;
     try {

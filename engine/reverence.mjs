@@ -165,7 +165,7 @@ export function fade(rv, day, livingNames, changes, mul = 1) {
 }
 
 /** Who the citizens follow: the most revered god above zero; if none, an outside god may claim them. */
-export function follow(s, id, changes) {
+export function follow(s, id, changes, ai = new Set()) {
   const rv = s.rev[id];
   const ranked = Object.entries(rv.gods).filter(([, g]) => g.r > 0).sort((a, b) => b[1].r - a[1].r);
   if (ranked.length) {
@@ -173,6 +173,10 @@ export function follow(s, id, changes) {
     if (rv.claimedBy && rv.followed !== rv.claimedBy && !rv.gods[rv.claimedBy]?.outsider) rv.claimedBy = null;
     return rv.followed;
   }
+  // An AI-led nation (13 Nov: the AI gods have full control) never turns to an outside god: at zero it
+  // stays with its own AI god, who has to win it back.
+  const own = Object.keys(rv.gods).find((a) => ai.has(a) && !rv.gods[a].outsider);
+  if (own) { rv.followed = own; rv.claimedBy = null; return own; }
   // Everyone here is at zero: the nation turns. The candidates are the followed gods of other
   // nations, best first by their own nation's reverence (how well the nation serving them does).
   const outside = Object.entries(s.rev)
@@ -185,6 +189,23 @@ export function follow(s, id, changes) {
   rv.followed = rv.claimedBy = god;
   changes.push({ god, d: REV.claimer, why: "the nation turned to this outside god" });
   return god;
+}
+
+/** AI gods have full control of their nations (13 Nov): no outside god stays in an AI-led nation (one with a seated
+ *  AI god), nor its claim. Human-led nations keep the old rules. Returns { [clan]: [removed gods] }. */
+export function dropOutsiders(s, onchain, ai) {
+  const out = {};
+  for (const c of onchain) {
+    const rv = s.rev?.[c.id];
+    if (!rv || !c.alive || !(c.gods || []).some((g) => ai.has(g.account))) continue;
+    const gone = Object.keys(rv.gods).filter((a) => rv.gods[a].outsider);
+    if (!gone.length) continue;
+    for (const a of gone) delete rv.gods[a];
+    if (gone.includes(rv.claimedBy)) rv.claimedBy = null;
+    if (gone.includes(rv.followed)) rv.followed = Object.entries(rv.gods).sort((x, y) => y[1].r - x[1].r)[0]?.[0] ?? null;
+    out[c.id] = gone;
+  }
+  return out;
 }
 
 /** What reverence does to the nation's turn today. */
@@ -286,7 +307,7 @@ export async function godActions({ chain, s, oc, rv, day, changes, hear = null }
   const toNear = (y) => Number(BigInt(y) / 10n ** 18n) / 1e6;
   for (const g of oc.gods) {
     const was = BigInt(rv.putIn[g.account] ?? g.put_in), now = BigInt(g.put_in);
-    if (now > was) act(rv, g.account, "bless", day, changes, { near: toNear((now - was).toString()) });
+    if (now > was) { const near = toNear((now - was).toString()); act(rv, g.account, "bless", day, changes, { near }); out.push({ kind: "bless", clan: oc.id, god: g.account, near }); } // its own record (13 Nov)
     rv.putIn[g.account] = g.put_in;
   }
   const last = await chain.dao(oc.dao, "get_last_proposal_id");

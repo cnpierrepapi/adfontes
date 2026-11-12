@@ -159,6 +159,8 @@ export function connect(net) {
       if (have == null || have >= min) return 0;
       const send = +(to - have).toFixed(4);
       await op.transfer({ receiverId: account, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
+      // Wait until the NEAR shows (13 Nov: a blessing went out before its top-up landed and was refused).
+      for (let i = 0; i < 10; i++) { await new Promise((r) => setTimeout(r, 1500)); if (((await this.aiBalance(account).catch(() => 0)) ?? 0) >= min) break; }
       return send;
     },
     /** Send an AI god's calls (src/live/calls.js shapes), in order. Every call passes the guard first: no
