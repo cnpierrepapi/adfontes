@@ -55,10 +55,11 @@ export async function discoverAiGods({ net, chain, store: st = store }) {
   const found = [];
   for (const c of (await chain.clans()).filter((x) => x.alive)) for (const g of c.gods || []) {
     const name = byAccount.get(g.account);
-    if (!name || known.has(g.account)) continue;
+    if (!name) continue;
+    await st.claimGodName(g.account, name); // always: the site may have named the account first
+    if (known.has(g.account)) continue;
     known.add(g.account);
     await st.addAiGod(net, g.account, name, temperamentOf(name));
-    await st.claimGodName(g.account, name);
     found.push({ account: g.account, name });
   }
   return found;

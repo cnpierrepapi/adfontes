@@ -137,3 +137,20 @@ ok(fake.some((a) => a.kind === "rule" && a.gift === 5) && fake.some((a) => a.kin
   ok(/--plan-only/.test(run) && /PLAN_ONLY[\s\S]{0,400}planGods\(/.test(run), "run.mjs --plan-only plans the AI gods and touches nothing else");
   ok(/planNow = true/.test(loop) && /"--plan-only"/.test(loop), "the loop asks for a plan as soon as it finds new AI gods");
 }
+// 11. An AI god keeps its own name even if the website named the account first (12 Nov: the site gave the new
+//     accounts random pool names before the engine claimed theirs: Jupiter instead of Lugh).
+{
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "adf-name-"));
+  process.env.ADF_STATE_DIR = dir; process.env.DATABASE_URL = "";
+  const store = await import("./store.mjs?name"), { discoverAiGods } = await import("./aiact.mjs?name");
+  const op = "adfontes-mw1fjpfx.testnet", acct = `lugh.${op}`;
+  await store.godNames([acct]); // the website got there first
+  const chain = { operator: op, clans: async () => [{ id: 1, alive: true, gods: [{ account: acct }] }] };
+  await discoverAiGods({ net: "testnet", chain, store });
+  ok((await store.godNames([acct]))[acct] === "Lugh", `the AI god shows as Lugh, not the name the site picked first`);
+  await store.addAiGod("testnet", acct, "Lugh", "devout");
+  await store.godNames([`x.${op}`]);
+  ok((await store.godNames([acct]))[acct] === "Lugh", "and keeps it");
+  fs.rmSync(dir, { recursive: true, force: true });
+}

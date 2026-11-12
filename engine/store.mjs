@@ -38,12 +38,16 @@ async function db() {
 // God names (12 Nov, engine/godnames.mjs): each account gets one name for good, never shared. The table's
 // unique name column settles two servers naming at once: the loser re-reads and takes the next free one.
 const NAMES_FILE = () => `${DIR}/god_names.json`;
-/** Give an account a chosen name (an AI god is named before it acts). False if the name or account is taken. */
+/** Give an account a chosen name (an AI god's own), replacing any name the site gave it first. False if another
+ *  account already holds that name. */
 export async function claimGodName(account, name) {
   const p = await db();
-  if (p) return (await p.query("insert into god_names (account, name) values ($1, $2) on conflict do nothing", [account, name])).rowCount === 1;
+  if (p) {
+    try { return (await p.query("insert into god_names (account, name) values ($1, $2) on conflict (account) do update set name = excluded.name", [account, name])).rowCount === 1; }
+    catch { return false; } // the name belongs to another account
+  }
   const all = fs.existsSync(NAMES_FILE()) ? JSON.parse(fs.readFileSync(NAMES_FILE(), "utf8")) : {};
-  if (all[account] || Object.values(all).includes(name)) return false;
+  if (Object.entries(all).some(([a, n]) => n === name && a !== account)) return false;
   all[account] = name; fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(NAMES_FILE(), JSON.stringify(all)); return true;
 }
 /** Every name given so far. */
