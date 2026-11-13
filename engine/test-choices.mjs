@@ -56,3 +56,21 @@ const run = fs.readFileSync(new URL("./run.mjs", import.meta.url), "utf8");
 ok(/choicesFor\(net, day\)/.test(run) && /kind: "choice"|CH\.recordOf/.test(run), "run.mjs reads the turn's choices and records them");
 ok(/pickTarget\(c, pitchPick/.test(run), "research uses the god's pitch pick when there is one");
 fs.rmSync(dir, { recursive: true, force: true });
+
+// Meteor and other wallets (13 Nov: choices were email-only): NEAR's standard signed message (NEP-413). The wallet
+// signs sha256(borsh(tag 2^31+413, { message, nonce[32], recipient, callbackUrl: none })); the server checks it.
+{
+  const { createHash } = await import("node:crypto");
+  const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
+  const str = (s) => { const b = Buffer.from(s, "utf8"); return Buffer.concat([u32(b.length), b]); };
+  const nonce = Buffer.alloc(32, 3), recipient = "adfontes.fun";
+  const signed413 = (c) => { const msg = CH.messageOf(c); const h = createHash("sha256").update(Buffer.concat([u32(2147484061), str(msg), nonce, str(recipient), Buffer.from([0])])).digest(); return Buffer.from(ed25519.sign(h, seed)).toString("base64"); };
+  const c = { world, kind: "pitch", clan: 12, payload: { point: "bicarbonate" }, day: 66, nonce: "m1" };
+  const viaWallet = { ...c, account, publicKey, signature: signed413(c), nep413: { nonce: nonce.toString("base64"), recipient } };
+  ok((await CH.acceptChoice(viaWallet, env)).ok === true, "a choice signed by a wallet (NEP-413, as Meteor signs) is accepted");
+  ok((await CH.acceptChoice({ ...viaWallet, payload: { point: "energy storage" } }, env)).error?.match(/signature/i), "a wallet-signed choice changed after signing is refused");
+  ok((await CH.acceptChoice({ ...viaWallet, nep413: { ...viaWallet.nep413, recipient: "evil.example" } }, env)).error, "a wallet signature meant for another site is refused");
+  ok((await CH.acceptChoice({ ...viaWallet, nep413: { ...viaWallet.nep413, nonce: Buffer.alloc(8).toString("base64") } }, env)).error, "a bad nonce is refused");
+  const wal = fs.readFileSync(new URL("../src/live/wallet.js", import.meta.url), "utf8");
+  ok(/signMessage\(\{ message/.test(wal) && /nep413/.test(wal), "the page asks an outside wallet to sign choices (NEP-413), not just email keys");
+}

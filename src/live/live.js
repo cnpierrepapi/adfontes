@@ -17,6 +17,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { createEffects } from "./effects.js";
 import { buildMind, mindBase } from "./mind.js";
 import { createFolk } from "./folk.js";
+import { statusOf, plateWords } from "./status.js";
 import { TIERS, pickTier, readDevice, chosen, createStepper } from "./quality.js";
 import { citizenGlow } from "./citizens.js";
 import { PAL, island, temple, tower, house, tree, fountain, waterfall, mist, mesh, school, fallUniforms, range, pick, mergeStatic, townShell, mergeInto } from "../scene.js";
@@ -165,7 +166,7 @@ export async function startLive(canvas, hud, opts = {}) {
     const pos = isNorthPole(c) ? new THREE.Vector3(0, 0.5, 0) : new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
     // From the game (SPEC §14): a Trickster moved in or the citizens are hungry = neglected;
     // sated (more NEAR than they need) = rich and a bit lazy.
-    const status = !c.alive ? "dead" : c.seen === false ? "new" : (c.tricksters || 0) > 0 || c.mood === "hungry" ? "neglected" : c.mood === "sated" ? "rich" : "ok";
+    const status = statusOf(c); // src/live/status.js: neglected = no god acted for 24 h (13 Nov)
     const isl = buildClanIsland(c, r, status, sprays);
     isl.position.copy(pos);
     isl.userData = { ...isl.userData, clan: c, baseY: pos.y, bob: hash(c.id + 7) * Math.PI * 2, r, status };
@@ -193,7 +194,7 @@ export async function startLive(canvas, hud, opts = {}) {
     plate.className = `plate ${status}`;
     plate.innerHTML = `<b></b><span></span>`;
     plate.querySelector("b").textContent = c.name;
-    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.reverence && status !== "dead" ? `reverence ${c.reverence.standing}` : `${c.points} points`}${status === "dead" ? " · ruins" : status === "rich" ? " · sated" : status === "neglected" ? ((c.tricksters || 0) > 0 ? " · neglected" : " · hungry") : status === "new" ? " · new" : ""}`;
+    plate.querySelector("span").textContent = `${c.field ?? ""} nation · ${c.reverence && status !== "dead" ? `reverence ${c.reverence.standing}` : `${c.points} points`}${plateWords(c, status)}`;
     plate.addEventListener("click", () => flyTo(c.id));
     const lbl = new CSS2DObject(plate);
     lbl.position.set(0, r * 0.75 + 1.5, 0);

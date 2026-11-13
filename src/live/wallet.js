@@ -244,10 +244,19 @@ export async function createWallet(net) {
     tell();
   }
   /** What the page shows for you: your email when you signed up with one, else the account. */
-  /** Sign a choice's message with this browser's own key (PLAN_13NOV step 0). Email and no-wallet players only;
-   *  returns null for an outside wallet (Meteor), which signs messages its own way (not yet supported). */
+  /** Sign a choice's message (PLAN_13NOV step 0): email and no-wallet players with this browser's own key; an outside
+   *  wallet (Meteor) the NEAR standard way, NEP-413 (13 Nov). Returns null if nobody is signed in or it was declined. */
   async function signChoice(message) {
-    if (!localOn()) return null;
+    if (!localOn()) {
+      if (!selector.isSignedIn()) return null;
+      const w = await selector.wallet();
+      if (!w.signMessage) return null;
+      const nonce = crypto.getRandomValues(new Uint8Array(32)), recipient = "adfontes.fun";
+      const r = await w.signMessage({ message, recipient, nonce: Buffer.from(nonce) }).catch(() => null);
+      if (!r?.signature) return null;
+      let n = ""; for (const b of nonce) n += String.fromCharCode(b);
+      return { account: r.accountId, publicKey: r.publicKey, signature: r.signature, nep413: { nonce: btoa(n), recipient } };
+    }
     const { KeyPair } = await import("@near-js/crypto");
     const lk = localKey(), kp = KeyPair.fromString(lk.key);
     const sig = kp.sign(new TextEncoder().encode(message)).signature;

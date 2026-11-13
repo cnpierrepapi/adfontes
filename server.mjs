@@ -212,6 +212,7 @@ function makeApi(NET) {
               // A nation that lost a war has fallen (the chain still holds it so its gods can claim).
               id: c.id, name: c.name, dao: c.dao, alive: c.alive && !st.fallen, gods: c.gods.length,
               fallen: st.fallen ?? null,
+              last_act_at: st.lastActAt ?? null, // when a god last acted here (src/live/status.js: neglected after 24 h)
               war: warInfo(s, c.id, burned),
               // What the nation holds: florins, and what they're worth in NEAR at today's florin value.
               florins: florins(c.florins), worth: +(florins(c.florins) * near(totals.florin_value)).toFixed(4),

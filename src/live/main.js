@@ -6,6 +6,7 @@ import { endedName } from "../says.js";
 import { createRoute } from "./route.js";
 import { playCinematic } from "./intro.js";
 import { runTutorial } from "./tutorial.js";
+import { panelWords } from "./status.js";
 import { playTimelapse, offerTimelapse } from "./timelapse.js";
 import { seasonLabel } from "../season.js";
 
@@ -23,7 +24,7 @@ function showClan(c, status) {
   p.replaceChildren();
   const h = document.createElement("h2"); h.textContent = c.name;
   const m = document.createElement("p"); m.className = "meta";
-  m.textContent = `${[c.field, c.mbti, `${c.gods} god${c.gods === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}${status === "dead" ? " · ruins" : status === "rich" ? " · sated, so a bit lazy" : status === "neglected" ? ((c.tricksters || 0) > 0 ? " · neglected, a Trickster moved in" : " · hungry, it needs a blessing") : status === "new" ? " · new, waiting for its first day" : ""}`;
+  m.textContent = `${[c.field, c.mbti, `${c.gods} god${c.gods === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}${panelWords(c, status)}`;
   const nums = document.createElement("div"); nums.className = "nums";
   for (const [v, l] of [[c.points, "points on its mindmap"], [Math.round(c.florins ?? 0), `florins, worth ${n3(c.worth ?? 0)} grace`], [c.clean_gifts, "clean gifts"]]) {
     const d = document.createElement("div"); d.textContent = v;
