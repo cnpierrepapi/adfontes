@@ -21,12 +21,14 @@ const name = (id) => ({ 1: "Helios", 2: "North Pole", 3: "Numdial" })[id] ?? `na
     { kind: "heard", clan: 2, citizen: "Dagny Ulloa", says: "The god sees where we stand." },
     { kind: "arrival", name: "Tate", found: true, nation: "Tate's Reach" },
     { kind: "seat-sold", clan: 3, price: 9.7, as: "Saturn" },
+    { kind: "battle", war: "w1", round: 24, sides: { 2: { spend: 1 }, 3: { spend: 2 } } }, // the real shape (13 Nov: "nation undefined")
   ];
   for (const r of cases) {
     const l = L.lineFor(r, name);
     ok(l && typeof l.who === "string" && l.who.length && typeof l.text === "string" && l.text.length > 8 && l.text.length <= 160 && !/—/.test(l.text), `a ${r.kind} record becomes a line: ${l?.who}: "${l?.text}"`);
   }
   ok(L.lineFor({ kind: "corpus", clan: 1, scholar: "Rafa Ibsen", title: "X", cites: 12 }, name).who === "Rafa Ibsen", "the scholar who did it speaks");
+  ok(cases.every((r) => !/undefined|null|NaN/.test(L.lineFor(r, name)?.text || "")), "no line ever says undefined, null or NaN");
   ok(L.lineFor({ kind: "reverence", clan: 1 }, name) === null && L.lineFor({ kind: "tokens" }, name) === null && L.lineFor({ kind: "error", error: "boom" }, name) === null, "bookkeeping and errors never become chatter");
 }
 

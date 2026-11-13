@@ -18,7 +18,7 @@ export function lineFor(r, name) {
     case "tech": return fit({ who: "A Scholar", role: "Scholar", clan: r.clan, text: `${name(r.clan)} has ${r.name || "a new tech"} now. Everything changes from here.` });
     case "heard": return r.says ? fit({ who: r.citizen || "A citizen", role: "Citizen", clan: r.clan, text: r.says }) : null;
     case "answer": return r.says ? fit({ who: r.accused || "The accused", role: r.role || "Citizen", clan: r.clan, text: r.says }) : null;
-    case "battle": return fit({ who: "A soldier", role: "Patron", clan: r.attacker ?? r.clan, text: `Another round against ${name(r.defender ?? r.against)}. We hold the line.` });
+    case "battle": { const [a, b] = Object.keys(r.sides || {}).map(Number); return a && b ? fit({ who: "A soldier", role: "Patron", clan: a, text: `Round ${r.round} against ${name(b)}. We hold the line.` }) : null; } // { war, round, sides: { [id]: … } }
     case "fire": return fit({ who: "A citizen", role: "Citizen", clan: r.clan, text: `Fire fell on ${name(r.clan)}. We lost ${fl(r.florins)}.` });
     case "arrival": return fit({ who: r.name || "A new god", role: "God", clan: r.clan ?? null, text: r.found || r.nation ? `I have come, and ${r.nation} is mine.` : `I have come to bless ${name(r.clan)}.` });
     case "seat-sold": return fit({ who: "A citizen", role: "Citizen", clan: r.clan, text: r.as ? `Someone new speaks for ${r.as} now. We'll see if they're any good.` : `A god sold their seat in ${name(r.clan)} for ${r.price} grace.` });

@@ -329,12 +329,12 @@ export async function startLive(canvas, hud, opts = {}) {
       g = new THREE.Group();
       const curve = bridgeCurve(A, B);
       curves.set(key, curve);
-      g.add(bridge(curve, Math.min(3, 1 + Math.log2(1 + route.count))));
+      { const br = bridge(curve, Math.min(3, 1 + Math.log2(1 + route.count))); freeze(br); g.add(br); }
       g.userData.ends = [route.seller, route.buyer];
       world.add(g);
       routeGroups.set(key, g);
       const p = paths.get(key); if (p) { p.removeFromParent(); p.geometry.dispose(); paths.delete(key); } // the path becomes the bridge
-      if (A.userData.rose === "rising" || B.userData.rose === "rising") g.visible = false;
+      if (A.userData.rose === "rising" || B.userData.rose === "rising") { g.userData.riseOff = true; g.visible = false; }
     }
     const curve = curves.get(key), beads = [];
     for (let i = 0; i < Math.min(5, route.count); i++) {
@@ -344,6 +344,7 @@ export async function startLive(canvas, hud, opts = {}) {
       beads.push(bead);
     }
     const ab = route.seller < route.buyer; // curve runs low-id -> high-id
+    const beadsAt = sprays.length; queueMicrotask(() => { if (sprays[beadsAt]) sprays[beadsAt].route = g; }); // a hidden route's beads rest (Low)
     sprays.push((t) => beads.forEach((bead, i) => {
       const u = (t * 0.1 + i / beads.length) % 1;
       bead.position.copy(curve.getPoint(ab ? u : 1 - u));
@@ -351,9 +352,15 @@ export async function startLive(canvas, hud, opts = {}) {
     }));
   }
   for (const route of T.routes) addRoute(route);
+  // A route shows unless a nation at its end is still rising, or (Low) both its ends are far off.
+  const routeVis = (o) => { o.visible = !o.userData.riseOff && !o.userData.lowOff; };
   const showRoutesOf = (id, on) => {
-    for (const g of routeGroups.values()) if (g.userData.ends.includes(id)) g.visible = on;
-    for (const m of paths.values()) if (m.userData.ends.includes(id)) m.visible = on;
+    for (const g of routeGroups.values()) if (g.userData.ends.includes(id)) { g.userData.riseOff = !on; routeVis(g); }
+    for (const m of paths.values()) if (m.userData.ends.includes(id)) { m.userData.riseOff = !on; routeVis(m); }
+  };
+  const lowRoutes = () => {
+    const far = (id) => !!islands.get(id)?.userData.far;
+    for (const o of [...routeGroups.values(), ...paths.values()]) { o.userData.lowOff = far(o.userData.ends[0]) && far(o.userData.ends[1]); routeVis(o); }
   };
   // Paths (his call 8 Nov): every nation gets a faint path to its two nearest neighbours right
   // away; the first trade between two nations turns their path into the full bridge.
@@ -371,7 +378,8 @@ export async function startLive(canvas, hud, opts = {}) {
       if (!A || !B) continue;
       const m = new THREE.Mesh(new THREE.TubeGeometry(bridgeCurve(A, B), 40, 0.035, 4), pathMat);
       m.userData.ends = [a, b];
-      m.visible = A.userData.rose !== "rising" && B.userData.rose !== "rising";
+      freeze(m);
+      m.userData.riseOff = A.userData.rose === "rising" || B.userData.rose === "rising"; m.visible = !m.userData.riseOff;
       world.add(m);
       paths.set(key, m);
     }
@@ -898,8 +906,10 @@ export async function startLive(canvas, hud, opts = {}) {
   // Phones (his note 8 Nov): with the nation's sheet open at the bottom, the view slides up by
   // `viewShift` px so the island sits in the open top part of the screen, not under the sheet.
   let viewShift = 0;
+  let canvasW = canvas.clientWidth, canvasH = canvas.clientHeight; // read on resize only: reading them mid-frame forces a layout (step 3)
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvasW = w; canvasH = h;
     renderer.setSize(w, h, false);
     labels.setSize(w, h);
     composer?.setSize(w, h);
@@ -913,6 +923,7 @@ export async function startLive(canvas, hud, opts = {}) {
   const clock = new THREE.Clock();
   const tmpV = new THREE.Vector3(), tmpT = new THREE.Vector3();
   let prevAz = controls.azimuthAngle, bank = 0, frameN = 0, folkFor = null;
+  const FAR_SKIP = 32; // Low: islands farther than this from the camera skip their per-frame bob (graphics step 3)
   const baseFov = 46;
   // The quality stepper (12 Nov): low draws at most 30 times a second; a slow machine steps down a tier,
   // and the lighter settings apply at once (antialias, fixed at start, waits for the next visit).
@@ -953,20 +964,34 @@ export async function startLive(canvas, hud, opts = {}) {
     hud.visor.style.transform = `translate(${-azVel * 6}px, ${Math.sin(t * 0.55) * 3}px) rotate(${bank * 30}deg)`;
 
     fallUniforms.uTime.value = t;
-    for (const s of sprays) s(t);
     updateRising();
-    for (const isl of islands.values()) isl.position.y = isl.userData.baseY + (isl.userData.riseY || 0) + Math.sin(t * 0.45 + isl.userData.bob) * 0.3;
+    // Graphics step 3 (Low skips far-island per-frame work, 13 Nov): every island bobs on High and Medium; on Low only the
+    // ones near the camera do (a bobbing island re-computes every piece of itself each frame), others hold still.
+    const lowT = TIERS[tierName].farSkip === true;
+    let farFlip = false;
+    for (const isl of islands.values()) {
+      const u = isl.userData, far = lowT && u.rose !== "rising" && camera.position.distanceTo(isl.position) > FAR_SKIP;
+      if (far !== !!u.far) { u.far = far; farFlip = true; for (const d of u.detail || []) d.visible = !far; } // far on Low: just the rock
+      if (far && u.held) { if (isl.matrixAutoUpdate) { isl.updateMatrix(); isl.matrixAutoUpdate = false; } continue; }
+      if (!isl.matrixAutoUpdate) isl.matrixAutoUpdate = true;
+      isl.position.y = u.baseY + (u.riseY || 0) + Math.sin(t * 0.45 + u.bob) * 0.3;
+      u.held = lowT;
+    }
+    if (farFlip) lowRoutes();
+    for (const s of sprays) if (!s.isl?.userData.far && s.route?.visible !== false) s(t); // far islands' sprays and hidden routes' beads rest on Low
     warMat.opacity = 0.55 + 0.35 * Math.sin(t * 3);
     warLayer.tick(t, performance.now());
-    const sp = sea.geometry.attributes.position;
-    for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
-    sp.needsUpdate = true;
+    if (!lowT || frameN % 6 === 0) { // the sea's swell: every 6th frame on Low
+      const sp = sea.geometry.attributes.position;
+      for (let i = 0; i < sp.count; i++) sp.setY(i, Math.sin(seaBase[i * 3] * 0.12 + t * 0.6) * 0.6 + Math.cos(seaBase[i * 3 + 2] * 0.1 + t * 0.4) * 0.6);
+      sp.needsUpdate = true;
+    }
     motes.rotation.y = t * 0.008;
     fx.setCrowd(controls.distance > 26 ? 1 : 3);
     hud.plates.classList.toggle("far", controls.distance > 30); // world view: names only, smaller
     // A nation's sky shows only when you're looking at that nation from close in (the camera's
     // target sits over it and you're zoomed in). From the whole-world view the skies are gone.
-    const px = canvas.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    const px = canvasH / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
     // One sky at a time: the focused nation's. Flying to a nation focuses it; zooming in near an
     // island focuses that one; panning well past the canopy lets go. The whole-world view
     // (camera far out) shows none.
@@ -1000,20 +1025,24 @@ export async function startLive(canvas, hud, opts = {}) {
     fx.update();
     if (bokeh) bokeh.uniforms.focus.value = controls.distance;
     if (composer) composer.render(); else renderer.render(scene, camera);
-    labels.render(scene, camera);
+    scene.matrixWorldAutoUpdate = false; labels.render(scene, camera); scene.matrixWorldAutoUpdate = true; // the renderer already updated every matrix this frame
     // Plates: fade before the HUD bar at the top, and when plates overlap on screen the
     // nearer one wins (farther ones fade back), so names never stack into mush.
-    const shown = [];
+    if (!lowT || frameN % 2 === 0) {
+    const shown = [], cw = canvasW, ch = canvasH, measure = frameN % 90 === 0;
     const plates = [...islands.values()].filter((i) => i.userData.plate).map((isl) => {
-      const v = isl.userData.plateObj.getWorldPosition(tmpV).project(camera);
-      return { isl, x: (v.x + 1) / 2 * canvas.clientWidth, y: (1 - v.y) / 2 * canvas.clientHeight, d: camera.position.distanceTo(isl.position), w: isl.userData.plate.offsetWidth || 220, h: isl.userData.plate.offsetHeight || 46 };
+      const v = isl.userData.plateObj.getWorldPosition(tmpV).project(camera), u = isl.userData;
+      if (measure || u.plateW == null) { u.plateW = u.plate.offsetWidth || 220; u.plateH = u.plate.offsetHeight || 46; }
+      return { isl, x: (v.x + 1) / 2 * cw, y: (1 - v.y) / 2 * ch, d: camera.position.distanceTo(isl.position), w: u.plateW, h: u.plateH };
     }).sort((a, b) => a.d - b.d);
     for (const p of plates) {
-      const el = p.isl.userData.plate;
+      const el = p.isl.userData.plate, u = p.isl.userData;
       const hidden = shown.some((q) => Math.abs(q.x - p.x) < (q.w + p.w) / 2 - 6 && Math.abs(q.y - p.y) < (q.h + p.h) / 2 - 4);
       if (!hidden) shown.push(p);
-      el.style.opacity = String(Math.max(0, Math.min(1, (p.y - 70) / 50)) * (p.isl.userData.plateFade ?? 1) * (hidden ? 0.12 : 1));
-      el.style.pointerEvents = p.y < 90 || hidden ? "none" : "auto";
+      const op = (Math.round(Math.max(0, Math.min(1, (p.y - 70) / 50)) * (u.plateFade ?? 1) * (hidden ? 0.12 : 1) * 50) / 50).toString(), pe = p.y < 90 || hidden ? "none" : "auto";
+      if (u.plateOp !== op) { el.style.opacity = op; u.plateOp = op; }
+      if (u.platePe !== pe) { el.style.pointerEvents = pe; u.platePe = pe; }
+    }
     }
     requestAnimationFrame(frame);
   }
@@ -1043,6 +1072,7 @@ function northPole(r) {
   return grp;
 }
 function buildClanIsland(c, r, status, sprays) {
+  const sprayFrom = sprays.length; // this island's own spray animations (tagged below: Low skips them far off)
   const dead = status === "dead";
   const pole = isNorthPole(c);
   // North Pole: snow on top, ice below, red roofs, and the pole itself.
@@ -1101,7 +1131,17 @@ function buildClanIsland(c, r, status, sprays) {
   m.userData.noMerge = true;
   m.position.set(Math.cos(a) * r * 1.25, -(r * 4 + 10) + 0.5, Math.sin(a) * r * 1.25);
   isl.add(m);
-  return mergeIsland(isl, town);
+  isl.userData.detail = [town, wf, m, ...isl.children.filter((x) => x !== town && x !== wf && x !== m && (x.userData.noMerge || x.isPoints))]; // what a far island drops on Low
+  for (let i = sprayFrom; i < sprays.length; i++) sprays[i].isl = isl;
+  const merged = mergeIsland(isl, town);
+  freezeStatic(merged, town);
+  return merged;
+}
+// Graphics step 3 (13 Nov): matrices of things that never move are computed once (three.js otherwise recomposes every
+// object's matrix every frame). The island's own rocks and its town; the island group itself still moves (it bobs).
+function freeze(o) { o.traverse((x) => { x.updateMatrix(); x.matrixAutoUpdate = false; }); }
+function freezeStatic(isl, town) {
+  for (const c of isl.children) if (c === town || (!c.userData.noMerge && !c.isPoints && (c.isMesh || c.isGroup))) freeze(c);
 }
 // Fewer draw calls (12 Nov): each building merges inside itself (same group, place, tags and footprint), then
 // the island's own rocks merge; anything marked noMerge (water, mist, the pole) is left as it was.

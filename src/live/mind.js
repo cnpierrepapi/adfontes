@@ -271,6 +271,8 @@ export function buildMind(data, isl, ctx) {
     /** nearK: 0 far away (only a faint shimmer) .. 1 flown in. px = pixels per world unit at distance 1. */
     /** detailK: threads, the gold line and scrolls only for the focused nation (0..1). */
     update(nearK, px, detailK = nearK) {
+      // Gone and staying gone (graphics step 3, 13 Nov): nothing to animate, so skip the work.
+      if (nearK === 0 && detailK === 0 && fade < 0.005 && detail < 0.005) { if (group.visible) group.visible = false; fade = detail = 0; return; }
       fade += (nearK - fade) * 0.08;
       detail += (detailK - detail) * 0.08;
       // Unfocused skies shrink to half size round their root, so from far out each stays over its own island.

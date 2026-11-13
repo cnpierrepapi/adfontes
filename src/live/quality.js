@@ -8,7 +8,7 @@ export const TIERS = {
   // Sharp, without the glow pass; towns only near you.
   medium: { pixelRatio: 1.5, antialias: true, shadows: true, bloom: false, fpsCap: 0, towns: 4, preload: 4 },
   // Small machines: plain 1x, no shadows, 30 fps, only the town you're looking at (and the last one).
-  low: { pixelRatio: 1, antialias: false, shadows: false, bloom: false, fpsCap: 30, towns: 2, preload: 0, skies: false }, // skies: far-off star maps
+  low: { pixelRatio: 1, antialias: false, shadows: false, bloom: false, fpsCap: 30, towns: 2, preload: 0, skies: false, farSkip: true }, // skies: far-off star maps; farSkip: far islands skip per-frame work (step 3)
 };
 const ORDER = ["high", "medium", "low"];
 const SOFT_GPU = /swiftshader|llvmpipe|software|microsoft basic render|intel\(r\) (u?hd|iris\(r\) graphics [0-9]{3}\b)|intel.*\bhd graphics\b|mali-[4t]|adreno \(tm\) [3-5]\d\d|powervr/i;

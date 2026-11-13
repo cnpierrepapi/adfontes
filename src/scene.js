@@ -61,8 +61,8 @@ export function mergeStatic(root) {
   const inv = root.matrixWorld.clone().invert();
   const buckets = new Map();
   root.traverse((o) => {
-    if (!o.isMesh || o.material !== flatMat || o.isSkinnedMesh || o.isInstancedMesh || o.userData.noMerge) return;
-    for (let p = o.parent; p && p !== root; p = p.parent) if (p.userData.noMerge) return;
+    if (!o.isMesh || o.material !== flatMat || o.isSkinnedMesh || o.isInstancedMesh || o.userData.noMerge || o.userData.spin) return;
+    for (let p = o.parent; p && p !== root; p = p.parent) if (p.userData.noMerge || p.userData.spin) return; // spinning parts (clock hands) keep moving
     const g = o.geometry;
     const key = `${o.castShadow}|${o.receiveShadow}|${Object.keys(g.attributes).sort().join(",")}|${g.index ? "i" : "n"}`;
     if (!buckets.has(key)) buckets.set(key, []);

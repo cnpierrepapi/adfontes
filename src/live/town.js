@@ -12,7 +12,7 @@
 // Props are built in citizen metres inside a group scaled by the citizen scale `s`, front (+Z)
 // facing the middle of the island.
 import * as THREE from "three";
-import { mesh } from "../scene.js";
+import { mesh, mergeStatic } from "../scene.js";
 import { makeCitizen, citizenGlow } from "./citizens.js";
 import { planWalk, walkStep, turnToward, roundsStep, gait, gaitReset } from "./steer.js";
 
@@ -263,6 +263,7 @@ export async function buildTown(ctx) {
     g.position.set(x, groundY(r, x, z), z);
     g.rotation.y = rot;
     obj.scale.setScalar(s * (BIG[role] ?? 1));
+    mergeStatic(obj); // graphics step 3 (13 Nov): a workplace's still pieces draw as one shape; spinning parts stay apart
     g.add(obj);
     shadows(obj);
     group.add(g);

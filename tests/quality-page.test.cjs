@@ -20,6 +20,9 @@ async function measure(b, tier) {
   // Fly to a nation so its town is built, then measure the frame rate for 6 s.
   await p.evaluate(() => window.__live.flyTo(window.__live.world.clans[0].id));
   await p.waitForTimeout(8000);
+  // Flying to a nation always shows its town (13 Nov): wait for it on both tiers, so they're measured on the same scene.
+  await p.waitForFunction(() => window.__live.quality().towns >= 1, null, { timeout: 60000 }).catch(() => {});
+  await p.waitForTimeout(4000);
   const fps = await p.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 6000) requestAnimationFrame(f); else res(n / ((performance.now() - t0) / 1000)); }; requestAnimationFrame(f); }));
   await cdp.send("HeapProfiler.collectGarbage").catch(() => {});
   const heap = (await cdp.send("Runtime.getHeapUsage")).usedSize / 1048576;
@@ -37,11 +40,16 @@ async function measure(b, tier) {
   ok(L.q.tier === "low" && H.q.tier === "high", "each run used the tier it asked for");
   ok(L.errs.length === 0 && H.errs.length === 0, "no page errors on either tier");
   ok(L.q.towns <= 2, `low keeps at most 2 towns (${L.q.towns}; high ${H.q.towns})`);
+  ok(L.q.towns >= 1 && H.q.towns >= 1, "both measured with the nation's town built (what a player sees after flying there)");
   // Measured 12 Nov: memory was never the problem (~80 MB); draw calls were (12,630 a frame with 100 nations,
   // 3,372 with today's 13: ~130 separate planks per trade bridge, ~110 pieces per island). Targets set
   // before the merge work (phase C2): Low under 3,000 draw calls and at least 15 frames a second here.
   ok(L.q.calls < 3000, `low draws under 3,000 calls a frame with 100 nations (${L.q.calls})`);
-  ok(L.fps >= 15, `low runs at 15+ frames a second with the CPU slowed 4x (${L.fps.toFixed(1)})`);
+  // The 15 frames a second target (12 Nov) was dropped on 13 Nov (his call: "if it doesn't work remove that as a goal"):
+  // graphics step 3 took Low from 1.6 to ~7 fps here without a town, but a town in view is bound by its citizens' shaders
+  // on the GPU, not by draw calls. Measured, printed, and Low must never be slower than High.
+  console.log(`frames a second with the CPU slowed 4x: low ${L.fps.toFixed(1)}, high ${H.fps.toFixed(1)}`);
+  ok(L.fps >= H.fps * 0.95, `low is never slower than high (${L.fps.toFixed(1)} vs ${H.fps.toFixed(1)})`);
   ok(L.q.memory.textures <= H.q.memory.textures, `low holds no more textures than high (${L.q.memory.textures} vs ${H.q.memory.textures})`);
   ok(L.heap < CEILING, `low stays under ${CEILING} MB of JS memory with 100 nations (${L.heap.toFixed(0)} MB)`);
   console.log(bad ? `${bad} FAILED` : "ALL PASS");
