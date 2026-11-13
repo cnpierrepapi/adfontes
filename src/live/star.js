@@ -15,10 +15,18 @@ export function createStarCard({ getGods }) {
   const close = () => { box.hidden = true; token++; };
   addEventListener("keydown", (e) => { if (e.key === "Escape" && !box.hidden) close(); });
 
-  async function show(clan, point) {
+  // Next to the tapped star (13 Nov: pinned top-left it covered the feed); phones keep the CSS spot.
+  function place(at) {
+    if (!at || innerWidth <= 700) { box.style.left = box.style.top = ""; return; }
+    const w = box.offsetWidth || 320, h = box.offsetHeight || 260;
+    box.style.left = `${Math.max(10, Math.min(innerWidth - w - 10, at.x + 18))}px`;
+    box.style.top = `${Math.max(70, Math.min(innerHeight - h - 10, at.y + 18))}px`;
+  }
+  async function show(clan, point, at = null) {
     const my = ++token;
     box.replaceChildren(el("p", { className: "fine", textContent: "Reading the stars…" }));
     box.hidden = false;
+    place(at);
     const S = await api(`star?clan=${clan}&point=${encodeURIComponent(point)}`).catch(() => null);
     if (my !== token) return;
     if (!S || S.error) { box.replaceChildren(el("p", { className: "fine", textContent: S?.error || "Couldn't read that star just now." }), closeBtn()); return; }
@@ -28,12 +36,13 @@ export function createStarCard({ getGods }) {
       el("button", { type: "button", className: "x", textContent: "×", title: "Close", onclick: close }),
       el("h4", { textContent: S.title }),
       S.title !== S.point ? el("p", { className: "fine pt", textContent: S.point }) : null,
-      el("p", { className: "fine" }, where, S.depth != null ? ` · depth ${S.depth}` : "", S.stir && S.stir !== "calm" ? ` · stirs ${S.stir}` : ""),
+      el("p", { className: "fine" }, where, S.depth === 0 ? " · the root of its knowledge" : S.depth != null ? ` · ${S.depth} step${S.depth === 1 ? "" : "s"} from the root` : "", S.stir && S.stir !== "calm" ? ` · stirs ${S.stir}` : ""),
       el("p", { className: "fine" }, others.length ? `Also known in ${others.slice(0, 4).map((k) => k.name).join(", ")}${others.length > 4 ? ` and ${others.length - 4} more` : ""}.` : "No other nation knows it yet."),
       S.fair != null ? el("p", { className: "fine" }, "Worth about ", el("b", { textContent: fl(S.fair) }), " on the market.") : null,
       ...S.listings.slice(0, 3).map((l) => el("p", { className: "fine" }, `On sale from ${l.seller_name} at `, el("b", { textContent: fl(l.price) }), ".")),
     ];
     box.replaceChildren(...kids);
+    place(at);
     // Your own research: whisper to your Broker to list it.
     const gods = getGods();
     if (!S.sellable || !gods?.account?.() || S.listings.some((l) => l.seller === S.clan)) return;

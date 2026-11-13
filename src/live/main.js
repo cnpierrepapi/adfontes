@@ -84,7 +84,7 @@ let theme = forcedTheme || "night";
 // Filled in below; a poll that lands before then waits for the next one (module-level, no TDZ).
 let liveApi = null, sound = null;
 document.body.classList.toggle("night", theme === "night");
-const live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, stills: q.has("stills"), theme, onDay: (now) => onDay(now), onPoll: (now) => { onClock(now); redrawPanel(false); }, onLive: (recs) => panelHeard(recs), onStar: (clan, point) => starCard.show(clan, point) });
+const live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, stills: q.has("stills"), theme, onDay: (now) => onDay(now), onPoll: (now) => { onClock(now); redrawPanel(false); }, onLive: (recs) => panelHeard(recs), onStar: (clan, point, at) => starCard.show(clan, point, at) });
 // The open panel follows its nation (13 Nov, his note: after he acted nothing on it changed). It redraws when
 // what it shows changes (panelSig, after each world poll), and a little after that nation's live records arrive
 // (its god section reads reverence and reports fresh), at most every 10 s. Never while you type in it.

@@ -456,6 +456,8 @@ body.night .plate .hp[data-side="winning"] small { color: #7fe39a; }
 .starcard .pt { margin-top: -2px; font-family: var(--mono); font-size: 0.7rem; opacity: 0.7; }
 .starcard p { margin: 4px 0; }
 .starcard .x { position: absolute; right: 8px; top: 6px; border: 0; background: none; font-size: 1.3rem; line-height: 1; cursor: pointer; color: inherit; }
-.starcard .viewbtn { margin-top: 8px; }
+.starcard .viewbtn { margin-top: 8px; font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.82rem; border: 0; border-radius: 999px; padding: 7px 14px; cursor: pointer; background: var(--gold); color: var(--ink); box-shadow: 0 4px 12px rgba(232, 164, 0, 0.35); transition: transform 0.15s; }
+.starcard .viewbtn:hover { transform: translateY(-1px); }
+.starcard .viewbtn:disabled { opacity: 0.55; cursor: wait; }
 .starcard small { display: block; margin-top: 6px; opacity: 0.75; }
 @media (max-width: 700px) { .starcard { top: 64px; left: 10px; } }

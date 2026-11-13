@@ -863,13 +863,17 @@ export async function startLive(canvas, hud, opts = {}) {
     ray.setFromCamera(ndc, camera);
     const inSky = (o) => { for (; o; o = o.parent) if (o.name === "mind") return true; return false; };
     // Looking into a mind (PLAN_13NOV step 3): a tap on a star of a sky that's showing opens that star (onStar).
-    ray.params.Points = { threshold: 0.35 };
-    const star = ray.intersectObjects([...islands.values()], true).find((x) => x.object.isPoints && x.object.userData.list && inSky(x.object) && (x.object.material.uniforms?.uFade?.value ?? 0) > 0.3);
+    // The hit radius grows with distance (about 30 px on screen: the sky drifts, and fingers are wide), and of the
+    // stars near the tap the one closest to it wins (13 Nov: a 0.35 radius missed real clicks on a drifting sky).
+    ray.params.Points = { threshold: Math.max(0.35, camera.position.distanceTo(controls.getTarget(new THREE.Vector3())) * 0.045) };
+    const star = ray.intersectObjects([...islands.values()], true)
+      .filter((x) => x.object.isPoints && x.object.userData.list && inSky(x.object) && (x.object.material.uniforms?.uFade?.value ?? 0) > 0.3)
+      .sort((a, b) => a.distanceToRay - b.distanceToRay)[0];
     if (star && opts.onStar) {
       let o = star.object;
       while (o && !o.userData.clan) o = o.parent;
       const s = star.object.userData.list[star.index];
-      if (o && s) return opts.onStar(o.userData.clan.id, s.name);
+      if (o && s) return opts.onStar(o.userData.clan.id, s.name, { x: e.clientX, y: e.clientY });
     }
     const hit = ray.intersectObjects([...islands.values()], true).find((x) => !inSky(x.object));
     if (!hit) return;
