@@ -15,6 +15,7 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 
 export function createFeed({ box, W, flyTo, sandbox = false }) {
   const head = el("button", { type: "button", className: "head feed-head" });
+  const ignored = new Set(); // reports ignored from here (his call 13 Nov): off the list at once
   const soon = el("ul", { className: "feed-soon" });
   const justHead = el("p", { className: "feed-sub", textContent: "Just now" });
   const just = el("ul", { className: "feed-just" });
@@ -72,10 +73,12 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
     if (fm && fm.hungry >= fm.needs - 1) world.push(item("🌾", `${fm.hungry} of ${fm.of} nations are hungry.${fm.hungry >= fm.needs && fm.richest_name ? (fm.richest_hungry ? " The richest is hungry too, so no fire yet." : ` ${fm.richest_name} burns next turn if it stays fed.`) : ` At ${fm.needs}, the richest fed nation burns.`}`, [], false, fm.richest));
     for (const c of W.clans || []) if (isMine(c.id) && c.mood === "hungry") mineList.push(item("🍞", `${c.name}'s citizens are hungry. They slow down until fed.`, [["Bless", () => act({ kind: "bless", clan: c.id })]], true, c.id));
     // Ask the accused first (PLAN_13NOV step 2): Ask -> their answer -> Stunt or let it lapse.
-    for (const r of N.reports || []) if (isMine(r.clan)) {
-      if (r.answer) mineList.push(item("👁", r.answer.silent ? `${r.accused} can't answer the report (stunted or gone). Stunt, or let it lapse.` : `${r.accused} answered the report: "${r.answer.says}" Stunt, or let it lapse?`, [["Stunt", () => act({ kind: "smite", clan: r.clan, agent: r.accused })]], true, r.clan));
-      else if (r.asked) mineList.push(item("👁", `You asked ${r.accused} to answer ${r.accuser}'s report. Their answer is on its way.`, [], true, r.clan));
-      else mineList.push(item("👁", `${r.accuser} accuses ${r.accused}. Hear them out first.`, [[`Ask ${r.accused}`, () => gods?.choose("ask", r.clan, { report: r.id }, N.choice_day).then((done) => done && refresh())]], true, r.clan));
+    // Ignore (his call 13 Nov): settles it now, as a lapse would, and it leaves this list at once.
+    const ignore = (r) => ["Ignore", () => gods?.choose("dismiss", r.clan, { report: r.id }, N.choice_day).then((done) => { if (done) { ignored.add(r.id); refresh(); } })];
+    for (const r of N.reports || []) if (isMine(r.clan) && !ignored.has(r.id)) {
+      if (r.answer) mineList.push(item("👁", r.answer.silent ? `${r.accused} can't answer the report (stunted or gone). Stunt, or ignore it.` : `${r.accused} answered the report: "${r.answer.says}" Stunt, or ignore it?`, [["Stunt", () => act({ kind: "smite", clan: r.clan, agent: r.accused })], ignore(r)], true, r.clan));
+      else if (r.asked) mineList.push(item("👁", `You asked ${r.accused} to answer ${r.accuser}'s report. Their answer is on its way.`, [ignore(r)], true, r.clan));
+      else mineList.push(item("👁", `${r.accuser} accuses ${r.accused}. Hear them out first.`, [[`Ask ${r.accused}`, () => gods?.choose("ask", r.clan, { report: r.id }, N.choice_day).then((done) => done && refresh())], ignore(r)], true, r.clan));
     }
     for (const g of N.rulings || []) if (isMine(g.clan)) mineList.push(item("📜", `A draft from ${name(g.clan)} waits for your ruling.`, [["Open", () => flyTo(g.clan)]], true, g.clan));
     // The Scholars' pitch (PLAN_13NOV step 1): three directions for next turn; your pick replaces the dice.

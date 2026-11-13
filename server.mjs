@@ -370,6 +370,11 @@ function makeApi(NET) {
         if (!rep || rep.clan !== r.row.clan || rep.settled) return { error: "That report is closed." };
         if (rep.asked) return { error: "You've already asked. Their answer is on its way." };
       }
+      // Ignore a report (his call 13 Nov): only an open report of that nation.
+      if (r.ok && r.row.kind === "dismiss") {
+        const rep = s.reports?.[r.row.payload.report];
+        if (!rep || rep.clan !== r.row.clan || rep.settled) return { error: "That report is already closed." };
+      }
       // Whisper to the Broker (step 3): only what this nation's own Broker can sell.
       if (r.ok && r.row.kind === "list") {
         const can = new Set(sellable(s, r.row.clan, florinRates(NET)).map((x) => x.token_id));

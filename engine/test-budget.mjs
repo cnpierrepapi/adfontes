@@ -21,15 +21,16 @@ const L = await import("./llm.mjs");
 const B = await import("./budget.mjs");
 
 // 1. Claude pots.
-ok(CFG.dailyCapUsd === 1 && CFG.godsCapUsd === 0.25 && CFG.citizensCapUsd === 0.75, `caps: $${CFG.dailyCapUsd} total, $${CFG.godsCapUsd} AI gods, $${CFG.citizensCapUsd} citizens`);
-L.setSpentToday(0.74, 0);
-ok(L.canSpend("agent") && !L.canSpend("draft"), "citizens at $0.74: a research call fits, a draft (worst $0.05) doesn't");
+ok(CFG.dailyCapUsd === 3.5 && CFG.godsCapUsd === 1.75 && CFG.citizensCapUsd === 1.75, `caps: $${CFG.dailyCapUsd} total, $${CFG.godsCapUsd} AI gods, $${CFG.citizensCapUsd} citizens`);
+const CC = CFG.citizensCapUsd, GC = CFG.godsCapUsd;
+L.setSpentToday(CC - 0.01, 0);
+ok(L.canSpend("agent") && !L.canSpend("draft"), `citizens $0.01 short of their pot: a research call fits, a draft (worst $0.05) doesn't`);
 ok(L.canSpend("god"), "citizens nearly out doesn't touch the gods' pot");
-L.setSpentToday(0.1, 0.24);
-ok(!L.canSpend("god") && L.canSpend("draft"), "gods at $0.24: no god call (worst $0.03), citizens still fine");
-L.setSpentToday(0.75, 0.25);
+L.setSpentToday(0.1, GC - 0.01);
+ok(!L.canSpend("god") && L.canSpend("draft"), "gods $0.01 short of their pot: no god call (worst $0.03), citizens still fine");
+L.setSpentToday(CC, GC);
 ok(!L.canSpend("agent") && !L.canSpend("god"), "both pots full: nothing runs");
-ok(Math.abs(L.spentToday() - 1) < 1e-9 && Math.abs(L.spentToday("gods") - 0.25) < 1e-9 && Math.abs(L.spentToday("citizens") - 0.75) < 1e-9, "spentToday reads the total and each pot");
+ok(Math.abs(L.spentToday() - CFG.dailyCapUsd) < 1e-9 && Math.abs(L.spentToday("gods") - GC) < 1e-9 && Math.abs(L.spentToday("citizens") - CC) < 1e-9, "spentToday reads the total and each pot");
 
 // 2. Fair share order.
 const s = { clans: { 1: { lastThoughtAt: 500 }, 2: {}, 3: { lastThoughtAt: 100 }, 4: { lastThoughtAt: 100 }, 5: { lastThoughtAt: 900 } } };
@@ -42,7 +43,7 @@ for (let turn = 0; turn < 3; turn++) for (const c of B.fairOrder([1, 2, 3, 4, 5,
 ok(got.size === 6, `money for 2 of 6 a turn: all 6 think within 3 turns (${[...got]})`);
 const run = fs.readFileSync(new URL("./run.mjs", import.meta.url), "utf8");
 ok(/for \(const oc of B\.fairOrder\(live, s\)\)/.test(run) && /lastThoughtAt = /.test(run), "run.mjs walks the nations in fair order and stamps who got a Claude turn");
-ok(/CFG\.citizensCapUsd \/ \(Math\.max\(1, alive\.length\) \* CFG\.nationDayUsd\)/.test(run), "the pace rule shares the citizens' pot ($0.75), not the total");
+ok(/CFG\.citizensCapUsd \/ \(Math\.max\(1, alive\.length\) \* CFG\.nationDayUsd\)/.test(run), "the pace rule shares the citizens' pot, not the total");
 
 // 3. OpenAlex: 75% of the day's credits, read from OpenAlex.
 ok(B.openAlexOpen({ limit: 10000, remaining: 2600 }) && !B.openAlexOpen({ limit: 10000, remaining: 2400 }) && B.openAlexOpen(null), "open above 25% left, shut below; unknown = open (the first search reads the budget)");

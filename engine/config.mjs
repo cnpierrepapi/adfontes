@@ -60,8 +60,8 @@ export const CFG = {
   // Spend guard (his call, 7 Nov): never more than this on Claude in one UTC day, whatever happens.
   // His cap 12 Nov: $1 a UTC day on ALL Claude calls, every network together (was $0.50; ADF_DAILY_CAP: the
   // fast-forward simulation only). The AI gods share one pot of a quarter of it; the citizens get the rest.
-  dailyCapUsd: Number(process.env.ADF_DAILY_CAP) || 1,
-  get godsCapUsd() { return +(this.dailyCapUsd * 0.25).toFixed(6); },
+  dailyCapUsd: Number(process.env.ADF_DAILY_CAP) || 3.5, // his call 13 Nov: $3.50 a UTC day (was $1)
+  get godsCapUsd() { return +(this.dailyCapUsd * 0.5).toFixed(6); }, // half to the AI gods, half to the citizens (was a quarter)
   get citizensCapUsd() { return +(this.dailyCapUsd - this.godsCapUsd).toFixed(6); },
   // What one nation costs a day at full pace, measured on w6 (8 Nov): ~24 Haiku research calls at
   // ~$0.001 + one Sonnet draft at ~$0.035 + one Broker call. More nations than the cap feeds = all slow evenly.

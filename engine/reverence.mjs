@@ -302,6 +302,25 @@ export function lapseReports(s, rv, id, day, changes) {
   return out;
 }
 
+/** Ignored reports (his call 13 Nov): a god's 'dismiss' choice settles an open report of this nation at once, as a
+ *  lapse would: a true report ignored costs the accuser's faith. Returns the report-settled records. */
+export function dismissReports(s, rv, id, day, choices, changes) {
+  const out = [];
+  for (const ch of choices || []) {
+    if (ch.kind !== "dismiss" || Number(ch.clan) !== Number(id)) continue;
+    const rep = s.reports?.[ch.payload?.report];
+    if (!rep || rep.clan !== id || rep.settled) continue;
+    rep.settled = true;
+    rep.outcome = "ignored";
+    if (rep.truth && rv.followed && rv.gods[rv.followed]) {
+      rv.gods[rv.followed].faithLossUntil = day + REV.effectDays;
+      changes.push({ god: rv.followed, d: 0, why: `${rep.accuser} lost faith: the report about ${rep.accused} was true and it was ignored` });
+    }
+    out.push({ kind: "report-settled", report: rep.id, clan: id, accused: rep.accused, outcome: "ignored", truth: rep.truth, god: ch.account });
+  }
+  return out;
+}
+
 /** The day's reverence record for a nation (written into the records, so it's provable). */
 export function record(rv, id, changes) {
   const gods = Object.fromEntries(Object.entries(rv.gods).map(([a, g]) => [a, round(g.r)]));

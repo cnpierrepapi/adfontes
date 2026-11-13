@@ -45,6 +45,7 @@ function putInWords(clan, me, cfg, st) {
 }
 
 export async function createGods({ live, W, nav, toast, route, replayIntro }) {
+  const ignoredReports = new Set(); // reports this god just ignored (his call 13 Nov)
   const WORLD = W.world;
   const wallet = await createWallet(W.net);
   let account = wallet.account();
@@ -433,6 +434,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       const open = (info.reports || []).filter((x) => !x.settled);
       const choiceDay = open.length && me && seated ? (await api("next").catch(() => null))?.choice_day : null;
       for (const r of open) {
+        if (ignoredReports.has(r.id)) continue; // ignored just now: gone at once (the turn settles it in seconds)
         const row = el("div", { className: "gift report" }, el("span", { textContent: `Report, turn ${r.day}: ${r.claim}. Lapses on turn ${r.lapses_day}.` }));
         if (r.answer) row.append(el("p", { className: "fine answer" }, r.answer.silent ? `${r.accused} can't answer: they're stunted or gone.` : `${r.accused} answers: `, r.answer.silent ? "" : el("i", { textContent: r.answer.says })));
         else if (r.asked) row.append(el("p", { className: "fine" }, `You asked ${r.accused}. Their answer is on its way.`));
@@ -440,11 +442,17 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           if (r.answer) {
             const b = el("button", { type: "button", className: "viewbtn", textContent: `Stunt ${r.accused}` });
             b.addEventListener("click", () => smiteCard(clan, r.accused));
-            row.append(b, el("small", { textContent: "or do nothing and let it lapse. A guilty one may lie. Stunt the guilty and the nation sees justice; stunt the innocent and you make an enemy; ignore a true report and the accuser loses faith." }));
+            row.append(b, el("small", { textContent: "or ignore it. A guilty one may lie. Stunt the guilty and the nation sees justice; stunt the innocent and you make an enemy; ignore a true report and the accuser loses faith." }));
           } else if (!r.asked && choiceDay) {
             const b = el("button", { type: "button", className: "viewbtn", textContent: `Ask ${r.accused}` });
             b.addEventListener("click", () => { b.disabled = true; choose("ask", c.id, { report: r.id }, choiceDay).then((done) => { if (!done) b.disabled = false; }); });
-            row.append(b, el("small", { textContent: "Hear them out first: they answer in their own words, then you decide. Or let it lapse." }));
+            row.append(b, el("small", { textContent: "Hear them out first: they answer in their own words, then you decide. Or ignore it." }));
+          }
+          // Ignore (his call 13 Nov): settles it now as a lapse would (a true report ignored costs the accuser's faith).
+          if (choiceDay) {
+            const x = el("button", { type: "button", className: "viewbtn", textContent: "Ignore" });
+            x.addEventListener("click", () => { x.disabled = true; choose("dismiss", c.id, { report: r.id }, choiceDay).then((done) => { if (done) { ignoredReports.add(r.id); row.remove(); } else x.disabled = false; }); });
+            row.append(x);
           }
         }
         rev.append(row);
@@ -874,7 +882,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const signed = await wallet.signChoice(msg);
     if (!signed) { toast(account ? "The choice wasn't signed, so nothing was saved." : "Become a god first to choose."); return false; }
     const r = await fetch("/api/choice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...c, ...signed }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world. Try again." }));
-    toast(r.ok ? (kind === "ask" ? "Asked. The accused answers in a moment." : kind === "list" ? "Whispered to your Broker. It decides in a moment." : "Chosen. Your Scholars follow it next turn.") : r.error);
+    toast(r.ok ? (kind === "dismiss" ? "Ignored. It's off your list." : kind === "ask" ? "Asked. The accused answers in a moment." : kind === "list" ? "Whispered to your Broker. It decides in a moment." : "Chosen. Your Scholars follow it next turn.") : r.error);
     if (r.ok) setTimeout(() => refreshPanel(), 1500); // asked: the panel shows "waiting for the answer"
     return !!r.ok;
   }

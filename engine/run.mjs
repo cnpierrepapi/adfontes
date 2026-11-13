@@ -668,6 +668,7 @@ for (let n = 0; n < days; n++) {
         for (const r of acts) log(r);
         if (acts.length) c.lastActAt = Date.now(); // a god acted: no Trickster for 24 hours
         // Ask the accused (PLAN_13NOV step 2, engine/ask.mjs): this turn's asks, then the accused answer (instant turns too).
+        for (const r of RV.dismissReports(s, rv, oc.id, day, CHOICES, revCh)) log(r); // ignored reports (his call 13 Nov)
         for (const r of AK.markAsked(s, CHOICES, oc.id, day)) log(r);
         for (const r of await AK.answerAsked(s, oc.id, agents, day, (x) => accusedReply({ ...x, nation: oc.name, temperament: c.mbti }))) log(r);
         RV.follow(s, oc.id, revCh, AI_SET);

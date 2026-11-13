@@ -96,7 +96,7 @@ async function look(W) {
   // nation an instant turn (no research), so the answer comes in seconds. Kept apart from asksSince for the tests.
   try {
     const since = W.askSeen ?? now - 60e3;
-    const asks = await store.choicesSince(W.net, since, ["ask", "list"]); // asksSince + kind === "list"
+    const asks = await store.choicesSince(W.net, since, ["ask", "list", "dismiss"]); // asksSince + kind === "list"
     for (const a of asks) { W.queue.set(Number(a.clan), W.queue.get(Number(a.clan)) || false); W.aiTouched.add(Number(a.clan)); }
     W.askSeen = Math.max(since, ...asks.map((a) => Number(a.at) || 0));
   } catch {}
