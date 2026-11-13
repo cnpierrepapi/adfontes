@@ -78,6 +78,7 @@ export const CFG = {
   // Models (SPEC §12b.4): Haiku for agent turns, Sonnet for drafts. Fallback compute = our key.
   agentModel: "claude-haiku-5-5",
   draftModel: "claude-sonnet-5-5",
+  godModel: process.env.ADF_GOD_MODEL || "claude-haiku-5-5", // the AI gods' planner: Haiku 5.5 (his call 13 Nov; scripts/gods-model-eval.mjs)
   councilModel: "claude-opus-5-5", // the war council (his call 8 Nov): war and peace get the strongest mind
 };
 

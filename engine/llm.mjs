@@ -387,23 +387,27 @@ const GODS_PLAN = {
 /** Plans the next two hours for every AI god at once. sits = [{ god, name, temperament, allowance, clans,
  *  nations: [{ id, name, standing, myReverence, tricksters, mood, war, florins }], reports, gifts, aogToday }].
  *  Returns { [god]: actions[] } (checked afterwards by aigods.validatePlan). */
-export async function godsPlan(sits, fake) {
+export async function godsPlan(sits, fake, model = CFG.godModel) {
   if (FAKE) return Object.fromEntries(sits.map((s) => [s.god, fake(s)]));
   const lines = sits.map((s) => [
     `GOD ${s.god} (${s.name}; temperament ${s.temperament}; may bless up to ${s.allowance.toFixed(2)} today; Acts of God left today: ${s.aogToday ? 0 : 1})`,
-    ...s.nations.map((n) => `  nation ${n.id} "${n.name}": its citizens' standing ${n.standing}/100, your reverence there ${n.myReverence}, Tricksters ${n.tricksters}, ${n.mood} (needs ${n.need} NEAR a day to eat; got ${n.fed24h} in the last day; under half the need = hungry)${n.war ? `, at war with ${n.war}` : ""}, ${Math.round(n.florins)} florins`),
+    ...s.nations.map((n) => `  nation ${n.id} "${n.name}": standing ${n.standing}/100; your reverence ${n.myReverence}; ${n.mood === "hungry" ? `HUNGRY (needs ${n.need} NEAR a day, got ${n.fed24h} in the last day)` : `fed (${n.mood})`}; ${n.tricksters ? `${n.tricksters} Trickster(s) among them` : "no Tricksters"}; ${n.war ? `AT WAR with ${n.war}` : "at peace"}; ${Math.round(n.florins)} florins; its scholars are working on: ${(n.looking || []).join(", ") || "nothing new"}`),
     ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}`)),
     ...Object.entries(s.gifts || {}).flatMap(([c, gs]) => gs.map((g) => `  gift ${g.id} in nation ${c} waits for a ruling (warden ${g.warden_passed ? "passed" : "failed"} it)`)),
   ].join("\n")).join("\n\n");
   const r = await json(
-    CFG.draftModel,
-    "You play the AI gods of AD FONTES, a world of small nations whose citizens read real research. Each god plans the next two hours. " +
-      "Your first job is RECOVERY: many of your nations turned away from their gods (standing near 0), Tricksters faking research moved in, and the people are hungry. " +
-      "What works: whisper (one or two plain, specific sentences about what the nation should do next, grounded in its situation; citizens judge it, empty or flattering words lose reverence), " +
-      "bless with NEAR (0.1 or more; feeds hungry citizens, lifts reverence up to 60, each blessing in a day counts less), " +
-      "rule on a waiting gift (reward it; an unruled gift costs reverence), smite a reported Trickster (Stunt or Kill; you judge the claim blind, a wrong smite of an honest citizen costs you), " +
-      "and at most one Act of God a day on another nation (fire on a nation hoarding florins or bullying in war; never your own). " +
-      "Plan 6 to 9 actions per god, most-fallen nation first, varied (not all blessings). Never more blessing NEAR than the god may spend today. " +
+    model,
+    "You play the AI gods of AD FONTES, a world of small nations whose citizens read real research. Each god's job is to win and keep its nations' faith. " +
+      "Return an entry for EVERY god listed, using its account exactly as written after GOD, with 5 to 8 actions for the next two hours, the god's lowest-standing nation first. Mix the kinds. " +
+      "The kinds:\n" +
+      "- whisper (at most 2 per god): one or two sentences to one of its nations. The citizens judge the words against that nation's line: they land when they name what is true there right now " +
+      "(its hunger only if it says HUNGRY, its Tricksters only if it has some, its war and walls only if AT WAR, and the topics its scholars are working on) and give one concrete next step. " +
+      "Generic, flattering or wrong words lose reverence. Never tell a fed nation it is hungry.\n" +
+      "- bless (NEAR, 0.1 or more): feeds a HUNGRY nation (cover what it still needs today) and lifts reverence up to 60; each blessing the same day counts less. " +
+      "All of a god's blessings together stay within what it may bless today.\n" +
+      "- rule: reward a waiting gift by its number. Only gifts listed.\n" +
+      "- smite: a reported citizen, by the report's id, Stunt unless the claim is strong. Only reports listed.\n" +
+      "- fire: at most one a day per god, on another nation that hoards florins or bullies in war. Never its own.\n" +
       "Write every whisper in the god's own voice, matching its temperament.",
     `Your gods and their nations now:\n\n${lines}`,
     GODS_PLAN,

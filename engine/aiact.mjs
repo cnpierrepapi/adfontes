@@ -34,6 +34,8 @@ export async function situations({ net, s, onchain, now = Date.now() }) {
         war: war ? onchain.find((x) => x.id === (war.a === c.id ? war.b : war.a))?.name ?? null : null,
         openGifts: Object.values(s.gifts || {}).filter((x) => x.clan === c.id && !x.applied).length,
         // Hunger (run.mjs): fed = grace blessed in the last 24 h / its daily need; hungry under half.
+        // What its scholars are working on: the words a whisper can name (the citizens' judge listens for them).
+        looking: Object.keys(st.frontier || {}).slice(0, 3),
         need: +(st.need || 0).toFixed(3), fed24h: +((st.blessings || []).filter((b) => now - b.at < 86400e3).reduce((a, b) => a + b.near, 0)).toFixed(3),
       };
     });

@@ -154,3 +154,9 @@ ok(fake.some((a) => a.kind === "rule" && a.gift === 5) && fake.some((a) => a.kin
   ok((await store.godNames([acct]))[acct] === "Lugh", "and keeps it");
   fs.rmSync(dir, { recursive: true, force: true });
 }
+// 12. The AI gods plan with Haiku 5.5 (his call 13 Nov, after scripts/gods-model-eval.mjs: same whisper quality
+//     as Sonnet with the v2 prompt, every god planned, ~5x cheaper, fits the gods' $0.25 a day).
+{
+  const { CFG } = await import("./config.mjs");
+  ok(CFG.godModel === "claude-haiku-5-5", `the AI gods plan with Haiku 5.5 (${CFG.godModel})`);
+}
