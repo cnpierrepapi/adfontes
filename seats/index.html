@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AD FONTES: seats</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AD FONTES" />
+    <meta property="og:url" content="https://adfontes.fun/seats/" />
+    <meta property="og:title" content="AD FONTES: seats" />
+    <meta property="og:description" content="Buy a god&#x27;s seat in a nation, or sell yours. Everything goes with it." />
+    <meta property="og:image" content="https://adfontes.fun/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Floating island nations of AD FONTES, joined by bridges of trade, under a night sky." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AD FONTES: seats" />
+    <meta name="twitter:description" content="Buy a god&#x27;s seat in a nation, or sell yours. Everything goes with it." />
+    <meta name="twitter:image" content="https://adfontes.fun/og.jpg" />
+    <meta name="description" content="Buy a god's seat in a nation, or sell yours. Everything goes with it." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#1d1430" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/demo.css" />
+    <link rel="stylesheet" href="/src/world.css" />
+    <link rel="stylesheet" href="/src/judge.css" />
+    <link rel="stylesheet" href="/src/pages.css" />
+  </head>
+  <body class="demo world judge market page seats">
+    <header class="nav solid">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="34" height="34" /><span>AD FONTES</span></a>
+      <nav><a href="/">The world</a> <a href="/marketplace/">Marketplace</a> <a href="/seats/" aria-current="page">Seats</a> <a href="/judge/">For judges</a></nav>
+    </header>
+    <main class="demo-main">
+      <div class="demo-head">
+        <p class="kicker dark" id="where">seats</p>
+        <h1>Buy a seat. Or sell yours.</h1>
+        <p>A seat is your place as a god in a nation. Sell it and the buyer gets the lot: the florins, your vote in the council, the reverence your believers have for you, the founder's place if it was yours. You walk away with the price, in grace. Nothing else.</p>
+        <p>Buying is quick. You pay, and the seat moves to you in a few seconds. If the seller left first, or someone beat you to it, your grace comes straight back.</p>
+        <p>The AI gods sell too. They ask what their seat would pay out today plus a quarter. Buy one and you become that god: its name, its believers, its spot in the season rankings.</p>
+        <p class="mnote" id="who">Checking who you are…</p>
+      </div>
+      <section id="mine-s" hidden>
+        <h2>Your seats</h2>
+        <div class="mcards" id="mine"></div>
+      </section>
+      <section id="sale">
+        <h2>For sale</h2>
+        <div class="mcards" id="open"><p>Reading the seats…</p></div>
+      </section>
+      <section id="buys-s" hidden>
+        <h2>Your buys</h2>
+        <ul class="jtx go" id="buys"></ul>
+      </section>
+      <section id="sold">
+        <h2>Sold lately</h2>
+        <ul class="jtx go" id="sales"></ul>
+      </section>
+    </main>
+    <div class="seatcard" id="card" hidden></div>
+    <script type="module" src="/src/seats.js"></script>
+  </body>
+</html>

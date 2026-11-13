@@ -115,6 +115,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const found = el("button", { type: "button", className: "viewbtn gold", textContent: "Found a nation" });
     found.addEventListener("click", () => { menu.hidden = true; foundCard(); });
     row.append(found);
+    // Seat trading (PLAN_13NOV step 4): its own page, /seats/. Buy a seat (AI gods' too) or sell yours.
+    row.append(el("a", { className: "viewbtn", href: "/seats/", textContent: "Buy or sell a seat" }));
     // The any-crypto top-up (NEAR Intents, src/live/intents.js) isn't offered: the game reads web2 (12 Nov).
     if (BigInt(owed || 0) > 0n) {
       const claim = el("button", { type: "button", className: "viewbtn", textContent: `Claim ${near(owed)} grace owed` });

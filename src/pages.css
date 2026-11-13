@@ -129,3 +129,13 @@ body.page .trybox:hover { transform: translateY(-2px); }
 body.page .trybox b { font-family: var(--display); font-size: clamp(1.4rem, 3.2vw, 2rem); line-height: 1.1; }
 body.page .trybox span { font-size: 0.98rem; line-height: 1.45; max-width: 46em; }
 body.page .trybox i { font-style: normal; font-weight: 800; font-family: var(--display); }
+
+/* The seats page (PLAN_13NOV step 4): seat cards and the buy card. */
+body.seats .mcard.seat { display: flex; flex-direction: column; gap: 6px; }
+body.seats .mcard.seat.ai h3::after { content: " AI"; font-size: 0.6em; vertical-align: middle; opacity: 0.6; }
+body.seats .mcard.seat .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+body.seats .mcard.seat input { width: 6em; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(29, 20, 48, 0.25); font: inherit; }
+body.seats .err { color: #b3261e; min-height: 1em; }
+body.seats .seatcard { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px)); background: #fffaf0; color: #1d1430; border-radius: 16px; padding: 20px 22px; box-shadow: 0 20px 60px rgba(29, 20, 48, 0.35); z-index: 50; }
+body.seats .seatcard .x { position: absolute; right: 10px; top: 8px; background: none; border: 0; font-size: 22px; cursor: pointer; }
+body.seats .seatcard .row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }

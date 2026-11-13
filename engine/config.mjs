@@ -89,6 +89,7 @@ export const NETWORKS = {
     backupRpc: "https://rpc.testnet.fastnear.com",
     world: process.env.ADF_WORLD || "w6.adf-pool1-hf0w8.testnet", // the v2 world (wipe day, 7 Nov; SPEC §14)
     operatorKeyFile: ".keys/adfontes-mw1fjpfx.testnet.json",
+    escrow: "adfontes-mw1fjpfx.testnet", // seat trading (PLAN_13NOV step 4): buyers pay the operator, which pays the seller
   },
   mainnet: {
     rpc: "https://rpc.mainnet.fastnear.com",

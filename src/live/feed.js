@@ -124,6 +124,8 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
       // Whispering to the Broker (PLAN_13NOV step 3).
       case "broker-word": return r.full ? null : r.listens ? ["⇄", `${name(r.clan)}'s Broker heeded ${r.god ? godName(r.god) : "its god"}${r.listing?.length ? ` and puts ${r.listing.length} thing${r.listing.length === 1 ? "" : "s"} up for sale` : ", but had nothing new to list"}.`, r.clan] : ["⇄", `${name(r.clan)}'s Broker ${r.ignored ? "ignored" : "didn't heed"} ${r.god ? godName(r.god) : "its god"} this time.`, r.clan];
       case "reverence-change": return r.listing != null ? ["✦", `${name(r.clan)}'s Broker sold what its god asked, above what it's worth. Its god gains a little reverence.`, r.clan] : null;
+      // Seat trading (PLAN_13NOV step 4): a seat changed hands. Buying an AI god's seat, the buyer plays as that god.
+      case "seat-sold": return ["⚑", r.as ? `A new god bought ${r.as}'s seat in ${name(r.clan)} for ${r.price} grace and now plays as ${r.as}.` : `${godName(r.seller)} sold their seat in ${name(r.clan)} to ${godName(r.buyer)} for ${r.price} grace.`, r.clan];
       case "report-settled": return ["⚖", `${r.accused} in ${name(r.clan)}: the report ${r.outcome === "stunted" ? "ended in a stunt" : "lapsed"}. It was ${r.truth ? "true" : "a grudge"}.`, r.clan];
       default: return null;
     }

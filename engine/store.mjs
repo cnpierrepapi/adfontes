@@ -28,6 +28,8 @@ async function db() {
     create table if not exists choices (net text not null, day int not null, clan int not null, kind text not null, account text not null, payload jsonb not null, at timestamptz default now(), primary key (net, day, clan, kind));
     create table if not exists ai_gods (account text primary key, net text not null, name text not null, temperament text, at timestamptz default now());
     create table if not exists ai_actions (id serial primary key, net text not null, at bigint not null, god text not null, action jsonb not null, done boolean not null default false, result text);
+    create table if not exists seats (id serial primary key, net text not null, clan int not null, seller text not null, price text not null, status text not null default 'open', buyer text, at bigint not null, updated timestamptz default now());
+    create table if not exists seat_buys (tx text primary key, net text not null, listing int not null, buyer text not null, amount text not null, status text not null default 'waiting', claimed text, result jsonb, at bigint not null, sealed boolean not null default false);
   `);
   await ready;
   return pool;
@@ -51,6 +53,21 @@ export async function claimGodName(account, name) {
   if (Object.entries(all).some(([a, n]) => n === name && a !== account)) return false;
   all[account] = name; fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(NAMES_FILE(), JSON.stringify(all)); return true;
 }
+/** A sold AI seat (engine/seats.mjs takesName): the AI god's name goes to the buyer, whose own name (if the site gave
+ *  them one) is let go. */
+export async function moveGodName(from, to) {
+  const p = await db();
+  if (p) {
+    const c = await p.connect();
+    try { await c.query("begin"); await c.query("delete from god_names where account = $1", [to]); await c.query("update god_names set account = $2 where account = $1", [from, to]); await c.query("commit"); }
+    catch (e) { await c.query("rollback").catch(() => {}); throw e; } finally { c.release(); }
+    return;
+  }
+  const all = fs.existsSync(NAMES_FILE()) ? JSON.parse(fs.readFileSync(NAMES_FILE(), "utf8")) : {};
+  if (!(from in all)) return;
+  all[to] = all[from]; delete all[from];
+  fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(NAMES_FILE(), JSON.stringify(all));
+}
 // Signed choices (13 Nov, engine/choices.mjs): one per kind, nation and turn; a new one replaces the old.
 const CHOICES_FILE = () => `${DIR}/choices.json`;
 export async function putChoice(net, row) {
@@ -73,6 +90,118 @@ export async function choicesSince(net, sinceMs, kinds = ["ask"]) {
   if (p) return (await p.query("select day, clan, kind, account, payload, (extract(epoch from at) * 1000)::float8 as at from choices where net = $1 and kind = any($3) and at > to_timestamp($2 / 1000.0)", [net, sinceMs, kinds])).rows;
   const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
   return Object.values(all).filter((r) => r.net === net && kinds.includes(r.kind) && (r.at || 0) > sinceMs).map(({ net: _n, ...r }) => r);
+}
+// Seat trading (PLAN_13NOV step 4, engine/seats.mjs): listings (one open per seller and nation; a new price
+// cancels the old one) and buys (one per payment; waiting -> working -> filled | refunded | rejected, or pay-due /
+// refund-due to retry). Finished buys are sealed as records once by engine/run.mjs.
+const SEATS_FILE = () => `${DIR}/seats.json`;
+const seatsFile = () => (fs.existsSync(SEATS_FILE()) ? JSON.parse(fs.readFileSync(SEATS_FILE(), "utf8")) : { next: 1, seats: [], buys: [] });
+const seatsSave = (all) => { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(SEATS_FILE(), JSON.stringify(all)); };
+const RETRY = ["waiting", "pay-due", "refund-due"];
+const seatRow = (r) => (r ? { id: Number(r.id), clan: Number(r.clan), seller: r.seller, price: String(r.price), status: r.status, buyer: r.buyer ?? null, at: Number(r.at) } : null);
+const buyRow = (r) => (r ? { tx: r.tx, listing: Number(r.listing), buyer: r.buyer, amount: String(r.amount), status: r.status, result: r.result ?? null, at: Number(r.at) } : null);
+export async function seatList(net, { clan, seller, price, at }) {
+  const p = await db();
+  if (p) {
+    await p.query("update seats set status = 'cancelled', updated = now() where net = $1 and clan = $2 and seller = $3 and status = 'open'", [net, clan, seller]);
+    return Number((await p.query("insert into seats (net, clan, seller, price, at) values ($1,$2,$3,$4,$5) returning id", [net, clan, seller, String(price), at])).rows[0].id);
+  }
+  const all = seatsFile();
+  for (const x of all.seats) if (x.net === net && x.clan === clan && x.seller === seller && x.status === "open") x.status = "cancelled";
+  const id = all.next++;
+  all.seats.push({ id, net, clan, seller, price: String(price), status: "open", buyer: null, at });
+  seatsSave(all);
+  return id;
+}
+export async function seatUnlist(net, clan, seller, at) {
+  const p = await db();
+  if (p) return void (await p.query("update seats set status = 'cancelled', at = greatest(at, $4), updated = now() where net = $1 and clan = $2 and seller = $3 and status = 'open'", [net, clan, seller, at]));
+  const all = seatsFile();
+  for (const x of all.seats) if (x.net === net && x.clan === clan && x.seller === seller && x.status === "open") { x.status = "cancelled"; x.at = Math.max(x.at, at); }
+  seatsSave(all);
+}
+export async function seatGet(net, id) {
+  const p = await db();
+  if (p) return seatRow((await p.query("select * from seats where net = $1 and id = $2", [net, id])).rows[0]);
+  return seatRow(seatsFile().seats.find((x) => x.net === net && x.id === Number(id)));
+}
+export async function seatsOpen(net) {
+  const p = await db();
+  if (p) return (await p.query("select * from seats where net = $1 and status = 'open' order by id desc", [net])).rows.map(seatRow);
+  return seatsFile().seats.filter((x) => x.net === net && x.status === "open").reverse().map(seatRow);
+}
+export async function seatsSold(net, limit = 20) {
+  const p = await db();
+  if (p) return (await p.query("select * from seats where net = $1 and status = 'sold' order by id desc limit $2", [net, limit])).rows.map(seatRow);
+  return seatsFile().seats.filter((x) => x.net === net && x.status === "sold").reverse().slice(0, limit).map(seatRow);
+}
+/** The newest signed time this seller used for this nation (a replayed older message is refused). */
+export async function seatLastAt(net, clan, seller) {
+  const p = await db();
+  if (p) return Number((await p.query("select coalesce(max(at), 0) as at from seats where net = $1 and clan = $2 and seller = $3", [net, clan, seller])).rows[0].at);
+  return Math.max(0, ...seatsFile().seats.filter((x) => x.net === net && x.clan === clan && x.seller === seller).map((x) => x.at));
+}
+export async function seatSetStatus(net, id, status, buyer) {
+  const p = await db();
+  if (p) return void (await p.query("update seats set status = $3, buyer = $4, updated = now() where net = $1 and id = $2", [net, id, status, buyer]));
+  const all = seatsFile();
+  const x = all.seats.find((r) => r.net === net && r.id === Number(id));
+  if (x) { x.status = status; x.buyer = buyer; }
+  seatsSave(all);
+}
+/** Note a buy. False when this payment was already used. */
+export async function seatBuy(net, { tx, listing, buyer, amount }) {
+  const p = await db();
+  if (p) return (await p.query("insert into seat_buys (tx, net, listing, buyer, amount, at) values ($1,$2,$3,$4,$5,$6) on conflict (tx) do nothing", [tx, net, listing, buyer, String(amount), Date.now()])).rowCount === 1;
+  const all = seatsFile();
+  if (all.buys.some((b) => b.tx === tx)) return false;
+  all.buys.push({ tx, net, listing: Number(listing), buyer, amount: String(amount), status: "waiting", claimed: null, result: null, at: Date.now(), sealed: false });
+  seatsSave(all);
+  return true;
+}
+export async function seatBuysWaiting(net) {
+  const p = await db();
+  if (p) return (await p.query("select * from seat_buys where net = $1 and status = any($2) order by at", [net, RETRY])).rows.map(buyRow);
+  return seatsFile().buys.filter((b) => b.net === net && RETRY.includes(b.status)).map(buyRow);
+}
+/** Take a buy to work on it. Returns the status it had (so a pay-due one only retries the payment), or null when
+ *  someone else already has it. */
+export async function seatBuyClaim(net, tx) {
+  const p = await db();
+  if (p) return (await p.query("update seat_buys set claimed = status, status = 'working' where net = $1 and tx = $2 and status = any($3) returning claimed", [net, tx, RETRY])).rows[0]?.claimed ?? null;
+  const all = seatsFile();
+  const b = all.buys.find((x) => x.net === net && x.tx === tx && RETRY.includes(x.status));
+  if (!b) return null;
+  b.claimed = b.status; b.status = "working";
+  seatsSave(all);
+  return b.claimed;
+}
+export async function seatBuyFinish(net, tx, status, result) {
+  const p = await db();
+  if (p) return void (await p.query("update seat_buys set status = $3, result = $4 where net = $1 and tx = $2", [net, tx, status, JSON.stringify(result)]));
+  const all = seatsFile();
+  const b = all.buys.find((x) => x.net === net && x.tx === tx);
+  if (b) { b.status = status; b.result = result; }
+  seatsSave(all);
+}
+export async function seatBuysOf(net, buyer) {
+  const p = await db();
+  if (p) return (await p.query("select * from seat_buys where net = $1 and buyer = $2 order by at desc limit 10", [net, buyer])).rows.map(buyRow);
+  return seatsFile().buys.filter((b) => b.net === net && b.buyer === buyer).reverse().slice(0, 10).map(buyRow);
+}
+/** Filled and refunded buys not yet sealed as records. */
+export async function seatBuysUnsealed(net) {
+  const p = await db();
+  if (p) return (await p.query("select * from seat_buys where net = $1 and not sealed and status in ('filled', 'refunded') order by at", [net])).rows.map(buyRow);
+  return seatsFile().buys.filter((b) => b.net === net && !b.sealed && (b.status === "filled" || b.status === "refunded")).map(buyRow);
+}
+export async function seatBuysSealed(txs) {
+  if (!txs.length) return;
+  const p = await db();
+  if (p) return void (await p.query("update seat_buys set sealed = true where tx = any($1)", [txs]));
+  const all = seatsFile();
+  for (const b of all.buys) if (txs.includes(b.tx)) b.sealed = true;
+  seatsSave(all);
 }
 export const asksSince = (net, sinceMs) => choicesSince(net, sinceMs, ["ask"]);
 /** Every name given so far. */
@@ -113,6 +242,12 @@ export async function aiGods(net) {
   const p = await db();
   if (p) return (await p.query("select account, name, temperament from ai_gods where net = $1", [net])).rows;
   return Object.values(aiFile().gods).filter((g) => g.net === net);
+}
+/** An AI god that sold its seat (engine/seats.mjs): it sits nowhere now, so the engine stops planning for it. */
+export async function removeAiGod(net, account) {
+  const p = await db();
+  if (p) { await p.query("delete from ai_gods where net = $1 and account = $2", [net, account]); await p.query("update ai_actions set done = true, result = 'sold its seat' where net = $1 and god = $2 and not done", [net, account]); return; }
+  const m = aiFile(); delete m.gods[account]; aiSave(m);
 }
 export async function addAiGod(net, account, name, temperament) {
   const p = await db();

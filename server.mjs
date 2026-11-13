@@ -16,6 +16,7 @@ import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, fundFounding, PUBL
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS, pitchOf } from "./engine/world.mjs";
 import { canPitch } from "./engine/war.mjs";
 import { acceptChoice } from "./engine/choices.mjs";
+import * as SE from "./engine/seats.mjs";
 import { standings } from "./engine/reverence.mjs";
 import { inRanking } from "./src/season.js";
 
@@ -132,6 +133,11 @@ function makeApi(NET) {
   };
   const EXPLORER = NET === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io";
   const cachedN = (key, ms, fn) => cached(`${NET}:${key}`, ms, fn);
+  // Is this public key on this account? (signed choices and seat listings)
+  const keyOn = async (account, publicKey) => {
+    const ask = (p) => p.query({ request_type: "view_access_key", finality: "final", account_id: account, public_key: publicKey });
+    try { await ask(rpcs[0]); return true; } catch (e) { if (/does not exist|UNKNOWN_ACCESS_KEY|doesn't exist/i.test(String(e?.message ?? e))) return false; try { await ask(rpcs[1]); return true; } catch { return false; } }
+  };
   const stateNow = () => cachedN("state", 3_000, () => store.loadState(NET)); // one shared copy
   // A sealed turn never changes: keep it; the open turn is read again after 5 s.
   const sealedDays = new Map();
@@ -293,15 +299,69 @@ function makeApi(NET) {
         };
       });
     },
+    // Seat trading (PLAN_13NOV step 4, engine/seats.mjs). The board: every open seat with its claim value now (what
+    // the seller could claim today), the asking price and the premium over it; sales lately; and, for ?account=, that
+    // account's buys and how they stand. Prices in grace. The escrow is the operator.
+    async seats(q) {
+      const who = String(q.get("account") || "").slice(0, 64);
+      const board = await cachedN("seats", 8_000, async () => {
+        const [clans, open, sold, ai] = await Promise.all([view("list_clans", { limit: 100 }), store.seatsOpen(NET), store.seatsSold(NET, 12), store.aiGods(NET).catch(() => [])]);
+        const aiSet = new Set(ai.map((g) => g.account)), byId = new Map(clans.map((c) => [c.id, c]));
+        const names = await store.godNames([...open, ...sold].flatMap((l) => [l.seller, l.buyer]).filter(Boolean)).catch(() => ({}));
+        const rows = [];
+        for (const l of open) {
+          const c = byId.get(l.clan);
+          if (!c?.alive || !(c.gods || []).some((g) => g.account === l.seller)) continue; // the seller left: not for sale
+          const st = await view("get_stake", { clan_id: l.clan, account: l.seller }).catch(() => null);
+          const claim = st ? near(st.near) : null, price = SE.nearOf(l.price);
+          rows.push({ id: l.id, clan: l.clan, nation: c.name, seller: l.seller, seller_name: names[l.seller] ?? null, ai: aiSet.has(l.seller), price, price_yocto: l.price, claim, premium: claim ? +((price / claim - 1) * 100).toFixed(1) : null, gods: (c.gods || []).length });
+        }
+        return { escrow: NETWORKS[NET].escrow, min: SE.SEAT.minNear, max: SE.SEAT.maxNear, open: rows, sold: sold.map((l) => ({ id: l.id, clan: l.clan, nation: byId.get(l.clan)?.name ?? `nation ${l.clan}`, seller_name: names[l.seller] ?? null, buyer: l.buyer, buyer_name: names[l.buyer] ?? null, price: SE.nearOf(l.price) })) };
+      });
+      const mine = who ? (await store.seatBuysOf(NET, who).catch(() => [])).map((b) => ({ tx: b.tx, listing: b.listing, price: SE.nearOf(b.amount), status: b.status, why: b.result?.why ?? null })) : [];
+      return { ...board, mine };
+    },
+    // A seller lists their seat or takes it off (a signed message, engine/seats.mjs acceptSeat).
+    async _seat(b) {
+      const clanOf = (id) => view("get_clan", { clan_id: Number(id) }).catch(() => null);
+      const ai = new Set((await store.aiGods(NET).catch(() => [])).map((g) => g.account));
+      const r = await SE.acceptSeat(b, {
+        world: WORLD, now: Date.now(), keyOn,
+        godOf: async (clan, account) => ((await clanOf(clan))?.gods || []).some((g) => g.account === account),
+        alive: async (clan) => !!(await clanOf(clan))?.alive,
+        owed: async (account) => BigInt(await view("get_owed", { account })),
+        lastAt: (clan, account) => store.seatLastAt(NET, clan, account),
+        isAi: (a) => ai.has(a),
+      });
+      if (!r.ok) return r;
+      if (r.row.action === "sell") await store.seatList(NET, { clan: r.row.clan, seller: r.row.seller, price: r.row.price, at: r.row.at });
+      else await store.seatUnlist(NET, r.row.clan, r.row.seller, r.row.at);
+      cache.delete(`${NET}:seats`);
+      return { ok: true };
+    },
+    // A buyer paid the escrow: note the buy (the engine checks it again, then moves the seat or refunds, in seconds).
+    async _seatBuy(b) {
+      const listing = await store.seatGet(NET, Number(b?.listing)).catch(() => null);
+      const buyer = String(b?.buyer || ""), tx = String(b?.tx || "");
+      if (!listing) return { error: "No such seat for sale." };
+      if (!/^[1-9A-HJ-NP-Za-km-z]{40,50}$/.test(tx) || !buyer) return { error: "That isn't a payment's public record." };
+      let got = null;
+      for (const url of [NETWORKS[NET].rpc, NETWORKS[NET].backupRpc]) {
+        const j = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tx", params: { tx_hash: tx, sender_account_id: buyer, wait_until: "FINAL" } }), signal: AbortSignal.timeout(15000) }).then((x) => x.json()).catch(() => null);
+        if (j?.result) { got = j.result; break; }
+      }
+      const pay = SE.checkPayment(got, { buyer, escrow: NETWORKS[NET].escrow, amount: listing.price });
+      if (pay.error) return { error: pay.error };
+      if (!(await store.seatBuy(NET, { tx, listing: listing.id, buyer, amount: listing.price }))) return { error: "That payment was already used." };
+      cache.delete(`${NET}:seats`);
+      return { ok: true, status: "waiting" };
+    },
     // A god's signed choice (PLAN_13NOV step 0, engine/choices.mjs). Not a GET endpoint (the name has an underscore).
     async _choice(b) {
       const s = await stateNow();
       const r = await acceptChoice(b, {
         world: WORLD, day: s.day + 1,
-        keyOn: async (account, publicKey) => {
-          const ask = (p) => p.query({ request_type: "view_access_key", finality: "final", account_id: account, public_key: publicKey });
-          try { await ask(rpcs[0]); return true; } catch (e) { if (/does not exist|UNKNOWN_ACCESS_KEY|doesn't exist/i.test(String(e?.message ?? e))) return false; try { await ask(rpcs[1]); return true; } catch { return false; } }
-        },
+        keyOn,
         godOf: async (clan, account) => ((await view("list_clans", { limit: 100 })).find((c) => c.id === clan)?.gods || []).some((g) => g.account === account),
       });
       // Ask the accused (PLAN_13NOV step 2): only an open report of that nation, not already asked.
@@ -676,6 +736,18 @@ async function choicePost(req, res) {
   catch (e) { console.error("choice", e); return json(500, { error: "Couldn't save that choice just now. Try again." }); }
 }
 
+// Seat trading (PLAN_13NOV step 4): a signed listing, or a buyer's payment record. Testnet only; small bodies.
+async function seatPost(req, res, what) {
+  const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
+  let body = "";
+  for await (const chunk of req) { body += chunk; if (body.length > 4096) return json(413, { error: "Too long." }); }
+  let b; try { b = JSON.parse(body); } catch { return json(400, { error: "Bad request." }); }
+  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  if (limited(`seat|${ip}`, 20, 60e3)) return json(429, { error: "Too many at once. Wait a minute." });
+  try { const r = await (what === "buy" ? APIS.testnet._seatBuy(b) : APIS.testnet._seat(b)); return json(r.ok ? 200 : 400, r); }
+  catch (e) { console.error("seat", e); return json(500, { error: "Couldn't do that just now. Try again." }); }
+}
+
 async function loginPost(req, res, what) {
   const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
   let body = "";
@@ -774,6 +846,8 @@ http
     const url = new URL(req.url, "http://x");
     if (req.method === "POST" && url.pathname === "/api/sponsor") return sponsorPost(req, res);
     if (req.method === "POST" && url.pathname === "/api/choice") return choicePost(req, res);
+    if (req.method === "POST" && url.pathname === "/api/seat") return seatPost(req, res, "sell");
+    if (req.method === "POST" && url.pathname === "/api/seat/buy") return seatPost(req, res, "buy");
     { const lm = req.method === "POST" && url.pathname.match(/^\/api\/login(?:\/(salt|signup|forget))?$/); if (lm) return loginPost(req, res, lm[1] || "login"); }
     // The sandbox (/timelapse, timelapse/service.mjs): copies of the live world to shock and fast-forward.
     if (SANDBOX && (url.pathname === "/sbx" || url.pathname.startsWith("/sbx/"))) return (await SANDBOX).handleSandbox(req, res, url);

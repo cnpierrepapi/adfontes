@@ -120,7 +120,9 @@ export async function createWallet(net) {
         c = c.bind(prev);
       }
       let out;
-      try { out = await w.signAndSendTransaction({ receiverId: c.receiver, actions: [actionCreators.functionCall(c.method, enc.encode(JSON.stringify(c.args)), BigInt(c.gas), BigInt(c.deposit))] }); }
+      // A plain payment (seat trading, 13 Nov: the buyer pays the escrow) or a contract call.
+      const act = c.transfer ? actionCreators.transfer(BigInt(c.deposit)) : actionCreators.functionCall(c.method, enc.encode(JSON.stringify(c.args)), BigInt(c.gas), BigInt(c.deposit));
+      try { out = await w.signAndSendTransaction({ receiverId: c.receiver, actions: [act] }); }
       catch (e) { if (outs.length) e.partial = outs; throw e; } // the first went through, a later one didn't
       outs.push(out);
       if (failure(out)) break;

@@ -62,6 +62,17 @@ export function resilientProvider(net, url) {
   });
 }
 
+// The world's owner key (seat trading, PLAN_13NOV step 4, his yes 12 Nov, testnet only): used ONLY for move_god on a
+// paid, checked seat sale. From the engine's secret settings on Railway; on this PC the world's own key file.
+function ownerAccount(net, provider) {
+  if (net !== "testnet") return null;
+  if (process.env.OWNER_ACCOUNT_ID && process.env.OWNER_PRIVATE_KEY) return new Account(process.env.OWNER_ACCOUNT_ID, provider, process.env.OWNER_PRIVATE_KEY);
+  const f = `.keys/${NETWORKS[net].world}.json`;
+  if (!fs.existsSync(f)) return null;
+  const k = JSON.parse(fs.readFileSync(f, "utf8"));
+  return new Account(k.account_id, provider, k.private_key);
+}
+
 function operatorAccount(net, provider) {
   const [id, key] = operatorKey(net);
   return new Account(id, provider, key);
@@ -305,6 +316,36 @@ export function connect(net) {
       const spare = Number(BigInt(t.balance) / 10n ** 18n - BigInt(t.liabilities) / 10n ** 18n - BigInt(t.storage_locked) / 10n ** 18n) / 1e6;
       const r = await op.transfer({ receiverId: world, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
       return { near: send, spare, hash: r?.transaction?.hash ?? null };
+    },
+    // ---- seat trading (PLAN_13NOV step 4, engine/seats.mjs): the operator is the escrow ----
+    escrow: op.accountId,
+    /** A transaction's outcome (null if the record has none). */
+    txOf: async (hash, sender) => {
+      // wait_until NONE answers UNKNOWN_TRANSACTION at once for a made-up hash (FINAL just hangs, 13 Nov).
+      for (const url of [n.backupRpc, n.rpc]) {
+        const ask = (w) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tx", params: { tx_hash: hash, sender_account_id: sender, wait_until: w } }), signal: AbortSignal.timeout(15000) }).then((x) => x.json()).catch(() => null);
+        const j0 = await ask("NONE");
+        if (j0?.error?.cause?.name === "UNKNOWN_TRANSACTION") return null;
+        const j = await ask("FINAL");
+        if (j?.result?.transaction) return j.result;
+      }
+      throw new Error("couldn't read the payment just now");
+    },
+    godsOf: async (clanId) => ((await view("get_clan", { clan_id: clanId }))?.gods || []).map((g) => g.account),
+    owed: async (account) => BigInt(await view("get_owed", { account })),
+    async moveGod(clanId, from, to) {
+      // FastNEAR for the owner's call: dRPC answers 500 on long calls (10 Nov, and a move_god on 13 Nov).
+      const owner = ownerAccount(net, new JsonRpcProvider({ url: n.backupRpc }));
+      if (!owner) throw new Error("no owner key here: seats can't move");
+      const r = await owner.callFunctionRaw({ contractId: world, methodName: "move_god", args: { clan_id: clanId, from, to }, deposit: 2n * 10n ** 22n, gas: BigInt(T(300)) });
+      const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+      if (fail) throw new Error(`move_god failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
+      return { hash: r.transaction.hash };
+    },
+    /** The escrow pays out (a seller's price, or a buyer's refund). */
+    async pay(to, yocto) {
+      const r = await op.transfer({ receiverId: to, amount: BigInt(yocto) });
+      return { hash: r?.transaction?.hash ?? null };
     },
     async forwardAlias(alias) {
       const a = await provider.query({ request_type: "view_account", finality: "final", account_id: alias });

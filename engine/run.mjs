@@ -27,6 +27,7 @@ import * as B from "./budget.mjs";
 import * as CH from "./choices.mjs";
 import * as AK from "./ask.mjs";
 import * as BW from "./brokerword.mjs";
+import * as SE from "./seats.mjs";
 import { planGods } from "./aiact.mjs";
 import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
@@ -162,6 +163,29 @@ for (let n = 0; n < days; n++) {
     const raised = floorReverence(s, await chain.clans(), "floor-12nov");
     for (const [cid, changes] of Object.entries(raised)) log({ kind: "correction", clan: Number(cid), changes, why: "A one-time lift (12 Nov): every god with a seat starts from at least 35, so the nations can be won back." });
     s.fixes = { ...(s.fixes || {}), revFloor12Nov: Date.now() };
+  }
+  // Seat trading (PLAN_13NOV step 4, engine/seats.mjs): sales the loop settled are sealed here, before this turn
+  // reads any reverence or decides which nations are AI-led. Everything goes with the seat: the buyer takes the seller's
+  // reverence and, buying an AI god's seat (his ask 13 Nov), that god's name and its place in the season rankings.
+  const seatsSealed = [];
+  {
+    const aiBefore = new Set((await store.aiGods(net).catch(() => [])).map((g) => g.account));
+    for (const b of await store.seatBuysUnsealed(net).catch(() => [])) {
+      const l = await store.seatGet(net, b.listing);
+      const r = SE.recordOf(b, l);
+      if (b.status === "filled" && l) {
+        SE.carryReverence(s.rev?.[l.clan], l.seller, b.buyer);
+        if (aiBefore.has(l.seller)) {
+          const elsewhere = (await chain.clans()).filter((c) => c.id !== l.clan && (c.gods || []).some((g) => g.account === b.buyer)).length;
+          const name = (await store.godNames([l.seller]).catch(() => ({})))[l.seller] ?? null;
+          if (SE.takesName({ seller: l.seller, ai: aiBefore, seatsElsewhere: elsewhere })) { await store.moveGodName(l.seller, b.buyer); r.as = name; }
+          await store.removeAiGod(net, l.seller);
+          r.from_ai = name;
+        }
+      }
+      log(r);
+      seatsSealed.push(b.tx);
+    }
   }
   // AI gods have full control of their nations (his call 13 Nov): no outside god stays in an AI-led nation, and
   // an AI-led nation never turns to one (RV.follow with AI_SET).
@@ -986,6 +1010,7 @@ for (let n = 0; n < days; n++) {
   if (INSTANT) {
     s.spend.usd = spendBase + meter.usd;
     await store.saveState(net, s);
+    await store.seatBuysSealed(seatsSealed).catch((e) => console.log(`  seats: not marked sealed: ${e.message}`));
     console.log(`  instant turn for ${INSTANT.join(",")} done: ${rec.length} pending records | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)}`);
     break;
   }
@@ -1241,6 +1266,7 @@ for (let n = 0; n < days; n++) {
   s.day = day;
   delete s.inProgress;
   await store.saveState(net, s);
+  await store.seatBuysSealed(seatsSealed).catch((e) => console.log(`  seats: not marked sealed: ${e.message}`));
   console.log(`  root ${root.slice(0, 16)}... on chain (${rr.hash}) | LLM this run: ${meter.calls} calls, $${meter.usd.toFixed(4)} | today (UTC): $${spentToday().toFixed(4)} of $${CFG.dailyCapUsd}`);
 }
 
@@ -1249,6 +1275,18 @@ for (let n = 0; n < days; n++) {
 if (!INSTANT) {
   try { const p = await planGods({ net, s, onchain: await chain.clans(), chain }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
   catch (e) { console.log(`  AI gods: no plan this turn: ${String(e.message || e).slice(0, 200)}`); }
+}
+
+// AI gods sell their seats too (his ask 13 Nov, engine/seats.mjs aiListings): each scheduled turn a nation led by one
+// AI god lists that seat at its claim value plus a quarter. Human gods list theirs on the seats page.
+if (!INSTANT && net === "testnet" && chain.stake) {
+  try {
+    const ai = new Set((await store.aiGods(net)).map((g) => g.account)), onchain = await chain.clans(), claim = {};
+    for (const c of onchain) if (c.alive && c.gods?.length === 1 && ai.has(c.gods[0].account)) { const st = await chain.stake(c.id, c.gods[0].account).catch(() => null); claim[c.id] = st?.near != null ? toNear(st.near) : null; }
+    const L = SE.aiListings({ clans: onchain, ai, open: await store.seatsOpen(net), stakeOf: (id) => claim[id] ?? null });
+    for (const x of L) await store.seatList(net, { ...x, at: Date.now() });
+    if (L.length) console.log(`  seats: ${L.length} AI seat(s) listed or re-priced`);
+  } catch (e) { console.log(`  seats: AI listings skipped: ${String(e.message || e).slice(0, 160)}`); }
 }
 
 const t = await chain.totals();

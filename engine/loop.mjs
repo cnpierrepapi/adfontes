@@ -11,6 +11,7 @@ import { spawn } from "node:child_process";
 import { connect } from "./chain.mjs";
 import * as store from "./store.mjs";
 import { runDue, discoverAiGods } from "./aiact.mjs";
+import { settleBuy } from "./seats.mjs";
 
 const NETS = process.argv.slice(2).filter((a) => a === "testnet" || a === "mainnet");
 if (!NETS.length) NETS.push("testnet");
@@ -107,6 +108,19 @@ async function work() {
   try {
     for (const W of Object.values(worlds)) {
       await look(W).catch((e) => say(`${W.net}: look failed: ${String(e.message || e).slice(0, 120)}`));
+      // Seat trading (PLAN_13NOV step 4, engine/seats.mjs): a paid buy is settled within seconds (move the seat, pay
+      // the seller, or refund the buyer), then that nation gets an instant turn, which seals the sale and moves the
+      // reverence. Testnet only (the owner key is a testnet-only setting).
+      if (W.net === "testnet") {
+        const buys = await store.seatBuysWaiting(W.net).catch(() => []);
+        for (const b of buys.slice(0, 3)) {
+          const r = await settleBuy(W.net, b, { store, chain: W.chain, escrow: W.chain.escrow, log: say }).catch((e) => ({ status: "error", why: String(e.message || e).slice(0, 160) }));
+          if (!r) continue;
+          say(`${W.net}: seat buy ${b.tx.slice(0, 10)}: ${r.status}${r.why ? ` (${r.why})` : ""}`);
+          const l = await store.seatGet(W.net, b.listing).catch(() => null);
+          if (l && r.status !== "waiting") { W.queue.set(l.clan, W.queue.get(l.clan) || false); W.aiTouched.add(l.clan); }
+        }
+      }
       if (W.dayQueued) {
         W.dayQueued = false; W.dayDueAt = null;
         const code = await run(W.net, ["--force"]);
