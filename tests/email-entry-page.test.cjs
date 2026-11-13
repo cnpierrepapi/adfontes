@@ -1,3 +1,5 @@
+// Play with email, clicked through in a real browser (13 Nov): a browser holding a leftover key, or last used with an
+// email, must get Log in / Sign up (and Continue), never a silent sign-in.   node tests/email-entry-page.test.cjs [baseUrl]
 const { chromium } = require("playwright");
 (async () => {
   const b = await chromium.launch({ args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"] });
@@ -8,7 +10,7 @@ const { chromium } = require("playwright");
       localStorage.setItem("adf-local-key-testnet", JSON.stringify({ account: "leftover-browser-123.adf-pool1-hf0w8.testnet", key: "ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8tnFQuwoGUC51DowKqorvkr2pytJSnwuSbsNVfqygr", sponsored: null }));
       if (em) localStorage.setItem("adf-local-key-testnet-email", em); }, saved);
     const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(e.message));
-    await p.goto("http://127.0.0.1:3977/live/", { waitUntil: "domcontentloaded" });
+    await p.goto(`${process.argv[2] || "https://adfontes.fun"}/live/`, { waitUntil: "domcontentloaded" });
     await p.waitForFunction(() => window.__live?.quality, null, { timeout: 120000 });
     await p.waitForTimeout(4000);
     await p.evaluate(() => document.querySelector(".chip.wallet")?.click());
