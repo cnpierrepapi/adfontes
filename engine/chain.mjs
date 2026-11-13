@@ -8,6 +8,7 @@ import path from "node:path";
 import { NETWORKS } from "./config.mjs";
 import { connectSim } from "./chain-sim.mjs";
 import { gasTopUp } from "./market.mjs";
+import { reserveTopUp } from "./reserve.mjs";
 import { guard as aiGuard, godSeed, sendChecked } from "./aigods.mjs";
 import { returned } from "../src/live/calls.js";
 
@@ -294,6 +295,16 @@ export function connect(net) {
       if (!send) return 0;
       await op.transfer({ receiverId: id, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
       return send;
+    },
+    /** Keep the world contract's spare NEAR (engine/reserve.mjs): reads get_totals, the operator sends
+     *  the top-up as a plain transfer. Returns { near, spare, hash } or null when nothing was needed. */
+    async keepReserve() {
+      const t = await view("get_totals");
+      const send = reserveTopUp(t);
+      if (!send) return null;
+      const spare = Number(BigInt(t.balance) / 10n ** 18n - BigInt(t.liabilities) / 10n ** 18n - BigInt(t.storage_locked) / 10n ** 18n) / 1e6;
+      const r = await op.transfer({ receiverId: world, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
+      return { near: send, spare, hash: r?.transaction?.hash ?? null };
     },
     async forwardAlias(alias) {
       const a = await provider.query({ request_type: "view_account", finality: "final", account_id: alias });

@@ -157,8 +157,12 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
     }
   }
 
+  // Something of yours just happened (13 Nov): look at "Next turn" again soon, so an answered item goes away.
+  let soonAgain = null;
+  const refreshSoon = () => { clearTimeout(soonAgain); soonAgain = setTimeout(refresh, 3000); };
   return {
-    record(r) { heard(r); speak(r).catch(() => {}); },
+    record(r) { heard(r); speak(r).catch(() => {}); if (mine.size && involves(r)) refreshSoon(); },
+    mine: (r) => mine.size > 0 && involves(r),
     setGods(g) { gods = g; refresh(); },
     setFocus(id) { focus = id == null ? null : Number(id); },
     refresh,

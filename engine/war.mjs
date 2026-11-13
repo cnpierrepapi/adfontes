@@ -68,6 +68,11 @@ export function warOf(s, id) {
   return Object.values(s.wars || {}).find((w) => w.status === "on" && (w.a === id || w.b === id)) || null;
 }
 
+/** A nation at war researches nothing (run.mjs: no Scholars at war), so it gets no Scholars' pitch (his note 13 Nov). */
+export function canPitch(s, id) {
+  return !warOf(s, id);
+}
+
 /** Deterministic dice in [0.5, 1.5): from the last sealed root, the war and the round. */
 export function dice(seed, warId, round, side) {
   const h = createHash("sha256").update(`${seed}|${warId}|${round}|${side}`).digest();

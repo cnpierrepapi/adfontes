@@ -1174,6 +1174,11 @@ for (let n = 0; n < days; n++) {
     log({ kind: "ruling", gift: gid, clan: g.clan, status: st.status === "Pending" ? "Unruled" : st.status, fortune: +c.fortune.toFixed(3) });
   }
 
+  // The world's spare NEAR (13 Nov, engine/reserve.mjs): scheduled turns only, before the root so the record is sealed.
+  if (!INSTANT && chain.keepReserve) {
+    try { const r = await chain.keepReserve(); if (r) log({ kind: "reserve", near: r.near, spare: r.spare, tx: r.hash, why: "the operator topped up the world's spare grace (it pays for whispers, gifts and roots)" }); }
+    catch (e) { log({ kind: "error", error: `reserve: ${String(e.message || e).slice(0, 180)}` }); }
+  }
   // Root, save (no fee sweep in v2: the 14% sits in the contract as the jackpot)
   await checkpoint();
   const root = W.merkleRoot(rec);

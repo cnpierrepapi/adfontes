@@ -14,6 +14,7 @@ import * as store from "./engine/store.mjs";
 import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, fundFounding, PUBLIC_KEY } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS, pitchOf } from "./engine/world.mjs";
+import { canPitch } from "./engine/war.mjs";
 import { acceptChoice } from "./engine/choices.mjs";
 import { standings } from "./engine/reverence.mjs";
 import { inRanking } from "./src/season.js";
@@ -274,7 +275,7 @@ function makeApi(NET) {
           choice_day: s.day + 1,
           pitches: await (async () => {
             const picked = await store.choicesFor(NET, s.day + 1).catch(() => []);
-            return standing.map((c) => {
+            return standing.filter((c) => canPitch(s, c.id)).map((c) => { // at war: no research, so no pitch (13 Nov)
               const st = s.clans[c.id];
               const points = pitchOf(st, `${s.day + 1}|${c.id}`).map((p) => {
                 const skills = Object.entries(st.skills || {}).map(([who, sk]) => [who, sk?.[p] || 0]).sort((x, y) => y[1] - x[1]);

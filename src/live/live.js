@@ -470,9 +470,12 @@ export async function startLive(canvas, hud, opts = {}) {
   const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
   standings.update(W);
   eventSink = () => {}; // no event list (11 Nov): the feed and dialogue boxes say what matters
-  // The personal feed and the citizens' dialogue boxes (11 Nov) hear every record the world plays.
+  // The personal feed and the citizens' dialogue boxes (11 Nov) hear every record the moment it arrives
+  // (13 Nov, his note: they used to wait for the 3D queue to play it, minutes behind, frozen in a background
+  // tab). The 3D queue plays your own nations' events first.
   const feed = createFeed({ box: standings.box, W, flyTo: (id) => flyTo(id), sandbox: !!opts.sandbox });
-  recordHooks.add((r) => feed.record(r));
+  const hear = (recs) => { for (const r of recs) feed.record(r); };
+  fx.isMine = (r) => feed.mine(r);
   early.splice(0).forEach(standings.event);
   let lastDay = W.day;
   // Which of a turn's records play on screen (the season world plays its cut; the live world, all).
@@ -581,7 +584,7 @@ export async function startLive(canvas, hud, opts = {}) {
       updatePaths(); // a new nation gets its paths; a first trade turned a path into a bridge
       W.wars = now.wars || []; updateWars(); warLayer.update(now);
       for (const c of now.clans) { const isl = islands.get(c.id); if (isl) { isl.userData.clan.war = c.war; isl.userData.clan.fallen = c.fallen; setHealth(isl, c.war); } }
-      for (let d = Math.max(1, lastDay); d <= now.day; d++) { const recs = cut(fresh(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)), d)); if (!recs.length) continue; folk.dayRecords(recs, d); fx.enqueue(holdBack(bigFirst(recs))); }
+      for (let d = Math.max(1, lastDay); d <= now.day; d++) { const recs = cut(fresh(((await api(`day?d=${d}`)).records || []).filter((r) => !r.live || !playedLive.has(r.live)), d)); if (!recs.length) continue; hear(recs); folk.dayRecords(recs, d); fx.enqueue(holdBack(bigFirst(recs))); }
       W.jackpot = now.jackpot;
       standings.update(now);
       opts.onPoll?.(now); // the world clock: day or night now
@@ -604,6 +607,7 @@ export async function startLive(canvas, hud, opts = {}) {
       const fresh = (L.records || []).filter((r) => r.live && !playedLive.has(r.live));
       for (const r of fresh) { playedLive.add(r.live); liveSince = Math.max(liveSince, r.at || 0); }
       if (!fresh.length) return;
+      for (const r of fresh) feed.record(r); // the feed and dialogue hear it now, whatever the 3D queue is doing
       folk.dayRecords(fresh, W.day + 1);
       for (const r of fresh) if (r.kind === "team" || r.kind === "corpus") loadMind(r.clan);
       fx.enqueue(holdBack(fresh));

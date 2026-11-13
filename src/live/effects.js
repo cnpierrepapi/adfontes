@@ -2,6 +2,7 @@
 // island where it happened, and a line of plain words in the event list (onEvent).
 import * as THREE from "three";
 import { says, tipOf } from "../says.js";
+import { mergeQueue } from "./queue.js";
 
 // Colours above 1.0 so only these effects bloom (bloom threshold sits just above white).
 const HDR = (r, g, b) => new THREE.Color(r, g, b);
@@ -482,12 +483,14 @@ export function createEffects({ scene, islands, curves, clanName, onFounded, onR
   const queue = [];
   let nextAt = 0;
   function enqueue(records) {
-    for (const r of records) if (!["weather", "clock", "mint", "upkeep", "team", "sweep", "error", "budget", "reverence", "reverence-change", "waiting"].includes(r.kind)) queue.push(r);
+    const add = records.filter((r) => !["weather", "clock", "mint", "upkeep", "team", "sweep", "error", "budget", "reverence", "reverence-change", "waiting", "reserve"].includes(r.kind));
+    // Your own nations' events first (13 Nov): fx.isMine is set by live.js from the feed.
+    queue.splice(0, queue.length, ...mergeQueue(queue, add, fx.isMine));
   }
   function update() {
     if (queue.length && !fx.paused && performance.now() > nextAt) { play(queue.shift()); nextAt = performance.now() + fx.gap; }
     for (let i = live.length - 1; i >= 0; i--) if (!live[i]()) live.splice(i, 1);
   }
-  const fx = { quiet: false, paused: false, gap: 1500, play, enqueue, update, endTurn, burning, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, clear: () => queue.splice(0), setCrowd: () => {} };
+  const fx = { quiet: false, paused: false, gap: 1500, isMine: () => false, play, enqueue, update, endTurn, burning, cannon, crumble, attack, weapons: WEAPON_LIST, pending: () => queue.length, clear: () => queue.splice(0), setCrowd: () => {} };
   return fx;
 }

@@ -9,17 +9,20 @@ import { runTutorial } from "./tutorial.js";
 import { panelWords } from "./status.js";
 import { playTimelapse, offerTimelapse } from "./timelapse.js";
 import { seasonLabel } from "../season.js";
+import { panelSig } from "./panelsig.js";
 
 // The cinematic intro starts at once on a first visit and covers the world loading underneath.
 const cinema = new URLSearchParams(location.search).has("stills") ? Promise.resolve(false) : playCinematic();
 
 const $ = (id) => document.getElementById(id);
 let gods = null; // the god panel, once the wallet code has loaded
+let openPanel = null; // { id, sig } of the nation panel on screen (13 Nov: it follows its nation)
 const n3 = (x) => (Math.round(x * 1000) / 1000).toString();
 
 function showClan(c, status) {
   const p = $("panel");
-  if (!c) { p.hidden = true; phoneSheet(); return; }
+  if (!c) { p.hidden = true; openPanel = null; phoneSheet(); return; }
+  openPanel = { id: c.id, sig: panelSig(c) };
   window.__live?.feed?.setFocus(c.id); // a visitor hears the citizens of the nation they're looking at
   p.replaceChildren();
   const h = document.createElement("h2"); h.textContent = c.name;
@@ -78,7 +81,33 @@ let theme = forcedTheme || "night";
 // Filled in below; a poll that lands before then waits for the next one (module-level, no TDZ).
 let liveApi = null, sound = null;
 document.body.classList.toggle("night", theme === "night");
-const live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, stills: q.has("stills"), theme, onDay: (now) => onDay(now), onPoll: (now) => onClock(now) });
+const live = await startLive($("world"), { plates: $("plates"), visor: $("visor") }, { onSelect: showClan, stills: q.has("stills"), theme, onDay: (now) => onDay(now), onPoll: (now) => { onClock(now); redrawPanel(false); }, onLive: (recs) => panelHeard(recs) });
+// The open panel follows its nation (13 Nov, his note: after he acted nothing on it changed). It redraws when
+// what it shows changes (panelSig, after each world poll), and a little after that nation's live records arrive
+// (its god section reads reverence and reports fresh), at most every 10 s. Never while you type in it.
+function redrawPanel(force) {
+  const p = $("panel");
+  if (!openPanel || p.hidden) return;
+  const a = document.activeElement;
+  if (a && p.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  const isl = live.islands.get(openPanel.id);
+  if (!isl) return;
+  const c = isl.userData.clan;
+  if (!force && panelSig(c) === openPanel.sig) return;
+  const top = p.scrollTop, full = p.classList.contains("full");
+  showClan(c, isl.userData.status);
+  if (full) p.classList.add("full");
+  p.scrollTop = top;
+}
+let panelTimer = null, panelLast = 0;
+function panelHeard(recs) {
+  if (!openPanel) return;
+  const id = openPanel.id;
+  const about = (r) => [r.clan, r.a, r.b, r.attacker, r.defender, r.buyer, r.seller, ...Object.keys(r.sides || {})].some((x) => x != null && Number(x) === id);
+  if (!recs.some(about) || panelTimer) return;
+  const wait = Math.max(2500, panelLast + 10_000 - Date.now());
+  panelTimer = setTimeout(() => { panelTimer = null; panelLast = Date.now(); redrawPanel(true); }, wait);
+}
 function onClock(now) {
   if (!liveApi || !sound) return;
   const want = forcedTheme || (now.clock?.phase === "day" ? "day" : "night");
