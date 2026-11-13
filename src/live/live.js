@@ -487,7 +487,7 @@ export async function startLive(canvas, hud, opts = {}) {
   const fresh = (recs, d) => recs.filter((r) => { const k = `${d}:${r.i ?? JSON.stringify(r)}`; if (seenRec.has(k)) return false; seenRec.add(k); return true; });
   const BIG = new Set(["fire", "war", "peace", "fallen"]);
   const bigFirst = (recs) => [...recs.filter((r) => BIG.has(r.kind)), ...recs.filter((r) => !BIG.has(r.kind))];
-  api(`day?d=${W.day}`).then((d) => { const recs = cut(fresh(d.records || [], W.day)); folk.dayRecords(recs, W.day); fx.enqueue(bigFirst(recs)); }).catch(() => {});
+  api(`day?d=${W.day}`).then((d) => { const recs = cut(fresh(d.records || [], W.day)); hear(recs); folk.dayRecords(recs, W.day); fx.enqueue(bigFirst(recs)); }).catch(() => {});
   // The game days before it in the last 24 hours (11 more) don't play on the world view, but
   // count as missed: flying in replays them.
   for (let d = Math.max(1, W.day - 11); d < W.day; d++) api(`day?d=${d}`).then((x) => (x.records || []).forEach((r) => noteMissed(r, true))).catch(() => {});

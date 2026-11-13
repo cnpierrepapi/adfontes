@@ -33,6 +33,9 @@ const fx = src("src/live/effects.js"), live = src("src/live/live.js");
 ok(/mergeQueue\(/.test(fx), "the effects queue uses mergeQueue");
 ok(/feed\.record\(r\)/.test(live.slice(live.indexOf("async function livePoll"), live.indexOf("setInterval(livePoll"))), "the feed hears a live record when it arrives, not when the 3D queue plays it");
 ok(!/recordHooks\.add\(\(r\) => feed\.record\(r\)\)/.test(live), "the feed is no longer fed from the 3D queue (no double lines)");
+// Every path that queues records also lets the feed hear them (found live 13 Nov: the first load of the turn didn't).
+const enq = live.split("\n").filter((l) => /fx\.enqueue\(/.test(l) && !/function letGo|fx\.enqueue\(recs\);/.test(l));
+ok(enq.length >= 3 && enq.every((l) => /hear\(|feed\.record/.test(l) || /fx\.enqueue\(holdBack\(fresh\)\)/.test(l)), `every line that queues records hears them too (${enq.length} lines)`);
 
 // 2b. The open panel redraws when its nation changes.
 const c = { id: 12, reverence: { standing: 48.2 }, florins: 2138, mood: "sated", war: { hp: 10, enemyHp: 4 }, tricksters: 1, points: 11 };
