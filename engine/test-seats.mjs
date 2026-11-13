@@ -213,7 +213,7 @@ fs.rmSync(dir, { recursive: true, force: true });
   const stakeOf = { 3: 2, 7: 4 };
   const open = [{ clan: 7, seller: "lugh.op", price: S.yoctoOf("5.1") }];
   const L = S.aiListings({ clans, ai, open, stakeOf: (c) => stakeOf[c] });
-  ok(L.length === 1 && L[0].clan === 3 && L[0].seller === "saturn.op" && L[0].price === S.yoctoOf("2.5"), "a nation with one AI god lists; two gods, a human, a fallen nation don't; a fair listing already open stays");
+  ok(L.length === 1 && L[0].clan === 3 && L[0].seller === "saturn.op" && L[0].price === S.yoctoOf("2.5"), "an AI seat lists; a human's seat, a fallen nation and a seat with no claim value read don't; a fair listing already open stays (two-AI nations: test-ai-council.mjs)");
   const L2 = S.aiListings({ clans, ai, open: [{ clan: 7, seller: "lugh.op", price: S.yoctoOf("9") }], stakeOf: (c) => stakeOf[c] });
   ok(L2.some((x) => x.clan === 7 && x.price === S.yoctoOf("5")), "a listing the claim value has drifted away from is re-priced");
 

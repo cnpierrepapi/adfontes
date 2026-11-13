@@ -10,7 +10,7 @@
 import { spawn } from "node:child_process";
 import { connect } from "./chain.mjs";
 import * as store from "./store.mjs";
-import { runDue, discoverAiGods } from "./aiact.mjs";
+import { runDue, discoverAiGods, judgeMotions } from "./aiact.mjs";
 import { settleBuy } from "./seats.mjs";
 
 const NETS = process.argv.slice(2).filter((a) => a === "testnet" || a === "mainnet");
@@ -144,6 +144,8 @@ async function work() {
         if (W.planNow) { W.planNow = false; await run(W.net, ["--plan-only"]); }
         // A status line every 10 minutes: the AI gods' queue (waiting, next, sent and failed today).
         if (Date.now() - (W.lastAiStatus || 0) > 10 * 60e3) { W.lastAiStatus = Date.now(); const q = await store.aiQueueStatus(W.net, Date.now() - 86400e3).catch((e) => ({ error: String(e.message || e).slice(0, 100) })); say(`${W.net}: AI gods: ${q.error ? `queue unreadable: ${q.error}` : `${q.waiting} waiting, next ${q.next ? new Date(q.next).toISOString().slice(11, 19) : "-"}, ${q.sent} sent and ${q.failed} failed in the last day`}`); }
+        // AI gods judge their co-gods' motions (13 Nov): approve or reject within seconds. Every 30 s.
+        if (Date.now() - (W.lastJudge || 0) > 30e3) { W.lastJudge = Date.now(); const j = await judgeMotions({ net: W.net, chain: W.chain, log: say }).catch((e) => { say(`${W.net}: AI judging: ${String(e.message || e).slice(0, 120)}`); return []; }); for (const id of j) W.queue.set(id, W.queue.get(id) || false); }
         const touched = await runDue({ net: W.net, chain: W.chain, limit: 1, log: say }).catch((e) => { say(`${W.net}: AI gods: ${String(e.message || e).slice(0, 120)}`); return []; });
         for (const id of touched || []) W.aiTouched.add(id);
       }

@@ -148,3 +148,32 @@ export async function runDue({ net, chain, now = Date.now(), limit = 2, log = ()
   }
   return touched; // the nations it acted on (their instant turn skips research: loop.mjs)
 }
+
+/** AI gods judge their co-gods' motions (his call 13 Nov, aigods.judgeMotion): every council an AI god sits on with a
+ *  god who isn't AI, its last few open motions get a yes or a no from each AI god there. Returns the nations where a
+ *  vote went in (the loop gives them an instant turn: a passed whisper lands within seconds). */
+export async function judgeMotions({ net, chain, log = () => {} }) {
+  const ai = new Set((await store.aiGods(net)).map((g) => g.account));
+  if (!ai.size) return [];
+  const touched = [];
+  for (const clan of (await chain.clans()).filter((c) => c.alive)) {
+    const mine = (clan.gods || []).filter((g) => ai.has(g.account)).map((g) => g.account);
+    if (!mine.length || mine.length === (clan.gods || []).length) continue; // only councils shared with others
+    const last = Number(await chain.dao(clan.dao, "get_last_proposal_id").catch(() => 0));
+    if (!last) continue;
+    const props = await chain.dao(clan.dao, "get_proposals", { from_index: Math.max(0, last - 8), limit: 8 }).catch(() => []);
+    for (const god of mine) {
+      for (const p of A.motionsToJudge(props, god, ai)) {
+        const v = A.judgeMotion({ motion: p, world: chain.world });
+        try {
+          await chain.aiTopUp(god, 0.2, 0.6);
+          await chain.aiSend(god, [C.vote(clan.dao, p, v.approve ? "VoteApprove" : "VoteReject")]);
+          (p.votes ||= {})[god] = v.approve ? "Approve" : "Reject";
+          touched.push(clan.id);
+          log(`  AI god ${god.split(".")[0]} ${v.approve ? "approved" : "rejected"} motion ${p.id} in ${clan.name}: ${v.why}`);
+        } catch (e) { log(`  AI god ${god.split(".")[0]} couldn't vote on motion ${p.id} in ${clan.name}: ${String(e.message || e).slice(0, 120)}`); }
+      }
+    }
+  }
+  return [...new Set(touched)];
+}

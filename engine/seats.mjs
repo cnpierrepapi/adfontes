@@ -167,8 +167,8 @@ export async function settleBuy(net, buy, d) {
   return sold(move?.hash ?? null);
 }
 
-// AI gods sell their seats too (his ask 13 Nov): every scheduled turn, a nation led by ONE AI god (and nobody else)
-// lists that god's seat at its claim value plus a quarter, never under the floor, re-priced when the claim value
+// AI gods sell their seats too (his ask 13 Nov): every scheduled turn, every AI god's seat (any nation, alone or
+// with other gods) is listed at its claim value plus a quarter, never under the floor, re-priced when the claim value
 // drifts. A human who buys one joins the season rankings as that god: reverence via carryReverence (the nation is
 // then followed by a human, so engine/reverence.mjs standings counts it) and the AI god's name (takesName).
 export const AI_SEAT = { premium: 1.25, min: 0.5, drift: 0.1 };
@@ -176,17 +176,20 @@ export function aiSeatPrice(claimNear) {
   const tenths = Math.ceil(Math.round(Number(claimNear || 0) * AI_SEAT.premium * 1e6) / 1e5);
   return yoctoOf(Math.max(AI_SEAT.min, tenths / 10).toFixed(1));
 }
-/** Which AI seats to (re)list now: [{ clan, seller, price }]. stakeOf(clan) = the AI god's claim value in grace. */
+/** Which AI seats to (re)list now: [{ clan, seller, price }]. Every AI god's seat in every living nation, alone or
+ *  alongside other gods (his call 13 Nov). stakeOf(clan, account) = that seat's claim value in grace. */
 export function aiListings({ clans, ai, open, stakeOf }) {
   const out = [];
   for (const c of clans) {
-    const gods = (c.gods || []).map((g) => g.account);
-    if (c.alive === false || gods.length !== 1 || !ai.has(gods[0])) continue;
-    const claim = stakeOf(c.id);
-    if (claim == null) continue;
-    const price = aiSeatPrice(claim), now = open.find((l) => l.clan === c.id && l.seller === gods[0]);
-    if (now && Math.abs(nearOf(now.price) - nearOf(price)) <= nearOf(price) * AI_SEAT.drift) continue;
-    out.push({ clan: c.id, seller: gods[0], price });
+    if (c.alive === false) continue;
+    for (const g of c.gods || []) {
+      if (!ai.has(g.account)) continue;
+      const claim = stakeOf(c.id, g.account);
+      if (claim == null) continue;
+      const price = aiSeatPrice(claim), now = open.find((l) => l.clan === c.id && l.seller === g.account);
+      if (now && Math.abs(nearOf(now.price) - nearOf(price)) <= nearOf(price) * AI_SEAT.drift) continue;
+      out.push({ clan: c.id, seller: g.account, price });
+    }
   }
   return out;
 }

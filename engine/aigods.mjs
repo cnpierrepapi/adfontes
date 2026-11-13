@@ -24,7 +24,7 @@ export function guard(call, world = NETWORKS.testnet.world) {
   if (!isDao(call.receiver)) no(`a call to ${call.receiver}`);
   if (BigInt(call.deposit ?? 0) > 10n ** 23n) no("a large deposit to a council"); // a motion bond is 0.01
   if (call.method === "act_proposal") {
-    if (call.args?.action !== "VoteApprove") no(`a ${call.args?.action} vote`);
+    if (call.args?.action !== "VoteApprove" && call.args?.action !== "VoteReject") no(`a ${call.args?.action} vote`); // 13 Nov: it judges co-gods' motions
     return true;
   }
   if (call.method !== "add_proposal") no(`${call.method} on a council`);
@@ -35,6 +35,25 @@ export function guard(call, world = NETWORKS.testnet.world) {
   if (inner.method_name === "root_out") { const a = typeof inner.args === "string" ? b64json(inner.args) : inner.args; if (a && typeof a.point === "string" && !a.point.startsWith("act of god:")) no("rooting out research"); }
   return true;
 }
+
+// ---- judging a co-god's motion (his call 13 Nov) ----
+// A nation can hold AI gods and other gods at once (a human bought one AI seat, or blessed in). A motion there needs a
+// majority, so an AI god reads each one a co-god raises and votes yes or no. The rule, plain: it backs anything that
+// helps the nation (whispers, rulings on gifts, stunting a Trickster, an Act of God on a rival) and blocks what takes
+// from it (rooting out its own research, sending its staking away, anything that isn't one of the world's powers).
+const APPROVED = new Set(["whisper", "rule", "smite"]);
+const argsOf = (a) => { try { return typeof a === "string" ? JSON.parse(Buffer.from(a, "base64").toString()) : a || {}; } catch { return {}; } };
+export function judgeMotion({ motion, world }) {
+  const fc = motion?.kind?.FunctionCall;
+  if (!fc || fc.receiver_id !== world || fc.actions?.length !== 1) return { approve: false, why: "it isn't one of the world's powers" };
+  const act = fc.actions[0], args = argsOf(act.args);
+  if (APPROVED.has(act.method_name)) return { approve: true, why: `a ${act.method_name} helps the nation` };
+  if (act.method_name === "root_out") return String(args.point || "").startsWith("act of god:") ? { approve: true, why: "an Act of God on a rival" } : { approve: false, why: "it would root out the nation's own research" };
+  if (act.method_name === "release_staking") return { approve: false, why: "it would send the nation's staking away" };
+  return { approve: false, why: `it doesn't back a motion to ${act.method_name}` };
+}
+/** The motions `me` has to judge: still open, raised by someone who isn't an AI god, not yet voted on by `me`. */
+export const motionsToJudge = (proposals, me, ai) => proposals.filter((p) => p.status === "InProgress" && !ai.has(p.proposer) && !(p.votes && me in p.votes));
 
 // ---- checking Claude's plan ----
 const KINDS = new Set(["whisper", "bless", "smite", "rule", "fire", "pitch", "ask", "list"]);

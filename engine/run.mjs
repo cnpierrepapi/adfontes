@@ -1278,12 +1278,12 @@ if (!INSTANT) {
 }
 
 // AI gods sell their seats too (his ask 13 Nov, engine/seats.mjs aiListings): each scheduled turn a nation led by one
-// AI god lists that seat at its claim value plus a quarter. Human gods list theirs on the seats page.
+// AI god's seat (alone or with other gods) is listed at its claim value plus a quarter. Human gods list theirs on the seats page.
 if (!INSTANT && net === "testnet" && chain.stake) {
   try {
     const ai = new Set((await store.aiGods(net)).map((g) => g.account)), onchain = await chain.clans(), claim = {};
-    for (const c of onchain) if (c.alive && c.gods?.length === 1 && ai.has(c.gods[0].account)) { const st = await chain.stake(c.id, c.gods[0].account).catch(() => null); claim[c.id] = st?.near != null ? toNear(st.near) : null; }
-    const L = SE.aiListings({ clans: onchain, ai, open: await store.seatsOpen(net), stakeOf: (id) => claim[id] ?? null });
+    for (const c of onchain) if (c.alive) for (const g of c.gods || []) if (ai.has(g.account)) { const st = await chain.stake(c.id, g.account).catch(() => null); claim[`${c.id}|${g.account}`] = st?.near != null ? toNear(st.near) : null; }
+    const L = SE.aiListings({ clans: onchain, ai, open: await store.seatsOpen(net), stakeOf: (id, account) => claim[`${id}|${account}`] ?? null });
     for (const x of L) await store.seatList(net, { ...x, at: Date.now() });
     if (L.length) console.log(`  seats: ${L.length} AI seat(s) listed or re-priced`);
   } catch (e) { console.log(`  seats: AI listings skipped: ${String(e.message || e).slice(0, 160)}`); }
