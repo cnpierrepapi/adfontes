@@ -59,14 +59,24 @@ export function connectSim(file) {
     aiEnsure: async () => false,
     aiBalance: async (account) => (S.aiBal ||= {})[account] ?? 1,
     aiTopUp: async (account, min, to) => { S.aiBal ||= {}; const have = S.aiBal[account] ?? 1; if (have >= min) return 0; S.aiBal[account] = to; save(); return +(to - have).toFixed(4); },
+    // Phase E: a newcomer founds (engine/aiact.mjs arrive), and the operator's grace that pays for it.
+    aiFound: async (account, name, near) => {
+      const id = Math.max(0, ...S.clans.map((c) => c.id)) + 1, y = (BigInt(Math.round(near * 1e6)) * 10n ** 18n).toString();
+      S.clans.push({ id, name, dao: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.sim-dao`, alive: true, gods: [{ account, put_in: y, shares: "0" }], florins: "0", shares: "0", total_in: y, clean_gifts: 0, born_day: S.config.day });
+      S.opBal = +((S.opBal ?? 100) - near).toFixed(6);
+      save();
+      return { ...tx(id), clan: id };
+    },
+    opBalance: async () => S.opBal ?? 100,
     aiSend: async (account, calls) => {
       let last = null;
       for (const c0 of calls) {
         const c = c0.bind ? c0.bind(last) : c0;
         aiGuard(c, "sim.local");
         if (c.method === "bless") {
-          const cl = clan(c.args.clan_id), g = cl.gods.find((x) => x.account === account);
-          if (!g) throw new Error("Not a god of that nation");
+          const cl = clan(c.args.clan_id);
+          let g = cl.gods.find((x) => x.account === account);
+          if (!g) { g = { account, put_in: "0", shares: "0" }; cl.gods.push(g); } // as on chain: a blesser becomes a god
           const y = BigInt(c.deposit);
           g.put_in = (BigInt(g.put_in) + y).toString(); cl.total_in = (BigInt(cl.total_in || 0) + y).toString();
           S.aiBal ||= {}; S.aiBal[account] = +((S.aiBal[account] ?? 1) - Number(y / 10n ** 18n) / 1e6).toFixed(6);

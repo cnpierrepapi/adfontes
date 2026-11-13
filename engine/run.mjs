@@ -28,7 +28,8 @@ import * as CH from "./choices.mjs";
 import * as AK from "./ask.mjs";
 import * as BW from "./brokerword.mjs";
 import * as SE from "./seats.mjs";
-import { planGods } from "./aiact.mjs";
+import { planGods, arrive } from "./aiact.mjs";
+import * as AR from "./arrivals.mjs";
 import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
 const MARKET_ON = process.env.ADF_MARKET === "1"; // the Brokers' market days (settling sales and royalties always run)
@@ -57,7 +58,7 @@ const sinceLast = (Date.now() - (s.lastRunAt || 0)) / 60000;
 // A new nation brings a new day at once (his call 7 Nov): a nation on chain the world hasn't seen yet
 // skips the wait.
 const unseen = (await chain.clans()).some((c) => c.alive && !s.clans[c.id]);
-if (!INSTANT && !process.argv.includes("--force") && !process.argv.includes("--plan-only") && !unseen && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
+if (!INSTANT && !process.argv.includes("--force") && !process.argv.includes("--plan-only") && !process.argv.includes("--arrive") && !unseen && !s.inProgress && sinceLast < CFG.minMinutesBetweenRuns) {
   console.log(`last run ${sinceLast.toFixed(0)} min ago (under ${CFG.minMinutesBetweenRuns}): nothing to do, the schedule runs the next day`);
   await store.close();
   process.exit(0);
@@ -88,6 +89,24 @@ const PLAN_ONLY = process.argv.includes("--plan-only");
 if (PLAN_ONLY) {
   try { const p = await planGods({ net, s, onchain: await chain.clans(), chain }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
   catch (e) { console.log(`  AI gods: no plan: ${String(e.message || e).slice(0, 200)}`); }
+  await store.close();
+  process.exit(0);
+}
+// --arrive (Phase E, engine/arrivals.mjs): when a new AI god is due, it arrives (aiact.arrive), its record joins the
+// turn's pending records (sealed with the next day) and the next arrival is scheduled. The loop asks for this.
+if (process.argv.includes("--arrive")) {
+  const first = !s.arrivals;
+  s.arrivals ||= AR.init(Date.now(), `${chain.world}|arrivals`);
+  if (!first && (AR.due(s.arrivals, Date.now()) || process.argv.includes("--force-arrive"))) {
+    s.arrivals = AR.advance(s.arrivals, Date.now()); // advanced first: a failed arrival never repeats every few seconds
+    let r;
+    try { r = await arrive({ net, s, chain, log: console.log }); } catch (e) { r = { kind: "error", why: String(e.message || e).slice(0, 200) }; }
+    const rec = r.kind === "error" ? { kind: "error", error: `arrival: ${r.why}` } : r.kind === "found" || r.kind === "bless" ? { ...r, kind: "arrival", found: r.kind === "found" } : null;
+    if (rec) (s.pending ||= []).push({ day: s.day + 1, ...rec, live: `${Date.now().toString(36)}-a`, at: Date.now() });
+    console.log(`  arrival: ${JSON.stringify(r).slice(0, 200)}`);
+  }
+  console.log(`  next arrival ${new Date(AR.nextAt(s.arrivals)).toISOString()}`);
+  await store.saveState(net, s);
   await store.close();
   process.exit(0);
 }

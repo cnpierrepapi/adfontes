@@ -160,6 +160,25 @@ export function connect(net) {
       await op.signAndSendTransaction({ receiverId: account, actions: [actions.createAccount(), actions.transfer(BigInt(Math.round(fundNear * 1e6)) * 10n ** 18n), actions.addFullAccessKey(kp.getPublicKey())] });
       return true;
     },
+    /** Phase E: a newcomer AI god founds its own nation. Engine code, not the planner, so it skips the AI guard (which
+     *  refuses found_clan to planned actions). Via FastNEAR (dRPC 500s on long calls); an error is checked against the
+     *  chain before it counts: the nation may exist anyway. */
+    async aiFound(account, name, near) {
+      const acct = new Account(account, new JsonRpcProvider({ url: n.backupRpc }), godKeyPair(opKey, world, account).toString());
+      try {
+        const r = await acct.callFunctionRaw({ contractId: world, methodName: "found_clan", args: { name }, deposit: BigInt(Math.round(near * 1e6)) * 10n ** 18n, gas: BigInt(T(300)) });
+        const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
+        if (fail) throw new Error(`found_clan failed: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 300)}`);
+        return { hash: r.transaction.hash };
+      } catch (e) {
+        await new Promise((res) => setTimeout(res, 8000));
+        const c = (await view("list_clans", { limit: 100 })).find((x) => x.name === name && (x.gods || []).some((g) => g.account === account));
+        if (c) return { hash: null, clan: c.id };
+        throw e;
+      }
+    },
+    /** The operator's spendable grace (it funds the AI gods and their foundings). */
+    opBalance: async () => toNear((await provider.query({ request_type: "view_account", finality: "final", account_id: op.accountId })).amount),
     /** Its spendable NEAR. */
     async aiBalance(account) {
       const a = await provider.query({ request_type: "view_account", finality: "final", account_id: account });

@@ -441,3 +441,28 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
   );
   return Object.fromEntries((r.gods || []).map((g) => [g.god, g.actions || []]));
 }
+
+// Phase E (engine/arrivals.mjs): a new AI god arrives and chooses: found a nation of its own (and name it) or bless
+// one that needs it. One short call from the AI gods' pot. The engine still decides whether a founding is affordable.
+const ARRIVAL = { type: "object", additionalProperties: false, required: ["found", "nation", "bless", "why"], properties: { found: { type: "boolean" }, nation: { type: "string" }, bless: { type: "integer" }, why: { type: "string" } } };
+const FAKE_NATIONS = ["Saltmarsh", "Emberfall", "The Quiet Reach", "Lanternholm", "Brightwater", "Ashgrove", "Tidewell", "Morrow Isle"];
+export function arrivalChoice({ name, temperament, nations, taken = [] }) {
+  if (FAKE) {
+    const free = FAKE_NATIONS.filter((n) => !taken.includes(n));
+    const hungry = nations.find((n) => n.mood === "hungry") || nations[0];
+    const found = !!free.length && (!hungry || name.length % 2 === 0);
+    return Promise.resolve({ found, nation: found ? free[name.length % free.length] : "", bless: found || !hungry ? 0 : hungry.id, why: found ? "A god wants a people of its own." : `${hungry?.name} is going hungry.` });
+  }
+  return json(
+    CFG.godModel,
+    `You are ${name}, a god just arriving in AD FONTES, a world of floating island nations whose citizens research real science. ` +
+      "Choose one: found a nation of your own (give it a short, evocative name, 3 to 32 letters, not one already taken), or bless an existing " +
+      "nation that needs it (give its id). Founding suits a god who wants its own people; blessing suits one drawn to a nation in need. " +
+      `Your temperament: ${temperament}. Answer with found, nation (empty if blessing), bless (0 if founding) and one plain sentence why.`,
+    `Nations now (id, name, mood):\n${nations.map((n) => `${n.id} ${n.name} (${n.mood})`).join("\n") || "(none)"}\nNames taken: ${taken.join(", ")}`,
+    ARRIVAL,
+    300,
+    false,
+    "god",
+  );
+}

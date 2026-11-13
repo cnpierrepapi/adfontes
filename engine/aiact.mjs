@@ -6,7 +6,8 @@
 import * as A from "./aigods.mjs";
 import * as C from "../src/live/calls.js";
 import * as store from "./store.mjs";
-import { godsPlan, canSpend } from "./llm.mjs";
+import { godsPlan, canSpend, arrivalChoice } from "./llm.mjs";
+import * as AR from "./arrivals.mjs";
 import { CFG, florinRates } from "./config.mjs";
 import * as MK from "./market.mjs";
 import { NAMES } from "./godnames.mjs";
@@ -176,4 +177,32 @@ export async function judgeMotions({ net, chain, log = () => {} }) {
     }
   }
   return [...new Set(touched)];
+}
+
+/** Phase E (engine/arrivals.mjs): one new AI god arrives. It takes a free god name, chooses (Claude, from the AI gods'
+ *  pot; a plain founding if the pot is spent) to found a nation of its own or bless one with no human god, and the
+ *  engine checks it can pay. The operator funds it. It is registered as an AI god at once, so it plans and acts from
+ *  the next turn. Returns what happened, for the 'arrival' record (or { kind: "wait" | "none", why }). */
+export async function arrive({ net, s, chain, log = () => {}, forceName = null }) {
+  const onchain = await chain.clans(), alive = onchain.filter((c) => c.alive);
+  const ai = new Set((await store.aiGods(net)).map((g) => g.account));
+  const a = s.arrivals;
+  const name = forceName || AR.pickName(NAMES, new Set(await store.takenNames()), `${a.seed}|${a.n}`); // forceName: the v2d chain test only
+  if (!name) return { kind: "none", why: "every god name is taken" };
+  const account = A.accountFor(name, chain.operator), temperament = temperamentOf(name);
+  const targets = AR.blessTargets(alive, ai);
+  const nations = targets.map((c) => ({ id: c.id, name: c.name, mood: s.clans[c.id]?.mood || "content" }));
+  const choice = (canSpend("god") ? await arrivalChoice({ name, temperament, nations, taken: onchain.map((c) => c.name) }).catch((e) => { log(`  arrival: no choice from Claude (${String(e.message || e).slice(0, 80)}); it founds`); return null; }) : null) || { found: true, nation: "", bless: 0, why: "" };
+  const dec = AR.decide({ alive: alive.length, opNear: await chain.opBalance(), wantsFound: choice.found || !targets.length });
+  if (dec.kind === "wait") return { kind: "wait", why: dec.why };
+  if (dec.kind === "bless" && !targets.length) return { kind: "wait", why: `${dec.why}, and no nation it could join` };
+  const nation = dec.kind === "found" ? AR.cleanNationName(choice.nation, onchain.map((c) => c.name)) || AR.cleanNationName(`${name}'s Reach`, onchain.map((c) => c.name)) || `${name} ${a.n + 1}` : null;
+  const target = dec.kind === "bless" ? targets.find((c) => c.id === choice.bless) || targets.slice().sort((x, y) => (s.clans[x.id]?.mood === "hungry" ? -1 : 0) - (s.clans[y.id]?.mood === "hungry" ? -1 : 0))[0] : null;
+  const need = (dec.kind === "found" ? AR.ARRIVE.foundNear : AR.ARRIVE.blessNear) + 0.6;
+  if (!(await chain.aiEnsure(account, need))) await chain.aiTopUp(account, need, need);
+  await store.addAiGod(net, account, name, temperament);
+  await store.claimGodName(account, name);
+  const r = dec.kind === "found" ? await chain.aiFound(account, nation, AR.ARRIVE.foundNear) : await chain.aiSend(account, [C.bless(chain.world, target.id, yocto(AR.ARRIVE.blessNear))]);
+  log(`  arrival: ${name} (${temperament}) ${dec.kind === "found" ? `founded ${nation}` : `blessed ${target.name}`}`);
+  return { kind: dec.kind, god: account, name, temperament, nation, clan: target?.id ?? r?.clan ?? null, why: choice.why || dec.why, tx: r?.hash ?? null };
 }
