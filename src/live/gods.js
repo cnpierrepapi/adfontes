@@ -872,7 +872,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const signed = await wallet.signChoice(msg);
     if (!signed) { toast(account ? "The choice wasn't signed, so nothing was saved." : "Become a god first to choose."); return false; }
     const r = await fetch("/api/choice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...c, ...signed }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world. Try again." }));
-    toast(r.ok ? (kind === "ask" ? "Asked. The accused answers in a moment." : "Chosen. Your Scholars follow it next turn.") : r.error);
+    toast(r.ok ? (kind === "ask" ? "Asked. The accused answers in a moment." : kind === "list" ? "Whispered to your Broker. It decides in a moment." : "Chosen. Your Scholars follow it next turn.") : r.error);
     if (r.ok) setTimeout(() => refreshPanel(), 1500); // asked: the panel shows "waiting for the answer"
     return !!r.ok;
   }

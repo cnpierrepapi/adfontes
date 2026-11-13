@@ -448,3 +448,14 @@ body.night .plate .hp small { color: #ff8b7f; }
 body.night .plate .hp[data-side="winning"] small { color: #7fe39a; }
 /* AI gods' tag (12 Nov) */
 .aitag { font-style: normal; font-family: var(--mono); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em; padding: 1px 5px; border-radius: 6px; background: #7c5cff; color: #fff; vertical-align: 1px; }
+
+/* Looking into a mind (PLAN_13NOV step 3, src/live/star.js): the card for a tapped star. */
+.starcard { position: fixed; left: 18px; top: 84px; z-index: 55; width: min(320px, calc(100vw - 36px)); padding: 12px 16px 14px; border-radius: 16px; background: rgba(255, 252, 244, 0.97); color: var(--ink); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35); border: 2px solid #ffb800; }
+.starcard[hidden] { display: none; }
+.starcard h4 { margin: 0 22px 4px 0; font-family: var(--display); font-weight: 800; font-size: 1rem; line-height: 1.25; }
+.starcard .pt { margin-top: -2px; font-family: var(--mono); font-size: 0.7rem; opacity: 0.7; }
+.starcard p { margin: 4px 0; }
+.starcard .x { position: absolute; right: 8px; top: 6px; border: 0; background: none; font-size: 1.3rem; line-height: 1; cursor: pointer; color: inherit; }
+.starcard .viewbtn { margin-top: 8px; }
+.starcard small { display: block; margin-top: 6px; opacity: 0.75; }
+@media (max-width: 700px) { .starcard { top: 64px; left: 10px; } }

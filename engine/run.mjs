@@ -26,6 +26,7 @@ import * as MK from "./market.mjs";
 import * as B from "./budget.mjs";
 import * as CH from "./choices.mjs";
 import * as AK from "./ask.mjs";
+import * as BW from "./brokerword.mjs";
 import { planGods } from "./aiact.mjs";
 import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
@@ -226,6 +227,16 @@ for (let n = 0; n < days; n++) {
   }
   async function settleSale(sale, { applied = false } = {}) {
     if ((s.salesDone ||= []).includes(sale.id)) return null;
+    // A listing its god asked for sold above fair (PLAN_13NOV step 3): that god gains a little reverence.
+    const gw = s.godListed?.[sale.listing];
+    if (gw && Number(sale.seller) === gw.clan && gw.god) {
+      const fair = MK.fairOf(s, sale.token_id, FL)?.price ?? gw.fair;
+      if (BW.aboveFair(sale, fair)) {
+        const ch = [];
+        RV.brokerReward(s.rev?.[gw.clan], gw.god, day, ch);
+        if (ch.length) log({ kind: "reverence-change", clan: gw.clan, listing: sale.listing, changes: ch });
+      }
+    }
     let res = { learned: null };
     if (!applied) {
       res = MK.applySale(s, sale);
@@ -342,12 +353,13 @@ for (let n = 0; n < days; n++) {
     return { price: ask.price, ask, listTx, buy: b, sale: { id: b.value, listing: ask.listing, buyer, seller, token_id: token, price: ask.price, reason: buyerWhy } };
   }
   /** One nation's Broker on the market: list, take down, buy. Returns the florins it spent. */
-  async function marketDay(oc, c, florins) {
+  // must / askedBy: what a god asked the Broker to list, when it listened (PLAN_13NOV step 3, engine/brokerword.mjs).
+  async function marketDay(oc, c, florins, must = [], askedBy = null) {
     const all = await listingsNow();
     if (!all) return 0;
     c.lastMarketAt = Date.now();
     const mine = all.filter((l) => l.open && l.seller === oc.id);
-    const sell = MK.sellable(s, oc.id, FL).filter((x) => !mine.some((m) => m.token_id === x.token_id));
+    const sell = MK.sellable(s, oc.id, FL).filter((x) => !mine.some((m) => m.token_id === x.token_id) && !must.some((y) => y.token_id === x.token_id));
     const offers = all.filter((l) => l.open && l.seller !== oc.id && s.clans[l.seller] && MK.useful(s, oc.id, l.token_id))
       .map((l) => { const f = MK.fairOf(s, l.token_id, FL); return f && { id: l.id, seller: l.seller, token_id: l.token_id, title: f.title, kind: f.kind, price: l.price, fair: f.price }; }).filter(Boolean)
       // The same walk-away as a direct deal (cold audit 11 Nov: a Broker bought at 2.2x fair here): an
@@ -362,8 +374,20 @@ for (let n = 0; n < days; n++) {
         if ((held && BigInt(held[i] || 0) > 0n) || (o.token_id[0] !== "p" && sold.some((x) => Number(x.buyer) === oc.id && x.token_id === o.token_id))) offers.splice(i, 1);
       }
     }
-    if (!sell.length && !offers.length && !mine.length) return 0;
-    const m = await brokerMarket({ field: c.field, temperament: c.mbti, florins, sellable: sell, mine: mine.map((x) => ({ id: x.id, token_id: x.token_id, price: x.price })), offers, open: Object.keys(c.frontier) });
+    if (!sell.length && !offers.length && !mine.length && !must.length) return 0;
+    const m = await brokerMarket({ field: c.field, temperament: c.mbti, florins, sellable: sell, mine: mine.map((x) => ({ id: x.id, token_id: x.token_id, price: x.price })), offers, open: Object.keys(c.frontier), must });
+    // The god's word first: each asked item is listed, at the Broker's price if it named one (clamped as always).
+    for (const x of must) {
+      if (mine.filter((y) => y.open !== false).length >= 10) { log({ kind: "broker-word", clan: oc.id, god: askedBy, token: x.token_id, title: x.title, full: true, why: "the shelf is full (10 listings)" }); break; }
+      const L = (m.list || []).find((y) => y.token_id === x.token_id) || { price: x.price, why: "" };
+      const price = clampPrice(L.price, x.price), why = `At its god's word. ${String(L.why || "").slice(0, 170)}`.trim();
+      const r = await chain.marketList(oc.id, x.token_id, price, why);
+      const row = { id: r.value, seller: oc.id, token_id: x.token_id, price, kind: x.token_id[0] === "p" ? "sale" : "copy", open: true, reason: why, sold: 0 };
+      all.push(row); mine.push(row);
+      (s.godListed ||= {})[r.value] = { god: askedBy, clan: oc.id, fair: +x.price.toFixed(4), day };
+      log({ kind: "listed", clan: oc.id, listing: r.value, token: x.token_id, title: x.title, price, fair: +x.price.toFixed(4), priceWhy: x.why, why, asked_by: askedBy, tx: r.hash, signer: r.signer });
+    }
+    m.list = (m.list || []).filter((y) => !must.some((x) => x.token_id === y.token_id));
     let openN = mine.length;
     for (const id of (m.delist || []).slice(0, 10)) {
       const x = mine.find((y) => y.id === id);
@@ -727,8 +751,24 @@ for (let n = 0; n < days; n++) {
       // The Broker's market day (his calls 9 Nov: the marketplace is the agents' alone). Once a real
       // day it lists, takes down or buys, from its own trader wallet, in the nation's florins.
       // Off until the marketplace is proven on testnet (step 5.5): ADF_MARKET=1 turns it on.
-      if (MARKET_ON && !INSTANT && able("Broker").length && c.agentWallets === 2 && Date.now() - (c.lastMarketAt || 0) >= CFG.draftEveryMs && !capped("agent")) {
-        try { wallet -= await marketDay(oc, c, wallet); }
+      // Whispering to the Broker (PLAN_13NOV step 3, engine/brokerword.mjs): this turn's list request, heard once per
+      // request; the Broker listens by the god's reverence (one roll per god, nation and turn). If it listens, the
+      // market day runs now, instant turns too, with those items first.
+      let must = [], askedBy = null;
+      const listCh = CHOICES.find((x) => x.kind === "list" && Number(x.clan) === oc.id);
+      if (listCh && MARKET_ON && able("Broker").length && c.agentWallets === 2) {
+        const key = `${day}|${oc.id}|${listCh.account}|${JSON.stringify(listCh.payload?.tokens || [])}`;
+        s.listDone ||= {};
+        for (const k of Object.keys(s.listDone)) if (Number(k.split("|")[0]) < day - 24) delete s.listDone[k];
+        if (!s.listDone[key]) {
+          s.listDone[key] = true;
+          const ear = BW.hears({ r: rv?.gods?.[listCh.account]?.r ?? 0, seed: BW.seedOf({ day, clan: oc.id, god: listCh.account, world: chain.world }) });
+          if (ear.listens) { must = BW.mustList(listCh.payload.tokens, MK.sellable(s, oc.id, FL), ((await listingsNow()) || []).filter((l) => l.open && l.seller === oc.id)); askedBy = listCh.account; }
+          log({ kind: "broker-word", clan: oc.id, god: listCh.account, tokens: listCh.payload.tokens, listens: ear.listens, ignored: ear.ignored, chance: ear.chance, roll: ear.roll, listing: must.map((x) => x.token_id) });
+        }
+      }
+      if (MARKET_ON && able("Broker").length && c.agentWallets === 2 && !capped("agent") && (must.length || (!INSTANT && Date.now() - (c.lastMarketAt || 0) >= CFG.draftEveryMs))) {
+        try { wallet -= await marketDay(oc, c, wallet, must, askedBy); }
         catch (e) { log({ kind: "error", clan: oc.id, error: `market: ${String(e.message || e).slice(0, 160)}` }); }
       }
 

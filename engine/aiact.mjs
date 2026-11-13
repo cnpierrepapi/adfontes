@@ -7,7 +7,8 @@ import * as A from "./aigods.mjs";
 import * as C from "../src/live/calls.js";
 import * as store from "./store.mjs";
 import { godsPlan, canSpend } from "./llm.mjs";
-import { CFG } from "./config.mjs";
+import { CFG, florinRates } from "./config.mjs";
+import * as MK from "./market.mjs";
 import { NAMES } from "./godnames.mjs";
 import { pitchOf } from "./world.mjs";
 import { canPitch } from "./war.mjs";
@@ -46,8 +47,10 @@ export async function situations({ net, s, onchain, now = Date.now() }) {
       reports[c.id] = Object.values(s.reports || {}).filter((r) => r.clan === c.id && !r.settled).map((r) => ({ id: r.id, accused: r.accused, claim: r.claim, asked: !!r.asked, answer: r.answer ? { says: r.answer.says, silent: !!r.answer.silent } : null }));
       gifts[c.id] = Object.entries(s.gifts || {}).filter(([, x]) => x.clan === c.id && !x.applied).map(([id, x]) => ({ id: Number(id), warden_passed: s.drafts?.[x.draft]?.passed ?? true }));
     }
+    // Whispering to the Broker (step 3): the 4 dearest things each nation could list (and isn't listing yet).
+    const sellable = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] ? MK.sellable(s, c.id, florinRates(net)).slice(0, 4).map((x) => ({ token: x.token_id, title: String(x.title).slice(0, 60), fair: +x.price.toFixed(2) })) : []]));
     const pitch = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] && canPitch(s, c.id) ? pitchOf(s.clans[c.id], `${s.day + 1}|${c.id}`) : []]));
-    out.push({ pitch, god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: Math.max(0, ALLOWANCE - blessed), clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
+    out.push({ pitch, sellable, god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: Math.max(0, ALLOWANCE - blessed), clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
   }
   return out;
 }
@@ -83,6 +86,8 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
     if (a.kind === "pitch") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "pitch", account: sit.god, payload: { point: a.point } }); continue; }
     // Asking the accused (PLAN_13NOV step 2) is free too: stored as the god's choice; the loop answers it in seconds.
     if (a.kind === "ask") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "ask", account: sit.god, payload: { report: a.report } }); continue; }
+    // Whispering to the Broker (step 3), free too: the Broker decides by this god's reverence when the loop runs it.
+    if (a.kind === "list") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "list", account: sit.god, payload: { tokens: a.tokens } }); continue; }
     all.push({ ...a, god: sit.god });
   }
   const timed = A.schedule(all, start, span, seed);

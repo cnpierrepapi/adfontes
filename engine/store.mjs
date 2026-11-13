@@ -66,13 +66,15 @@ export async function choicesFor(net, day) {
   const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
   return Object.values(all).filter((r) => r.net === net && r.day === Number(day)).map(({ net: _n, at: _a, ...r }) => r);
 }
-/** Asks (PLAN_13NOV step 2) made after `sinceMs`: the loop gives their nations an instant turn. */
-export async function asksSince(net, sinceMs) {
+/** Choices of these kinds made after `sinceMs` (asks, step 2; Broker list requests, step 3): the loop gives their
+ *  nations an instant turn, so the answer comes in seconds. */
+export async function choicesSince(net, sinceMs, kinds = ["ask"]) {
   const p = await db();
-  if (p) return (await p.query("select day, clan, kind, account, payload, (extract(epoch from at) * 1000)::float8 as at from choices where net = $1 and kind = 'ask' and at > to_timestamp($2 / 1000.0)", [net, sinceMs])).rows;
+  if (p) return (await p.query("select day, clan, kind, account, payload, (extract(epoch from at) * 1000)::float8 as at from choices where net = $1 and kind = any($3) and at > to_timestamp($2 / 1000.0)", [net, sinceMs, kinds])).rows;
   const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
-  return Object.values(all).filter((r) => r.net === net && r.kind === "ask" && (r.at || 0) > sinceMs).map(({ net: _n, ...r }) => r);
+  return Object.values(all).filter((r) => r.net === net && kinds.includes(r.kind) && (r.at || 0) > sinceMs).map(({ net: _n, ...r }) => r);
 }
+export const asksSince = (net, sinceMs) => choicesSince(net, sinceMs, ["ask"]);
 /** Every name given so far. */
 export async function takenNames() {
   const p = await db();

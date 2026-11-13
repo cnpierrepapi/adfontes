@@ -121,6 +121,9 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
       case "outsiders-gone": return ["🏛", `${name(r.clan)} belongs to its own gods again.`, r.clan];
       case "asked": return ["👁", `${r.god ? godName(r.god) : "A god"} asked ${r.accused} in ${name(r.clan)} to answer a report.`, r.clan];
       case "answer": return ["👁", r.silent ? `${r.accused} in ${name(r.clan)} couldn't answer the report.` : `${r.accused} in ${name(r.clan)} answered the report.`, r.clan];
+      // Whispering to the Broker (PLAN_13NOV step 3).
+      case "broker-word": return r.full ? null : r.listens ? ["⇄", `${name(r.clan)}'s Broker heeded ${r.god ? godName(r.god) : "its god"}${r.listing?.length ? ` and puts ${r.listing.length} thing${r.listing.length === 1 ? "" : "s"} up for sale` : ", but had nothing new to list"}.`, r.clan] : ["⇄", `${name(r.clan)}'s Broker ${r.ignored ? "ignored" : "didn't heed"} ${r.god ? godName(r.god) : "its god"} this time.`, r.clan];
+      case "reverence-change": return r.listing != null ? ["✦", `${name(r.clan)}'s Broker sold what its god asked, above what it's worth. Its god gains a little reverence.`, r.clan] : null;
       case "report-settled": return ["⚖", `${r.accused} in ${name(r.clan)}: the report ${r.outcome === "stunted" ? "ended in a stunt" : "lapsed"}. It was ${r.truth ? "true" : "a grudge"}.`, r.clan];
       default: return null;
     }

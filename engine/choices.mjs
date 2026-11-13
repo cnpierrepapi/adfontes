@@ -25,6 +25,8 @@ export function verify413(message, nep413, signature, publicKey) {
 export const KINDS = {
   pitch: (p) => typeof p?.point === "string" && p.point.trim().length > 0 && p.point.length <= 120,
   ask: (p) => typeof p?.report === "string" && /^r\d{1,6}-\d{1,4}$/.test(p.report), // ask the accused (step 2)
+  // Whisper to the Broker (step 3): 1-3 of the nation's own tokens to list (research r:, kits k:, patents p:).
+  list: (p) => Array.isArray(p?.tokens) && p.tokens.length >= 1 && p.tokens.length <= 3 && p.tokens.every((t) => typeof t === "string" && /^[rkp]:[\w-]{1,40}$/.test(t)),
 };
 
 /** The exact text a god signs (the browser builds the same string). */

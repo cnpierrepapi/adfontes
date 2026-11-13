@@ -862,6 +862,15 @@ export async function startLive(canvas, hud, opts = {}) {
     ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     const inSky = (o) => { for (; o; o = o.parent) if (o.name === "mind") return true; return false; };
+    // Looking into a mind (PLAN_13NOV step 3): a tap on a star of a sky that's showing opens that star (onStar).
+    ray.params.Points = { threshold: 0.35 };
+    const star = ray.intersectObjects([...islands.values()], true).find((x) => x.object.isPoints && x.object.userData.list && inSky(x.object) && (x.object.material.uniforms?.uFade?.value ?? 0) > 0.3);
+    if (star && opts.onStar) {
+      let o = star.object;
+      while (o && !o.userData.clan) o = o.parent;
+      const s = star.object.userData.list[star.index];
+      if (o && s) return opts.onStar(o.userData.clan.id, s.name);
+    }
     const hit = ray.intersectObjects([...islands.values()], true).find((x) => !inSky(x.object));
     if (!hit) return;
     let o = hit.object;

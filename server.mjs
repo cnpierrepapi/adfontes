@@ -9,7 +9,7 @@ import path from "node:path";
 import { JsonRpcProvider } from "near-api-js";
 import { NETWORKS, florinRates } from "./engine/config.mjs";
 import { PRICES } from "./engine/prices.mjs";
-import { fairOf, kindOf, holderOfPatent } from "./engine/market.mjs";
+import { fairOf, kindOf, holderOfPatent, sellable } from "./engine/market.mjs";
 import * as store from "./engine/store.mjs";
 import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, fundFounding, PUBLIC_KEY } from "./engine/sponsor.mjs";
@@ -277,6 +277,8 @@ function makeApi(NET) {
           // The Scholars' pitch (PLAN_13NOV step 1): for the next turn, the 3 points the dice would draw from, with
           // what a god needs to choose: how deep, how many other nations know it already, its best Scholar.
           choice_day: s.day + 1,
+          // Whispers to the Broker this turn (step 3): what each god asked its nation's Broker to list.
+          lists: (await store.choicesFor(NET, s.day + 1).catch(() => [])).filter((x) => x.kind === "list").map((x) => ({ clan: x.clan, god: x.account, tokens: x.payload?.tokens || [] })),
           pitches: await (async () => {
             const picked = await store.choicesFor(NET, s.day + 1).catch(() => []);
             return standing.filter((c) => canPitch(s, c.id)).map((c) => { // at war: no research, so no pitch (13 Nov)
@@ -308,8 +310,40 @@ function makeApi(NET) {
         if (!rep || rep.clan !== r.row.clan || rep.settled) return { error: "That report is closed." };
         if (rep.asked) return { error: "You've already asked. Their answer is on its way." };
       }
+      // Whisper to the Broker (step 3): only what this nation's own Broker can sell.
+      if (r.ok && r.row.kind === "list") {
+        const can = new Set(sellable(s, r.row.clan, florinRates(NET)).map((x) => x.token_id));
+        if (!r.row.payload.tokens.every((t) => can.has(t))) return { error: "Your Broker can only list what this nation made or holds the patent for." };
+      }
       if (r.ok) { await store.putChoice(NET, r.row); cache.delete(`${NET}:next`); }
       return r;
+    },
+    // Looking into a nation's mind (PLAN_13NOV step 3): one star of its sky. Its title and depth, how this nation
+    // came by it, which nations know it, its fair price in florins (engine/market.mjs fairOf) and any open listing.
+    // Works on any nation, so a god can see what others have and lack. ?clan=<id>&point=<name>
+    async star(q) {
+      const id = whole(q, "clan", 1), point = String(q.get("point") || "").slice(0, 160);
+      if (!point) return { error: "Name a point." };
+      return cachedN(`star:${id}:${point}`, 10_000, async () => {
+        const [clans, s, listings] = await Promise.all([view("list_clans", { limit: 100 }), stateNow(), cachedN("listings", 20_000, () => view("market_listings", { from_index: 0, limit: 500 }).catch(() => []))]);
+        const c = s.clans[id];
+        if (!c) return { error: "No such nation." };
+        const name = (k) => clans.find((x) => x.id === Number(k))?.name ?? `nation ${k}`;
+        const alive = (k) => clans.some((x) => x.id === Number(k) && x.alive) && !s.clans[k]?.fallen;
+        const own = c.owned?.[point], fr = c.frontier?.[point];
+        const knownBy = Object.entries(s.clans).filter(([k, o]) => o.owned?.[point] && alive(k)).map(([k]) => ({ id: Number(k), name: name(k) }));
+        // Its research token: this nation's if it holds one, else any holder's (the price is the same research).
+        const corpus = own?.corpus ?? Object.values(s.clans).map((o) => o.owned?.[point]?.corpus).find(Boolean) ?? null;
+        const f = corpus ? fairOf(s, `r:${corpus}`, florinRates(NET)) : null;
+        const token = corpus ? `r:${corpus}` : null;
+        const open = token ? (listings || []).filter((l) => l.open && l.token_id === token).map((l) => ({ id: l.id, seller: l.seller, seller_name: name(l.seller), price: florins(l.price), reason: l.reason })) : [];
+        const mine = !!own && s.corpora?.[own.corpus]?.clan === id; // its own research: the only kind its Broker can list
+        return {
+          clan: id, nation: name(id), point, title: s.corpora?.[corpus]?.title ?? point,
+          state: own ? "known" : fr ? "frontier" : "unknown", depth: own?.depth ?? fr?.depth ?? null, how: own?.how ?? null, stir: own?.stir ?? null,
+          known_by: knownBy, fair: f ? +f.price.toFixed(2) : null, token, sellable: mine, listings: open,
+        };
+      });
     },
     async clan(q) {
       const id = whole(q, "id", 1);

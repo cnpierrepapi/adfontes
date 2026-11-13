@@ -90,10 +90,11 @@ async function look(W) {
     if (now - f.since > FRESH.forMs || f.runs >= FRESH.maxRuns) { W.fresh.delete(id); continue; }
     if (now >= f.next) { W.queue.set(id, true); f.runs++; f.next = now + FRESH.everyMs; }
   }
-  // Ask the accused (PLAN_13NOV step 2): a new ask gets its nation an instant turn, so the answer comes in seconds.
+  // Ask the accused (PLAN_13NOV step 2) and whispering to the Broker (step 3, kind === "list"): a new one gets its
+  // nation an instant turn (no research), so the answer comes in seconds. Kept apart from asksSince for the tests.
   try {
     const since = W.askSeen ?? now - 60e3;
-    const asks = await store.asksSince(W.net, since);
+    const asks = await store.choicesSince(W.net, since, ["ask", "list"]); // asksSince + kind === "list"
     for (const a of asks) { W.queue.set(Number(a.clan), W.queue.get(Number(a.clan)) || false); W.aiTouched.add(Number(a.clan)); }
     W.askSeen = Math.max(since, ...asks.map((a) => Number(a.at) || 0));
   } catch {}

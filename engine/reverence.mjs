@@ -260,6 +260,17 @@ export function maybeReport(s, id, day, living, evidence, R) {
   return { kind: "report", report: rid, clan: id, accuser, accused, claim, lapses_day: day + REV.reportDays };
 }
 
+/** Whispering to the Broker (PLAN_13NOV step 3, engine/brokerword.mjs): a listing the god asked for sold above its
+ *  fair price. +1, at most +5 a real day per god and nation, never lifting past 60. Returns the reverence moved. */
+export function brokerReward(rv, god, day, changes) {
+  const g = rv?.gods?.[god];
+  if (!g) return 0;
+  g.brokerWins = (g.brokerWins || []).filter((d) => day - d < REV.blessWindow);
+  if (g.brokerWins.length >= 5) return 0;
+  g.brokerWins.push(day);
+  return move(rv, god, 1, "your Broker sold what you asked, above fair", changes, { cap: 60 });
+}
+
 /** A god stunted (or killed) the accused of an open report. */
 export function answerReport(s, rv, id, god, accused, day, changes) {
   const rep = Object.values(s.reports || {}).find((x) => x.clan === id && !x.settled && x.accused === accused);

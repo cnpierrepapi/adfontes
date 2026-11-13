@@ -180,7 +180,9 @@ const MARKET = {
   },
 };
 /** sellable: [{token_id,title,kind,price(fair)}]; mine: [{id,token_id,price}]; offers: [{id,seller,title,kind,price,fair}] */
-export function brokerMarket({ field, temperament, florins, sellable, mine, offers, open }) {
+export function brokerMarket({ field, temperament, florins, sellable, mine, offers, open, must = [] }) {
+  // must: what its god asked it to list (PLAN_13NOV step 3, engine/brokerword.mjs); the Broker prices them.
+  if (FAKE && must.length) return Promise.resolve({ list: must.map((x) => ({ token_id: x.token_id, price: +(x.price * 1.2).toFixed(4), why: `${x.title} is worth something to a nation that lacks it.` })), delist: [], buy: -1, buy_why: "" });
   if (FAKE) {
     // Stand-in: list the dearest thing not yet listed at 1.2x fair (up to 3 open), buy the first
     // offer it can use at no more than 1.5x fair that it can afford.
@@ -203,7 +205,8 @@ export function brokerMarket({ field, temperament, florins, sellable, mine, offe
       "Every why is one plain sentence a citizen would understand. " +
       `Your temperament: ${temperament}.`,
     `Your field: ${field}. Your nation holds ${fmt(florins)} florins.\n\nYour open questions:\n${open.slice(0, 15).map((p) => `- ${p}`).join("\n") || "(none)"}\n\n` +
-      `What you could sell:\n${sell}\n\nYour listings now:\n${listedNow}\n\nOn the market from other nations:\n${market}`,
+      `What you could sell:\n${sell}\n\nYour listings now:\n${listedNow}\n\nOn the market from other nations:\n${market}` +
+      (must.length ? `\n\nYour god asked you to list these, and you will (they don't count against your 3; name your price and why for each): ${must.map((x) => `${x.token_id} "${x.title}" fair ${fmt(x.price)}`).join("; ")}` : ""),
     MARKET,
     900,
   );
@@ -389,7 +392,8 @@ const GODS_PLAN = {
             items: {
               type: "object", additionalProperties: false, required: ["kind", "clan"],
               properties: {
-                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire", "pitch", "ask"] }, point: { type: "string" },
+                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire", "pitch", "ask", "list"] }, point: { type: "string" },
+                tokens: { type: "array", items: { type: "string" } },
                 clan: { type: "integer" }, text: { type: "string" }, near: { type: "number" },
                 report: { type: "string" }, verdict: { type: "string", enum: ["Stunt", "Kill"] }, gift: { type: "integer" }, target: { type: "integer" },
               },
@@ -410,6 +414,7 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
     ...s.nations.map((n) => `  nation ${n.id} "${n.name}": standing ${n.standing}/100; your reverence ${n.myReverence}; ${n.mood === "hungry" ? `HUNGRY (needs ${n.need} NEAR a day, got ${n.fed24h} in the last day)` : `fed (${n.mood})`}; ${n.tricksters ? `${n.tricksters} Trickster(s) among them` : "no Tricksters"}; ${n.war ? `AT WAR with ${n.war}` : "at peace"}; ${Math.round(n.florins)} florins; its scholars are working on: ${(n.looking || []).join(", ") || "nothing new"}; next turn they could study (pitch): ${(s.pitch?.[n.id] || []).join(" | ") || "nothing"}`),
     ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}; ${r.answer ? (r.answer.silent ? "the accused can't answer (dead or stunted)" : `the accused answered: "${r.answer.says}"`) : r.asked ? "asked, waiting for the answer" : "not asked yet"}`)),
     ...Object.entries(s.gifts || {}).flatMap(([c, gs]) => gs.map((g) => `  gift ${g.id} in nation ${c} waits for a ruling (warden ${g.warden_passed ? "passed" : "failed"} it)`)),
+    ...Object.entries(s.sellable || {}).filter(([, xs]) => xs.length).map(([c, xs]) => `  nation ${c} could sell: ${xs.map((x) => `${x.token} "${x.title}" (fair ${x.fair})`).join("; ")}`),
   ].join("\n")).join("\n\n");
   const r = await json(
     model,
@@ -425,6 +430,7 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
       "- ask: ask the accused of a report that is 'not asked yet' to answer, by the report's id. Always the first step on a report. Free.\n" +
       "- smite: a reported citizen, by the report's id, only once the accused has answered (or can't). Judge their answer: a guilty one may lie. Stunt unless the claim is strong. Only reports listed.\n" +
       "- fire: at most one a day per god, on another nation that hoards florins or bullies in war. Never its own.\n" +
+      "- list: whisper to a nation's Broker to put 1 to 3 of the things it could sell on the market (tokens, word for word). The Broker listens more the more it reveres you; a sale above fair raises your reverence a little. At most one a nation.\n" +
       "- pitch: pick what a nation's Scholars study next turn, one point from its pitch list, word for word. Free; one per nation.\n" +
       "Write every whisper in the god's own voice, matching its temperament.",
     `Your gods and their nations now:\n\n${lines}`,
