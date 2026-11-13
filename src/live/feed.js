@@ -57,8 +57,9 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
     const god = !!me();
     const firstMine = [...mine][0];
     for (const f of N.fires || []) {
+      if (f.held && !isMine(f.caster)) continue; // its god isn't Ascendant: it won't land, so nobody else hears of it
       if (isMine(f.target)) mineList.push(item("🔥", `${f.caster_name}'s gods called fire on ${f.target_name}. It lands next turn.`, [["Strike back", () => act({ kind: "fire", clan: f.target, target: f.caster })], ["Warn them", () => act({ kind: "whisper", clan: f.target, text: `Fire is coming from ${f.caster_name}. Guard what matters most.` })]], true, f.target));
-      else if (isMine(f.caster)) mineList.push(item("🔥", `Your fire lands on ${f.target_name} next turn.`, [], true, f.target));
+      else if (isMine(f.caster)) mineList.push(item("🔥", f.held ? `Your call for fire on ${f.target_name} won't be answered: Act of God opens at Ascendant.` : `Your fire lands on ${f.target_name} next turn.`, [], true, f.target));
       else world.push(item("🔥", `Fire lands on ${f.target_name} next turn, called by ${f.caster_name}.`, [], false, f.target));
     }
     for (const w of N.wars || []) {

@@ -122,4 +122,5 @@ const onchain = [{ id: 1, alive: true, gods: [{ account: G }] }, { id: 2, alive:
   ok(/href="\/seats\/">Seats</.test(src("live/index.html")), "Seats is in the live world's top bar");
   ok(/href="\/seats\/"/.test(src("marketplace/index.html")) && /href="\/seats\/"/.test(src("judge/index.html")), "and on the marketplace and judge pages");
   ok(/power\("Sell your seat"/.test(g), "and as a tile in your nation's powers");
+  ok(/held: !MS\.has\(s, f\.god, "fire"\)/.test(src("server.mjs")) && /f\.held \?/.test(src("src/live/feed.js")), "a fire its god can't call yet is shown as unanswered, never as landing");
 }

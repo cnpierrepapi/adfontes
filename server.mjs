@@ -271,7 +271,7 @@ function makeApi(NET) {
         const hungry = standing.filter((c) => s.clans[c.id]?.mood === "hungry").length;
         return {
           next_at: s.lastRunAt ? s.lastRunAt + 2 * 3600e3 : null, now_ms: Date.now(),
-          fires: (s.fire?.queue || []).map((f) => ({ caster: f.caster, caster_name: name(f.caster), target: f.target, target_name: name(f.target), god: f.god })),
+          fires: (s.fire?.queue || []).map((f) => ({ caster: f.caster, caster_name: name(f.caster), target: f.target, target_name: name(f.target), god: f.god, held: !MS.has(s, f.god, "fire") })), // held: its god isn't Ascendant yet, so the heavens won't answer
           wars: wars.map((w) => { const a = warInfo(s, w.a); return { a: w.a, a_name: name(w.a), b: w.b, b_name: name(w.b), round: (w.rounds || 0) + 1, a_points: a.hp + 1, b_points: a.enemyHp + 1, offer: w.offer?.by ?? null }; }),
           hoard: richest && line && total > 0 ? { clan: richest.id, name: richest.name, share: +(spend(richest) / total).toFixed(4), line: +line.toFixed(4) } : null,
           famine: standing.length >= 3 ? { hungry, of: standing.length, needs: Math.ceil(standing.length / 2), richest: richest?.id ?? null, richest_name: richest?.name ?? null, richest_hungry: richest ? s.clans[richest.id]?.mood === "hungry" : null } : null,
