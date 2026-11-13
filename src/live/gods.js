@@ -62,6 +62,13 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     return ms;
   }
   const UNLOCK_KIND = { smite: "smite", root: "root", fire: "fire" };
+  /** A locked power says how to open it and stops (every card checks, whatever button led there). */
+  async function locked(power, label) {
+    await myMilestones().catch(() => null);
+    const l = lockedBy(power);
+    if (l) toast(`${label} opens when you become ${l.name}. ${l.how}.`);
+    return !!l;
+  }
   const lockedBy = (power) => (ms?.locked?.includes(power) ? ms.ladder.find((m) => m.unlocks.includes(power)) : null);
   setInterval(() => { if (account) myMilestones(true).catch(() => {}); }, 30000);
   const WORLD = W.world;
@@ -79,7 +86,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   // The chip shows your email when you signed up with one (the account stays underneath).
   const showChip = () => { const shown = account ? (wallet.email?.() || myName()) : null; chip.replaceChildren("◈ ", el("span", { className: "word", textContent: shown ? short(shown) : "Become a god" })); chip.classList.toggle("god", !!account); };
   showChip();
-  wallet.onAccount((a) => { account = a; showChip(); refreshPanel(); if (!menu.hidden) openMenu(); });
+  wallet.onAccount((a) => { account = a; ms = null; showChip(); refreshPanel(); if (!menu.hidden) openMenu(); });
   chip.addEventListener("click", () => (menu.hidden ? openMenu() : (menu.hidden = true)));
   document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !chip.contains(e.target)) menu.hidden = true; });
 
@@ -548,6 +555,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
           power("Act of God", () => fireCard(clan), "fire", "Rain fire on another nation's florins.");
         }
         power("Claim your stake", () => withdrawCard(clan, me), "claim", "Take your florins out as grace.");
+        power("Sell your seat", () => { location.href = "/seats/"; }, "seat", "List your place here at your price, on the seats page.");
       }
       box.append(grid);
       // The milestone ladder: what's open, what's next.
@@ -737,6 +745,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   }
   const verdictPicker = () => el("select", { className: "txin" }, el("option", { value: "Stunt", textContent: "Stunt: no work or learning for 3 turns (about 6 hours)" }), el("option", { value: "Kill", textContent: "Kill: gone for good (the name stays taken)" }));
   async function smiteCard(clan, accused = null) {
+    if (await locked("smite", "Smiting")) return; // milestones gate every way in (13 Nov: the feed's "Call fire on it" skipped the panel's lock)
     const [{ sel, agents }, p] = await Promise.all([citizenPicker(clan), prepDao(clan)]);
     if (!agents.length) return toast(`${clan.name} has no living citizens to smite.`);
     const v = verdictPicker();
@@ -756,6 +765,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   }
   // Root it out (SPEC §14): cut a point of knowledge, and all that grew from it, from the mind map.
   async function rootCard(clan) {
+    if (await locked("root", "Rooting out")) return; // milestones gate every way in (13 Nov: the feed's "Call fire on it" skipped the panel's lock)
     const [info, p] = await Promise.all([api(`clan?id=${clan.id}`).catch(() => null), prepDao(clan)]);
     const pts = (info?.points || []).filter((x) => x.parent && x.how !== "root");
     if (!pts.length) return toast(`${clan.name} has no knowledge to cut yet.`);
@@ -786,6 +796,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   // and each god can do it once a real day. It goes through your nation's DAO like root out (the
   // point "act of god: <id>"), so the vote is on NEAR.
   async function fireCard(clan, target = null) {
+    if (await locked("fire", "Act of God")) return; // milestones gate every way in (13 Nov: the feed's "Call fire on it" skipped the panel's lock)
     const p = await prepDao(clan);
     // Nations at war are never a target: they're already being hit (his rule 10 Nov).
     // Fire burns what a nation can spend: florins less its gods' ring-fenced grant (as the engine does).
@@ -821,6 +832,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     });
   }
   async function ruleCard(clan, gift) {
+    if (await locked("rule", "Ruling")) return; // milestones gate every way in (13 Nov: the feed's "Call fire on it" skipped the panel's lock)
     const [{ sel, agents }, p] = await Promise.all([citizenPicker(clan), prepDao(clan)]);
     const choice = el("select", { className: "txin" }, el("option", { value: "reward", textContent: "Reward the gift" }), el("option", { value: "punish", textContent: "Punish a citizen for it" }));
     const v = verdictPicker();

@@ -115,4 +115,11 @@ const onchain = [{ id: 1, alive: true, gods: [{ account: G }] }, { id: 2, alive:
   ok(/async milestones\(/.test(srv), "/api/milestones for the panel");
   ok(/locked: /.test(aiact) && /paced\(/.test(aiact), "the AI gods' situation carries their locked powers and the paced allowance");
   ok(/case "milestone"/.test(src("src/live/feed.js")), "the feed tells the world when a god reaches a milestone");
+  // 13 Nov, his video: the feed's "Call fire on it" opened the Act of God card past the panel's lock.
+  const g = src("src/live/gods.js");
+  for (const [fn, p] of [["fireCard", "fire"], ["smiteCard", "smite"], ["ruleCard", "rule"], ["rootCard", "root"]]) { const at = g.indexOf(`async function ${fn}(`); ok(at > 0 && g.slice(at, g.indexOf("\n", g.indexOf("\n", at) + 1)).includes(`if (await locked("${p}"`), `${fn} checks its lock first, whatever button led there`); }
+  // 13 Nov, his video: he couldn't find the seats page anywhere.
+  ok(/href="\/seats\/">Seats</.test(src("live/index.html")), "Seats is in the live world's top bar");
+  ok(/href="\/seats\/"/.test(src("marketplace/index.html")) && /href="\/seats\/"/.test(src("judge/index.html")), "and on the marketplace and judge pages");
+  ok(/power\("Sell your seat"/.test(g), "and as a tile in your nation's powers");
 }
