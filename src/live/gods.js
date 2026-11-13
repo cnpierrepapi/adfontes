@@ -5,6 +5,7 @@ import { createWallet, toYocto, near, failure, TGAS } from "./wallet.js";
 import * as C from "./calls.js";
 import { api } from "../net.js";
 import { godName, isAi } from "../says.js";
+import { entryOptions } from "./emailentry.js";
 
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
@@ -75,8 +76,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         const b = el("button", { type: "button", className: `walletpick${w.id === "local" ? " primary" : " small"}` }, w.icon ? el("img", { src: w.icon, alt: "", width: w.id === "local" ? 28 : 18, height: w.id === "local" ? 28 : 18 }) : null, el("span", {}, w.name, w.id === "local" ? el("small", { textContent: w.note }) : ""));
         b.addEventListener("click", async () => {
           b.disabled = true;
-          // Play without a wallet: sign up or log in with an email (a browser that already holds a key goes straight in).
-          if (w.id === "local" && !wallet.hasLocalKey?.()) { b.disabled = false; return emailForm(); }
+          // Play with email (13 Nov): always the email page (log in or sign up), never a silent sign-in to a leftover key.
+          if (w.id === "local") { b.disabled = false; return emailStart(); }
           try { await wallet.signIn(w.id); menu.hidden = true; if (w.id === "local") { showChip(); quickStart(); } } catch (e) { toast(`${w.name}: ${e.message || "could not connect"}`); }
           b.disabled = false;
         });
@@ -142,6 +143,21 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     }
   }
 
+  // The email page (13 Nov, src/live/emailentry.js): Log in, Sign up, and Continue for the email this browser last used.
+  function emailStart() {
+    menu.replaceChildren();
+    menu.hidden = false;
+    menu.append(el("p", { className: "lead", textContent: "Play with email" }));
+    for (const o of entryOptions({ hasLocalKey: !!wallet.hasLocalKey?.(), savedEmail: wallet.savedEmail?.() || null })) {
+      const b = el("button", { type: "button", className: o.id === "this-browser" ? "linkish" : `walletpick${o.id === "signup" ? " small" : " primary"}` }, el("span", { textContent: o.label }));
+      b.addEventListener("click", async () => {
+        if (o.id === "login") return emailForm("login");
+        if (o.id === "signup") return emailForm("signup");
+        try { await wallet.signIn("local"); menu.hidden = true; showChip(); quickStart(); } catch (e) { toast(e.message || "That didn't work. Try again."); }
+      });
+      menu.append(b);
+    }
+  }
   // Sign up or log in with an email (11 Nov). The passphrase stays in this browser: it locks the key
   // here before anything is sent (src/live/wallet.js signUpEmail / logInEmail).
   function emailForm(mode = "signup") {

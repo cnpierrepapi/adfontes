@@ -264,7 +264,7 @@ export async function createWallet(net) {
     return { account: lk.account, publicKey: kp.getPublicKey().toString(), signature: btoa(s) };
   }
   const label = () => (localOn() && localStorage.getItem(EMAIL)) || account();
-  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, takeSponsored, signUpEmail, logInEmail, forgetEmail, label, signChoice, email: () => (localOn() ? localStorage.getItem(EMAIL) : null), hasLocalKey: () => !!localKey(), isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
+  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, takeSponsored, signUpEmail, logInEmail, forgetEmail, label, signChoice, savedEmail: () => localStorage.getItem(EMAIL), email: () => (localOn() ? localStorage.getItem(EMAIL) : null), hasLocalKey: () => !!localKey(), isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
 }
 
 /** Did this outcome fail anywhere? Returns the first failure in plain-ish words, or null. */
