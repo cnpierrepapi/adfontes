@@ -51,6 +51,9 @@ export function createStarCard({ getGods }) {
     const N = await api("next").catch(() => null);
     const asked = (N?.lists || []).find((x) => x.clan === S.clan && x.god === gods.account())?.tokens || [];
     if (asked.includes(S.token)) { box.append(el("p", { className: "fine", textContent: "You've asked your Broker to list this. It listens more the more it reveres you." })); return; }
+    await gods.myMilestones?.().catch(() => null);
+    const lock = gods.lockedBy?.("list");
+    if (lock) { box.append(el("p", { className: "fine", textContent: `🔒 Whispering to your Broker opens when you become ${lock.name}. ${lock.how}.` })); return; }
     const b = el("button", { type: "button", className: "viewbtn gold", textContent: "Ask your Broker to sell it" });
     b.addEventListener("click", async () => {
       b.disabled = true;

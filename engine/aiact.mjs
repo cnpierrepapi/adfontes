@@ -8,6 +8,7 @@ import * as C from "../src/live/calls.js";
 import * as store from "./store.mjs";
 import { godsPlan, canSpend, arrivalChoice } from "./llm.mjs";
 import * as AR from "./arrivals.mjs";
+import * as MS from "./milestones.mjs";
 import { CFG, florinRates } from "./config.mjs";
 import * as MK from "./market.mjs";
 import { NAMES } from "./godnames.mjs";
@@ -19,6 +20,13 @@ const TEMPERAMENTS = ["devout", "stern", "generous", "patient", "fiery", "playfu
 export const temperamentOf = (name) => TEMPERAMENTS[[...String(name)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % TEMPERAMENTS.length];
 const yocto = (near) => BigInt(Math.round(near * 1e6)) * 10n ** 18n;
 const dayStart = (now) => Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate());
+
+/** AI gods pace their day (his ask 13 Nov: they had spent it all by early afternoon): what they may bless and whisper
+ *  grows through the UTC day, a twelfth at each 2-hour turn, so actions keep coming around the clock. */
+export function paced({ now, blessed, whispers }) {
+  const frac = Math.min(1, (now - dayStart(now)) / 86400e3 + 1 / 12);
+  return { allowance: Math.max(0, +(ALLOWANCE * frac - blessed).toFixed(4)), whisperRoom: Math.max(0, Math.ceil(A.WHISPERS_PER_DAY * frac) - whispers) };
+}
 
 /** Each AI god's situation, from the engine's state and the chain's nations. */
 export async function situations({ net, s, onchain, now = Date.now() }) {
@@ -51,7 +59,8 @@ export async function situations({ net, s, onchain, now = Date.now() }) {
     // Whispering to the Broker (step 3): the 4 dearest things each nation could list (and isn't listing yet).
     const sellable = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] ? MK.sellable(s, c.id, florinRates(net)).slice(0, 4).map((x) => ({ token: x.token_id, title: String(x.title).slice(0, 60), fair: +x.price.toFixed(2) })) : []]));
     const pitch = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] && canPitch(s, c.id) ? pitchOf(s.clans[c.id], `${s.day + 1}|${c.id}`) : []]));
-    out.push({ pitch, sellable, god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: Math.max(0, ALLOWANCE - blessed), clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
+    const whispersToday = today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length, pace = paced({ now, blessed, whispers: whispersToday });
+    out.push({ pitch, sellable, god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: pace.allowance, whisperRoom: pace.whisperRoom, locked: MS.progress(s, g.account, onchain, now).locked, clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
   }
   return out;
 }

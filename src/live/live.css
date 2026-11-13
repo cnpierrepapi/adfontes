@@ -461,3 +461,22 @@ body.night .plate .hp[data-side="winning"] small { color: #7fe39a; }
 .starcard .viewbtn:disabled { opacity: 0.55; cursor: wait; }
 .starcard small { display: block; margin-top: 6px; opacity: 0.75; }
 @media (max-width: 700px) { .starcard { top: 64px; left: 10px; } }
+
+/* Milestones (PLAN_13NOV §6): locked power tiles and the ladder. */
+.powertile.locked { opacity: 0.55; filter: grayscale(0.6); }
+.mstrack { margin: 10px 0 4px; }
+.msdots { display: flex; gap: 6px; margin-bottom: 4px; }
+.msdot { width: 14px; height: 14px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.35); }
+.msdot.on { background: #f5c451; border-color: #f5c451; box-shadow: 0 0 6px rgba(245, 196, 81, 0.7); }
+.msdot.next { border-color: #f5c451; animation: msnext 1.6s ease-in-out infinite; }
+@keyframes msnext { 50% { box-shadow: 0 0 8px rgba(245, 196, 81, 0.8); } }
+
+/* Citizen chatter (PLAN_13NOV §6): one line every 15 s, fades by itself, never takes a click. */
+.chatter { position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%); max-width: min(560px, calc(100vw - 32px)); background: rgba(20, 14, 36, 0.78); color: #f4ecff; border: 1px solid rgba(245, 196, 81, 0.35); border-radius: 14px; padding: 8px 14px; font-size: 14px; line-height: 1.35; pointer-events: none; z-index: 30; display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; backdrop-filter: blur(6px); }
+.chatter b { color: #f5c451; }
+.chatter small { opacity: 0.7; }
+.chatter span { flex-basis: 100%; }
+.chatter.in { animation: chatin 0.4s ease-out, chatout 0.8s ease-in 10.2s forwards; }
+@keyframes chatin { from { opacity: 0; transform: translate(-50%, 8px); } }
+@keyframes chatout { to { opacity: 0; } }
+@media (max-width: 700px) { .chatter { bottom: 150px; font-size: 13px; } }

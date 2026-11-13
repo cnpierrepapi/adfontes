@@ -66,10 +66,13 @@ export const WHISPERS_PER_TURN = 2, WHISPERS_PER_DAY = 8;
 export function validatePlan(plan, sit) {
   const out = [];
   let left = Math.max(0, Number(sit.allowance) || 0), fires = Number(sit.aogToday) || 0;
-  let whispers = 0, whisperRoom = Math.max(0, WHISPERS_PER_DAY - (Number(sit.whispersToday) || 0));
+  let whispers = 0, whisperRoom = sit.whisperRoom != null ? Math.max(0, Number(sit.whisperRoom)) : Math.max(0, WHISPERS_PER_DAY - (Number(sit.whispersToday) || 0)); // paced over the day (aiact.paced)
+  const locked = new Set(sit.locked || []); // powers its milestones haven't opened (engine/milestones.mjs)
+  const POWER = { rule: "rule", smite: "smite", fire: "fire", list: "list" };
   for (const a of Array.isArray(plan) ? plan : []) {
     if (out.length >= MAX_ACTIONS) break;
     if (!a || !KINDS.has(a.kind) || !sit.clans.includes(Number(a.clan))) continue;
+    if (POWER[a.kind] && locked.has(POWER[a.kind])) continue;
     const clan = Number(a.clan);
     if (a.kind === "whisper") {
       const text = String(a.text || "").replace(/\s+/g, " ").trim().slice(0, 280);

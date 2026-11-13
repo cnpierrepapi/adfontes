@@ -46,6 +46,24 @@ function putInWords(clan, me, cfg, st) {
 
 export async function createGods({ live, W, nav, toast, route, replayIntro }) {
   const ignoredReports = new Set(); // reports this god just ignored (his call 13 Nov)
+  // Milestones (PLAN_13NOV §6, engine/milestones.mjs): which powers this god has opened. A new one gets a toast and a
+  // short chime; the panel greys what's still locked and says how to open it.
+  let ms = null, msAt = 0, msFor = null;
+  const chime = () => { try { const a = new AudioContext(), t = a.currentTime; for (const [f, d] of [[660, 0], [880, 0.12], [1320, 0.24]]) { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = f; g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.12, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.5); o.connect(g).connect(a.destination); o.start(t + d); o.stop(t + d + 0.55); } } catch {} };
+  async function myMilestones(force = false) {
+    if (!account) return null;
+    if (!force && ms && msFor === account && Date.now() - msAt < 20000) return ms;
+    const r = await api(`milestones?account=${encodeURIComponent(account)}`).catch(() => null);
+    if (!r || r.error) return ms;
+    const key = `adf-ms-${account}`, before = JSON.parse(localStorage.getItem(key) || "null");
+    if (before) for (const id of r.reached) if (!before.includes(id)) { const m = r.ladder.find((x) => x.id === id); toast(`You became ${m.name}. ${m.id === "ascendant" ? "You can call down an Act of God." : "A new power is open."}`); chime(); }
+    localStorage.setItem(key, JSON.stringify(r.reached));
+    ms = r; msAt = Date.now(); msFor = account;
+    return ms;
+  }
+  const UNLOCK_KIND = { smite: "smite", root: "root", fire: "fire" };
+  const lockedBy = (power) => (ms?.locked?.includes(power) ? ms.ladder.find((m) => m.unlocks.includes(power)) : null);
+  setInterval(() => { if (account) myMilestones(true).catch(() => {}); }, 30000);
   const WORLD = W.world;
   const wallet = await createWallet(W.net);
   let account = wallet.account();
@@ -512,11 +530,13 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       // Powers as tiles (his note 8 Nov: "our CTA buttons are so basic"): an icon in a coloured
       // disc, the power, one line on what it does.
       const grid = el("div", { className: "powertiles" });
+      if (me) await myMilestones().catch(() => null);
       const power = (label, fn, kind, sub) => {
-        const b = el("button", { type: "button", className: `powertile ${kind}` });
+        const lock = UNLOCK_KIND[kind] ? lockedBy(UNLOCK_KIND[kind]) : null;
+        const b = el("button", { type: "button", className: `powertile ${kind}${lock ? " locked" : ""}` });
         b.innerHTML = `<span class="pi">${ICONS[kind] ?? ""}</span><span class="pt"><b></b><small></small></span>`;
-        b.querySelector("b").textContent = label; b.querySelector("small").textContent = sub;
-        b.addEventListener("click", fn); grid.append(b);
+        b.querySelector("b").textContent = lock ? `${label} 🔒` : label; b.querySelector("small").textContent = lock ? `Opens at ${lock.name}: ${lock.how}.` : sub;
+        b.addEventListener("click", lock ? () => toast(`${label} opens when you become ${lock.name}. ${lock.how}.`) : fn); grid.append(b);
       };
       power(me ? "Bless again" : "Bless this nation", () => blessCard(clan, !me), "bless", me ? "Put more grace in. It lifts reverence up to 60." : "Put grace in and become one of its gods.");
       if (me) {
@@ -529,7 +549,12 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
         }
         power("Claim your stake", () => withdrawCard(clan, me), "claim", "Take your florins out as grace.");
       }
-      box.append(grid, rev);
+      box.append(grid);
+      // The milestone ladder: what's open, what's next.
+      if (me && ms) box.append(el("div", { className: "mstrack" },
+        el("div", { className: "msdots" }, ...ms.ladder.map((m) => el("span", { className: `msdot${m.reached ? " on" : ""}${ms.next?.id === m.id ? " next" : ""}`, title: `${m.name}: ${m.how}` }))),
+        el("small", { className: "fine", textContent: ms.next ? `Next: ${ms.next.name}. ${ms.next.how}.${ms.next.id === "ascendant" && ms.held_hours ? ` Held ${ms.held_hours} of 24 hours.` : ""}` : "Every power is open to you." })));
+      box.append(rev);
       if (clan.whisper) box.append(el("p", { className: "fine" }, "The gods' last whisper: ", el("i", { textContent: `"${clan.whisper}"` })));
       // The DAO's open proposals (read straight from the DAO, never a cache), and every gift's status
       // live from the world contract: a ruling already waiting, or one that can't do anything any
@@ -564,8 +589,9 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
             const yes = Object.values(waitingP.votes || {}).filter((v) => v === "Approve").length, need = C.needed(seats.length, 0);
             row.append(el("small", { textContent: ` A ruling is already waiting: ${yes} of ${need} yes votes.${waitingP.votes?.[account] ? " Yours is in; the other gods vote under Open motions." : " Vote on it under Open motions."}` }));
           } else {
-            const b = el("button", { type: "button", className: "viewbtn", textContent: "Rule on it" });
-            b.addEventListener("click", () => ruleCard(clan, x));
+            const lock = lockedBy("rule");
+            const b = el("button", { type: "button", className: "viewbtn", textContent: lock ? `Rule on it 🔒` : "Rule on it" });
+            b.addEventListener("click", lock ? () => toast(`Ruling opens when you become ${lock.name}. ${lock.how}.`) : () => ruleCard(clan, x));
             row.append(b);
           }
           box.append(row);
@@ -886,5 +912,5 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     if (r.ok) setTimeout(() => refreshPanel(), 1500); // asked: the panel shows "waiting for the answer"
     return !!r.ok;
   }
-  return { section, wallet, openMenu, myNations, act, choose, account: () => account };
+  return { section, wallet, openMenu, myNations, act, choose, account: () => account, lockedBy: (p) => lockedBy(p), myMilestones };
 }

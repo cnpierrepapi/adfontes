@@ -17,6 +17,7 @@ import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FI
 import { canPitch } from "./engine/war.mjs";
 import { acceptChoice } from "./engine/choices.mjs";
 import * as SE from "./engine/seats.mjs";
+import * as MS from "./engine/milestones.mjs";
 import { standings } from "./engine/reverence.mjs";
 import { inRanking } from "./src/season.js";
 
@@ -355,6 +356,13 @@ function makeApi(NET) {
       if (!(await store.seatBuy(NET, { tx, listing: listing.id, buyer, amount: listing.price }))) return { error: "That payment was already used." };
       cache.delete(`${NET}:seats`);
       return { ok: true, status: "waiting" };
+    },
+    // Milestones (PLAN_13NOV §6, engine/milestones.mjs): a god's ladder, what's next and how far. ?account=
+    async milestones(q) {
+      const who = String(q.get("account") || "").slice(0, 64);
+      if (!who) return { error: "Name an account." };
+      const [s, clans] = await Promise.all([stateNow(), view("list_clans", { limit: 100 })]);
+      return MS.progress(s, who, clans);
     },
     // A god's signed choice (PLAN_13NOV step 0, engine/choices.mjs). Not a GET endpoint (the name has an underscore).
     async _choice(b) {

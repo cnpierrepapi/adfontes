@@ -8,6 +8,7 @@
 import { api } from "../net.js";
 import { godName } from "../says.js";
 import { createDialogue } from "./dialogue.js";
+import { createChatter } from "./chatter.js";
 
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const r0 = (x) => Math.round(x).toLocaleString("en");
@@ -30,6 +31,8 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
   const dialogue = sandbox ? { say() {}, busy: () => false } : createDialogue();
   const name = (id) => W.clans?.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
   const isMine = (id) => id != null && mine.has(Number(id));
+  // A citizen says something every 15 s (PLAN_13NOV §6), from the records this feed hears.
+  const chatter = sandbox ? null : createChatter({ busy: () => dialogue.busy(), mine: () => mine, name });
   const me = () => (gods?.account?.() ?? null);
   const act = (spec) => (gods ? gods.act(spec) : flyTo(spec.clan));
 
@@ -127,6 +130,8 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
       // Whispering to the Broker (PLAN_13NOV step 3).
       case "broker-word": return r.full ? null : r.listens ? ["⇄", `${name(r.clan)}'s Broker heeded ${r.god ? godName(r.god) : "its god"}${r.listing?.length ? ` and puts ${r.listing.length} thing${r.listing.length === 1 ? "" : "s"} up for sale` : ", but had nothing new to list"}.`, r.clan] : ["⇄", `${name(r.clan)}'s Broker ${r.ignored ? "ignored" : "didn't heed"} ${r.god ? godName(r.god) : "its god"} this time.`, r.clan];
       case "reverence-change": return r.listing != null ? ["✦", `${name(r.clan)}'s Broker sold what its god asked, above what it's worth. Its god gains a little reverence.`, r.clan] : null;
+      // PLAN_13NOV §6: a god reached a milestone and a power opened.
+      case "milestone": return r.milestone === "arrive" ? null : ["★", `${godName(r.god)} became ${r.name}${r.milestone === "ascendant" ? " and can call down an Act of God" : ""}.`, null];
       // Phase E: a new AI god arrived and founded a nation or joined one.
       case "arrival": return ["✧", r.kind === "found" || r.nation ? `A new god, ${r.name}, arrived and founded ${r.nation}.` : `A new god, ${r.name}, arrived and blessed ${name(r.clan)}.`, r.clan ?? null];
       // Seat trading (PLAN_13NOV step 4): a seat changed hands. Buying an AI god's seat, the buyer plays as that god.
@@ -182,7 +187,7 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
   let soonAgain = null;
   const refreshSoon = () => { clearTimeout(soonAgain); soonAgain = setTimeout(refresh, 3000); };
   return {
-    record(r) { heard(r); speak(r).catch(() => {}); if (mine.size && involves(r)) refreshSoon(); },
+    record(r) { heard(r); chatter?.add(r); speak(r).catch(() => {}); if (mine.size && involves(r)) refreshSoon(); },
     mine: (r) => mine.size > 0 && involves(r),
     setGods(g) { gods = g; refresh(); },
     setFocus(id) { focus = id == null ? null : Number(id); },

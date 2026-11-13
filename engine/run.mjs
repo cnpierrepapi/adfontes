@@ -28,6 +28,7 @@ import * as CH from "./choices.mjs";
 import * as AK from "./ask.mjs";
 import * as BW from "./brokerword.mjs";
 import * as SE from "./seats.mjs";
+import * as MS from "./milestones.mjs";
 import { planGods, arrive } from "./aiact.mjs";
 import * as AR from "./arrivals.mjs";
 import * as FIRE from "./fire.mjs";
@@ -1026,6 +1027,15 @@ for (let n = 0; n < days; n++) {
     log({ kind: "budget", source: "openalex", remaining: b?.remaining ?? null, limit: b?.limit ?? null, note: "75% of today's OpenAlex searches used: research reads the paper cache until midnight UTC" });
   }
 
+  // Milestones (PLAN_13NOV §6, engine/milestones.mjs): what this run did may open a god's next power.
+  try {
+    const msClans = await chain.clans();
+    // A god seen for the first time: the last 24 days of sealed records, read once, so what it did before counts.
+    let history = [];
+    if (MS.needsHistory(s, msClans)) for (let d = Math.max(1, day - 24); d < day; d++) history.push(...((await store.getDay(net, d).catch(() => null))?.records || []));
+    for (const r of MS.update(s, rec.slice(turnStart), msClans, Date.now(), [...history, ...rec.slice(0, turnStart)])) log(r);
+  } catch (e) { log({ kind: "error", error: `milestones: ${String(e.message || e).slice(0, 160)}` }); }
+
   // An instant turn ends here: no rulings sweep, fees, root or new day (the next day does those).
   if (INSTANT) {
     s.spend.usd = spendBase + meter.usd;
@@ -1223,6 +1233,8 @@ for (let n = 0; n < days; n++) {
       return { ...dmg, florins: +burned.toFixed(4), tx: r?.hash ?? null };
     };
     for (const q of queue) {
+      // Act of God waits behind Ascendant (PLAN_13NOV §6): the council may pass it, the heavens don't answer.
+      if (!MS.has(s, q.god, "fire")) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: "its god hasn't reached Ascendant yet (70 reverence held a full day, in a nation with 2 techs)" }); continue; }
       const last = (s.fire.last ||= {})[q.god] || 0;
       const ok = FIRE.mayCast({ last, caster: q.caster, target: q.target, standing: standing.map((x) => x.id), atWar });
       if (!ok.ok || hit.has(q.target)) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: ok.ok ? "that nation is already burning this turn" : ok.why }); continue; }
