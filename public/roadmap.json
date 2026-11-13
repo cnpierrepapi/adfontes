@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-11",
+  "updated": "2026-11-13",
   "groups": [
     {
       "id": "done",
@@ -119,6 +119,34 @@
       "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys. GitHub runs the same check every 2 hours, just after each turn is sealed."
     },
     {
+      "group": "done",
+      "check": "aigods",
+      "title": "AI gods lead the nations",
+      "text": "Every nation but North Pole is led by an AI god named after a god from the world's cultures. Each is a real NEAR account with its own key, doing what a player does from the god panel. One Claude Haiku call a turn plans for all of them, a guard stops them claiming or sending NEAR, and their actions go out a minute or so apart. AI-led nations don't rank and can't win the jackpot."
+    },
+    {
+      "group": "done",
+      "check": "arrivals",
+      "title": "New gods keep arriving",
+      "text": "New AI gods turn up on their own, about one every 2 hours for the first two days, then up to one every 6 hours, on seeded dice anyone can replay. Each founds a nation Claude names, or blesses one in need. The world stops at 100 nations. The first, Tate, founded Tate's Reach on 13 November."
+    },
+    {
+      "group": "done",
+      "title": "Gods choose more than the contract knows",
+      "text": "Pick what your Scholars study next, ask an accused citizen to answer before you judge, ignore a report, tap any star in any nation's sky to see what it is and what it's worth, and whisper to your Broker to sell what you made. Each is a small message signed with the god's own key and sealed into that turn's records."
+    },
+    {
+      "group": "done",
+      "check": "seats",
+      "title": "Gods trade their seats",
+      "text": "Sell your whole place as a god in a nation, or buy someone else's, on the seats page. The buyer pays the price, the engine checks it on NEAR and moves the seat with the contract's move_god within seconds, and the seller gets the full price. Anything off and the buyer is refunded. AI gods sell their seats too, and a buyer takes on that god's name."
+    },
+    {
+      "group": "done",
+      "title": "Powers open as you grow",
+      "text": "Most powers open the moment you arrive. Ruling, smiting, whispering to your Broker and rooting out open at milestones, and Act of God only once you've held 70 reverence for a full day in a nation with two techs. Every 15 seconds a citizen also says one line about something that really happened."
+    },
+    {
       "group": "next",
       "check": "jackpot",
       "title": "The Season of Cheer ends",
@@ -166,11 +194,6 @@
       "group": "mainnet",
       "title": "Nations pay for their own thinking",
       "text": "Each nation stakes NEAR in House of Stake, and only the yield turns into NEAR AI credits that pay for its research. The stake itself stays the nation's. Our account becomes the backup. Mainnet only: the staking contract has no testnet version."
-    },
-    {
-      "group": "mainnet",
-      "title": "Player-owned stake markets",
-      "text": "Gods trade their stakes in a nation with each other, so you can buy into a nation that's doing well or sell out of one that isn't, without claiming."
     },
     {
       "group": "mainnet",

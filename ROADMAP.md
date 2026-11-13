@@ -1,6 +1,6 @@
 # AD FONTES roadmap
 
-Last edited 2026-11-11. The live version, where each item is checked against NEAR when you open it, is at https://adfontes.fun/roadmap/ (linked from the judge page). This file is written from the same list by `scripts/roadmap-md.mjs`.
+Last edited 2026-11-13. The live version, where each item is checked against NEAR when you open it, is at https://adfontes.fun/roadmap/ (linked from the judge page). This file is written from the same list by `scripts/roadmap-md.mjs`.
 
 ## Done
 
@@ -21,6 +21,11 @@ Running on NEAR testnet now, in the beta. Where the page can check one against t
 - **Founding costs nothing extra.** The first founders got back the 5.5 NEAR their DAOs cost. Since then a founding fund pays for new nations' DAOs. Every player the testnet pool sets up without a wallet tops the fund up with one DAO's worth, so they never pay it. A founder with their own wallet pays for the DAO when the fund is empty.
 - **The testnet pool refills itself.** Every 12 hours the engine tops up the pool that pays for new players, from NEAR's testnet helper.
 - **Check it all in one command.** node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys. GitHub runs the same check every 2 hours, just after each turn is sealed.
+- **AI gods lead the nations.** Every nation but North Pole is led by an AI god named after a god from the world's cultures. Each is a real NEAR account with its own key, doing what a player does from the god panel. One Claude Haiku call a turn plans for all of them, a guard stops them claiming or sending NEAR, and their actions go out a minute or so apart. AI-led nations don't rank and can't win the jackpot.
+- **New gods keep arriving.** New AI gods turn up on their own, about one every 2 hours for the first two days, then up to one every 6 hours, on seeded dice anyone can replay. Each founds a nation Claude names, or blesses one in need. The world stops at 100 nations. The first, Tate, founded Tate's Reach on 13 November.
+- **Gods choose more than the contract knows.** Pick what your Scholars study next, ask an accused citizen to answer before you judge, ignore a report, tap any star in any nation's sky to see what it is and what it's worth, and whisper to your Broker to sell what you made. Each is a small message signed with the god's own key and sealed into that turn's records.
+- **Gods trade their seats.** Sell your whole place as a god in a nation, or buy someone else's, on the seats page. The buyer pays the price, the engine checks it on NEAR and moves the seat with the contract's move_god within seconds, and the seller gets the full price. Anything off and the buyer is refunded. AI gods sell their seats too, and a buyer takes on that god's name.
+- **Powers open as you grow.** Most powers open the moment you arrive. Ruling, smiting, whispering to your Broker and rooting out open at milestones, and Act of God only once you've held 70 reverence for a full day in a nation with two techs. Every 15 seconds a citizen also says one line about something that really happened.
 
 ## Next, this season
 
@@ -40,7 +45,6 @@ After the beta, the game opens on mainnet with real NEAR and a second way to be 
 - **The world runs on mainnet too.** The engine only runs testnet today. It starts on mainnet the day the new world is funded, with testnet still running alongside for free play.
 - **A real cross-chain top-up.** Pay in from any chain with NEAR Intents and the NEAR lands in your account, ready to found or bless. One real swap, about $4, proves it end to end. Mainnet only.
 - **Nations pay for their own thinking.** Each nation stakes NEAR in House of Stake, and only the yield turns into NEAR AI credits that pay for its research. The stake itself stays the nation's. Our account becomes the backup. Mainnet only: the staking contract has no testnet version.
-- **Player-owned stake markets.** Gods trade their stakes in a nation with each other, so you can buy into a nation that's doing well or sell out of one that isn't, without claiming.
 - **Treaties and alliances.** Two nations can sign a pact: trade terms, peace, or an alliance in war. It only holds if both nations' gods bless it with a little NEAR. Saying no costs nothing.
 - **The Tree of Life.** Instead of founding a nation, a god can put NEAR into the tree and join its council of gods, a DAO that holds florins and the compute nations run short of. A priest tends the tree, worships the council and distrusts knowledge. Council gods see every citizen in the world, sorted by how likely each is to lose faith, and can whisper to them or bless them.
 - **Rebellions.** Citizens the tree wins over can rise against their old gods. It takes a lot of them together to take over a nation, ideally without dragging it into a war. When they do, the council gods who won them over become its gods.
