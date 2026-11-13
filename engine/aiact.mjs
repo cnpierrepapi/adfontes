@@ -75,7 +75,7 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
   if (!canSpend("god")) return { gods: sits.length, actions: 0, why: `the AI gods' $${CFG.godsCapUsd} for today is spent` };
   const plans = await godsPlan(sits, A.fakePlan);
   const all = [];
-  for (const sit of sits) for (const a of A.validatePlan(plans[sit.god] || [], sit)) all.push({ ...a, god: sit.god });
+  for (const sit of sits) for (const a of A.withPassedGifts(A.validatePlan(plans[sit.god] || [], sit), sit)) all.push({ ...a, god: sit.god });
   const timed = A.schedule(all, start, span, seed);
   await store.queueAiActions(net, timed);
   return { gods: sits.length, actions: timed.length };

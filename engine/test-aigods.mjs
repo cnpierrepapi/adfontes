@@ -160,3 +160,17 @@ ok(fake.some((a) => a.kind === "rule" && a.gift === 5) && fake.some((a) => a.kin
   const { CFG } = await import("./config.mjs");
   ok(CFG.godModel === "claude-haiku-5-5", `the AI gods plan with Haiku 5.5 (${CFG.godModel})`);
 }
+// 13. Gifts the Warden passed are always rewarded (13 Nov: Haiku ruled only 75% of waiting gifts in the eval, and
+//     an unruled gift costs its gods reverence). Code adds the ruling; the god still signs it like any motion.
+//     Gifts the Warden failed are left to the god.
+{
+  const sitG = { god: "odin.op", allowance: 1, clans: [1, 2], reports: {}, gifts: { 1: [{ id: 7, warden_passed: true }, { id: 8, warden_passed: false }], 2: [{ id: 9, warden_passed: true }] }, aogToday: 0 };
+  const plan = [{ kind: "whisper", clan: 1, text: "hold" }, { kind: "rule", clan: 2, gift: 9, reward: true }];
+  const out = A.withPassedGifts(A.validatePlan(plan, sitG), sitG);
+  ok(out.some((a) => a.kind === "rule" && a.gift === 7), "a passed gift the plan forgot is ruled anyway");
+  ok(out.filter((a) => a.kind === "rule" && a.gift === 9).length === 1, "a passed gift the plan already rules isn't ruled twice");
+  ok(!out.some((a) => a.gift === 8), "a gift the Warden failed is left to the god");
+  ok(out.find((a) => a.gift === 7)?.reward === true, "the ruling rewards it");
+  const fs = await import("node:fs");
+  ok(/withPassedGifts\(A\.validatePlan\(/.test(fs.readFileSync(new URL("./aiact.mjs", import.meta.url), "utf8")), "planGods adds the passed gifts to every god's plan");
+}

@@ -143,3 +143,14 @@ export async function sendChecked({ send, landed, sleep = (ms) => new Promise((r
   }
   throw lastErr;
 }
+
+/** Gifts the Warden passed are always rewarded (13 Nov): the plan gets a ruling for every one it forgot. The god
+ *  still signs it like any motion; a gift the Warden failed is left to the god's judgement. */
+export function withPassedGifts(actions, sit) {
+  const out = [...actions];
+  for (const [clan, gifts] of Object.entries(sit.gifts || {})) {
+    if (!sit.clans.includes(Number(clan))) continue;
+    for (const g of gifts) if (g.warden_passed && !out.some((a) => a.kind === "rule" && a.gift === Number(g.id))) out.unshift({ kind: "rule", clan: Number(clan), gift: Number(g.id), reward: true });
+  }
+  return out;
+}
