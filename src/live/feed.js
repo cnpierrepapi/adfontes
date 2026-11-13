@@ -32,7 +32,11 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
   const name = (id) => W.clans?.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
   const isMine = (id) => id != null && mine.has(Number(id));
   // A citizen says something every 15 s (PLAN_13NOV §6), from the records this feed hears.
-  const chatter = sandbox ? null : createChatter({ busy: () => dialogue.busy(), mine: () => mine, name });
+  const chatter = sandbox ? null : createChatter({
+    say: (d) => dialogue.say(d), busy: () => dialogue.busy(), mine: () => mine, name,
+    // A line about one of your nations asks something of you: a button that does it.
+    actionsFor: (l) => (l.ask && l.clan != null && isMine(l.clan) ? [[l.ask.label, () => act({ kind: l.ask.act, clan: l.clan, text: l.ask.text || "" })]] : []),
+  });
   const me = () => (gods?.account?.() ?? null);
   const act = (spec) => (gods ? gods.act(spec) : flyTo(spec.clan));
 

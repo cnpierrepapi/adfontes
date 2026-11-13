@@ -51,10 +51,22 @@ const name = (id) => ({ 1: "Helios", 2: "North Pole", 3: "Numdial" })[id] ?? `na
   ok(L.EVERY_MS === 15000, "every 15 seconds");
 }
 
-// 3. The wiring.
+// 3. His call 13 Nov evening: the lines speak through the dialogue box (the citizen's face), not a text strip, and a
+//    line about one of your nations asks for you: it carries something to do.
 {
-  const live = fs.readFileSync(new URL("../src/live/feed.js", import.meta.url), "utf8"), ch = fs.readFileSync(new URL("../src/live/chatter.js", import.meta.url), "utf8");
-  ok(/createChatter/.test(live) && /chatter\?\.add\(r\)/.test(live), "the feed starts the chatter and hands it every record");
-  ok(/pointer-events:\s*none|pointerEvents = "none"/.test(ch + fs.readFileSync(new URL("../src/live/live.css", import.meta.url), "utf8")) && /hidden/.test(ch), "the strip never takes a click and fades on its own");
-  ok(/busy\(\)/.test(ch), "it waits while a citizen is speaking in the dialogue box");
+  ok(L.lineFor({ kind: "needs", clan: 2, mood: "hungry" }, name).ask?.act === "bless", "a hungry nation asks to be blessed");
+  ok(L.lineFor({ kind: "warden", clan: 1, fake: ["W1"], fine: 1 }, name).ask?.act === "whisper" && L.lineFor({ kind: "warden", clan: 1, fake: ["W1"], fine: 1 }, name).ask.text, "a caught fake asks for a whisper, with words ready");
+  ok(L.lineFor({ kind: "battle", war: "w", round: 3, sides: { 2: {}, 3: {} } }, name).ask?.act === "whisper", "a war round asks for a whisper");
+  ok(L.lineFor({ kind: "corpus", clan: 1, scholar: "A", title: "t", cites: 3 }, name).ask?.act === "whisper", "fresh research asks for a whisper");
+  ok(!L.lineFor({ kind: "trade", buyer: 2, seller: 1, about: "x", price: 1 }, name).ask, "a trade needs nothing from you");
+  ok(L.AUTO_CLOSE_MS >= 8000 && L.AUTO_CLOSE_MS < L.EVERY_MS, "a line left alone closes by itself before the next one");
+}
+
+// 4. The wiring.
+{
+  const feed = fs.readFileSync(new URL("../src/live/feed.js", import.meta.url), "utf8"), ch = fs.readFileSync(new URL("../src/live/chatter.js", import.meta.url), "utf8"), dlg = fs.readFileSync(new URL("../src/live/dialogue.js", import.meta.url), "utf8");
+  ok(/createChatter/.test(feed) && /chatter\?\.add\(r\)/.test(feed), "the feed starts the chatter and hands it every record");
+  ok(/say\(/.test(ch) && !/className = "chatter"/.test(ch), "the chatter speaks through the dialogue box, not its own strip");
+  ok(/d\.actions/.test(dlg) && /d\.auto/.test(dlg) && /stopPropagation/.test(dlg), "the dialogue box shows buttons (a click on one doesn't skip the line) and can close by itself");
+  ok(/busy\(\)/.test(ch), "it waits while a citizen is already speaking");
 }

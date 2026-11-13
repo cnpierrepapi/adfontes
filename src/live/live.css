@@ -480,3 +480,7 @@ body.night .plate .hp[data-side="winning"] small { color: #7fe39a; }
 @keyframes chatin { from { opacity: 0; transform: translate(-50%, 8px); } }
 @keyframes chatout { to { opacity: 0; } }
 @media (max-width: 700px) { .chatter { bottom: 150px; font-size: 13px; } }
+
+/* Dialogue buttons (13 Nov): a citizen's line can ask its god for something. */
+.dlg-acts { display: flex; gap: 8px; margin-top: 8px; }
+.dlg-acts .viewbtn { padding: 6px 14px; font-size: 13px; }

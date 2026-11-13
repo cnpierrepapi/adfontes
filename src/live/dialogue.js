@@ -31,6 +31,7 @@ export function createDialogue() {
   const text = el("p", { className: "dlg-text" });
   const more = el("span", { className: "dlg-more", textContent: "▸" });
   const box = el("div", { className: "dlg", role: "dialog", hidden: true }, portrait, el("div", { className: "dlg-body" }, el("div", { className: "dlg-head" }, who, tag), text, more));
+  // (the action row is added under the text when the first line opens: see open())
   document.body.append(box);
 
   // The portrait: a small scene of its own (the world's camera is far away; this one is a close-up).
@@ -75,9 +76,17 @@ export function createDialogue() {
     if (queue.length) return open(queue.shift());
     box.hidden = true;
   }
+  let autoT = 0;
+  const acts = el("div", { className: "dlg-acts" });
   function open(d) {
     lines = boxes(d.text); at = 0;
     if (!lines.length) return next();
+    // Buttons (13 Nov): a line can ask its god for something. A click on one acts and doesn't skip the line.
+    acts.replaceChildren(...(d.actions || []).map(([label, fn]) => { const b = el("button", { type: "button", className: "viewbtn gold", textContent: label }); b.addEventListener("click", (e) => { e.stopPropagation(); clearTimeout(autoT); fn(); next(); }); return b; }));
+    acts.hidden = !(d.actions || []).length;
+    // A line nobody answers closes by itself (d.auto ms); touching the box keeps it open.
+    clearTimeout(autoT);
+    if (d.auto) autoT = setTimeout(() => { if (!box.hidden && !box.matches(":hover")) { at = lines.length - 1; next(); } }, d.auto);
     who.textContent = d.name;
     tag.textContent = [d.role, d.nation, d.badge].filter(Boolean).join(" · ");
     text.textContent = lines[0];
@@ -87,7 +96,8 @@ export function createDialogue() {
     onDone = d.onDone || null;
     showFace(d.name, d.role).catch(() => {});
   }
-  box.addEventListener("click", next);
+  box.querySelector(".dlg-body").insertBefore(acts, more);
+  box.addEventListener("click", () => { clearTimeout(autoT); next(); });
   addEventListener("keydown", (e) => {
     if (box.hidden || !(e.key === " " || e.key === "Enter")) return;
     if (/input|textarea|select/i.test(document.activeElement?.tagName || "")) return;

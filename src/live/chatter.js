@@ -1,33 +1,17 @@
-// Citizen chatter (PLAN_13NOV §6, his ask 13 Nov: "something happens every N seconds", 15 s): a small strip near the
-// bottom where a citizen says one line about something that really happened (src/live/chatterlines.js). It fades by
-// itself, never takes a click, and waits while someone is speaking in the dialogue box or the tab is hidden.
-import { pick, EVERY_MS } from "./chatterlines.js";
+// Citizen chatter (PLAN_13NOV §6, his asks 13 Nov): every 15 seconds a citizen speaks through the dialogue box, face
+// and all, about something that really happened (src/live/chatterlines.js). A line about one of your nations asks
+// something of you (a button: whisper back, bless them); left alone, it closes by itself before the next one. It
+// waits while someone is already speaking, and while the tab is hidden.
+import { pick, EVERY_MS, AUTO_CLOSE_MS } from "./chatterlines.js";
 
-export function createChatter({ busy, mine, name }) {
-  const box = document.createElement("div");
-  box.className = "chatter";
-  box.hidden = true;
-  box.style.pointerEvents = "none";
-  document.body.append(box);
+export function createChatter({ say, busy, mine, name, actionsFor }) {
   const records = [], spoken = new Set();
-  let hideT = 0;
-  function show(l) {
-    box.replaceChildren();
-    const who = document.createElement("b"); who.textContent = l.who;
-    const tag = document.createElement("small"); tag.textContent = [l.role, l.clan != null ? name(l.clan) : null].filter(Boolean).join(", ");
-    const text = document.createElement("span"); text.textContent = l.text;
-    box.append(who, tag, text);
-    box.hidden = false;
-    box.classList.remove("in"); void box.offsetWidth; box.classList.add("in");
-    clearTimeout(hideT);
-    hideT = setTimeout(() => { box.hidden = true; }, EVERY_MS - 4000);
-  }
   setInterval(() => {
     if (document.hidden || busy()) return;
     const l = pick(records, spoken, mine(), name);
     if (!l) return;
     spoken.add(l.key);
-    show(l);
+    say({ key: `chat:${l.key}`, name: l.who, role: l.role, nation: l.clan != null ? name(l.clan) : null, text: l.text, actions: actionsFor(l), auto: AUTO_CLOSE_MS });
   }, EVERY_MS);
   return { add(r) { records.push(r); if (records.length > 400) records.splice(0, records.length - 400); } };
 }
