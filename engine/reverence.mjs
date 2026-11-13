@@ -263,7 +263,8 @@ export function maybeReport(s, id, day, living, evidence, R) {
 /** A god stunted (or killed) the accused of an open report. */
 export function answerReport(s, rv, id, god, accused, day, changes) {
   const rep = Object.values(s.reports || {}).find((x) => x.clan === id && !x.settled && x.accused === accused);
-  if (!rep) return null;
+  // Ask the accused first (PLAN_13NOV step 2, engine/ask.mjs): a stunt before their answer doesn't settle the report.
+  if (!rep || !rep.answer) return null;
   rep.settled = true;
   rep.outcome = "stunted";
   const g = rv.gods[god];

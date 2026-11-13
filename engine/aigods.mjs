@@ -37,7 +37,7 @@ export function guard(call, world = NETWORKS.testnet.world) {
 }
 
 // ---- checking Claude's plan ----
-const KINDS = new Set(["whisper", "bless", "smite", "rule", "fire", "pitch"]);
+const KINDS = new Set(["whisper", "bless", "smite", "rule", "fire", "pitch", "ask"]);
 export const MAX_ACTIONS = 10; // per god per turn
 export const MIN_BLESS = 0.1; // under 0.1 a blessing moves nobody (reverence rules, 9 Nov)
 // Each whisper costs a Claude call when the citizens judge it: 2 a turn, 8 a UTC day per god (12 Nov).
@@ -59,8 +59,12 @@ export function validatePlan(plan, sit) {
       const near = Math.round(Math.min(Number(a.near) || 0, left) * 100) / 100;
       if (near >= MIN_BLESS) { out.push({ kind: "bless", clan, near }); left -= near; }
     } else if (a.kind === "smite") {
+      // Ask the accused first (PLAN_13NOV step 2): a stunt only once they've answered.
       const r = (sit.reports?.[clan] || []).find((x) => x.id === a.report);
-      if (r) out.push({ kind: "smite", clan, report: r.id, agent: r.accused, verdict: a.verdict === "Kill" ? "Kill" : "Stunt" });
+      if (r?.answer) out.push({ kind: "smite", clan, report: r.id, agent: r.accused, verdict: a.verdict === "Kill" ? "Kill" : "Stunt" });
+    } else if (a.kind === "ask") {
+      const r = (sit.reports?.[clan] || []).find((x) => x.id === a.report);
+      if (r && !r.asked && !r.answer && !out.some((x) => x.kind === "ask" && x.report === r.id)) out.push({ kind: "ask", clan, report: r.id });
     } else if (a.kind === "rule") {
       const g = (sit.gifts?.[clan] || []).find((x) => Number(x.id) === Number(a.gift));
       if (g && a.reward !== false) out.push({ kind: "rule", clan, gift: Number(g.id), reward: true });

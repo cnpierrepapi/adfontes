@@ -20,7 +20,7 @@ ok(throws(() => A.guard({ receiver: W, method: "transfer", args: {}, deposit: 1n
 // 2. The plan Claude writes is checked before anything is sent.
 const sit = {
   god: "odin.adfontes-mw1fjpfx.testnet", allowance: 1.0, clans: [1, 2],
-  reports: { 1: [{ id: "r51-1", accused: "Mira Oyama" }] }, gifts: { 2: [{ id: 19 }] }, aogToday: 0,
+  reports: { 1: [{ id: "r51-1", accused: "Mira Oyama", asked: true, answer: { says: "Not me" } }] }, gifts: { 2: [{ id: 19 }] }, aogToday: 0, // report answered (step 2)
 };
 const plan = [
   { kind: "whisper", clan: 1, text: "Feed the hungry first; the papers can wait an hour.".repeat(10) },

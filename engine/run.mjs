@@ -11,7 +11,7 @@ import { CFG, florinRates } from "./config.mjs";
 import { connect, toNear, toFlorins } from "./chain.mjs";
 import { clockAt, extendHours, seasonStartNear } from "./clock.mjs";
 import { papersFor, openAlexCut, openAlexBudget } from "./papers.mjs";
-import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhisper, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
+import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhisper, accusedReply, meter, setSpentToday, spentToday, canSpend, onSpend } from "./llm.mjs";
 import * as RV from "./reverence.mjs";
 // Whispers to re-hear once (9 Nov, see the per-nation reverence step): nation id -> DAO proposal id.
 const REHEAR_9NOV = { 2: 17, 3: 4, 6: 4 };
@@ -25,6 +25,7 @@ import * as TK from "./tokens.mjs";
 import * as MK from "./market.mjs";
 import * as B from "./budget.mjs";
 import * as CH from "./choices.mjs";
+import * as AK from "./ask.mjs";
 import { planGods } from "./aiact.mjs";
 import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
@@ -599,6 +600,9 @@ for (let n = 0; n < days; n++) {
         const acts = await RV.godActions({ chain, s, oc, rv, day, changes: revCh, hear });
         for (const r of acts) log(r);
         if (acts.length) c.lastActAt = Date.now(); // a god acted: no Trickster for 24 hours
+        // Ask the accused (PLAN_13NOV step 2, engine/ask.mjs): this turn's asks, then the accused answer (instant turns too).
+        for (const r of AK.markAsked(s, CHOICES, oc.id, day)) log(r);
+        for (const r of await AK.answerAsked(s, oc.id, agents, day, (x) => accusedReply({ ...x, nation: oc.name, temperament: c.mbti }))) log(r);
         RV.follow(s, oc.id, revCh, AI_SET);
         const fol = rv.followed && rv.gods[rv.followed];
         if (fol?.outsider) fol.text = Object.values(s.rev).find((o) => o !== rv && o.followed === rv.followed)?.gods[rv.followed]?.text ?? fol.text;

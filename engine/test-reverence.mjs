@@ -64,6 +64,7 @@ let rep = null;
 for (let d = 10; d < 200 && !rep; d++) rep = maybeReport(s, 4, d, living, [{ kind: "fake", name: "Wren" }], R);
 const r1 = s.reports[rep.report];
 check(`a report appears without its truth in the record: "${rep.claim}"`, !!rep && !("truth" in rep));
+r1.answer = { says: "I didn't", silent: false }; // asked and answered first (PLAN_13NOV step 2, engine/test-ask.mjs)
 const out = answerReport(s, rd, 4, "eve", r1.accused, r1.day + 1, ch);
 if (r1.truth) {
   const before = rd.gods.eve.r; fade(rd, r1.day + 2, new Set(["Wren", "Otto", "Nora"]), ch);
@@ -73,7 +74,7 @@ if (r1.truth) {
   check(`stunting the innocent ${r1.accused}: an enemy, fade 1.5 (${before} -> ${rd.gods.eve.r})`, near(before - rd.gods.eve.r, 1.5) && rd.gods.eve.enemies.includes(r1.accused));
 }
 // Force the other two branches deterministically.
-s.reports.x = { id: "x", clan: 4, day: 50, accuser: "Nora", accused: "Otto", kind: "sold", truth: false, settled: false };
+s.reports.x = { id: "x", clan: 4, day: 50, accuser: "Nora", accused: "Otto", kind: "sold", truth: false, settled: false, answer: { says: "Not me", silent: false } };
 rd.gods.eve.enemies = []; rd.gods.eve.justiceUntil = 0;
 answerReport(s, rd, 4, "eve", "Otto", 51, ch);
 let before = rd.gods.eve.r; fade(rd, 52, new Set(["Wren", "Otto", "Nora"]), ch);

@@ -24,6 +24,7 @@ export function verify413(message, nep413, signature, publicKey) {
 /** The kinds of choice, and what a valid payload looks like. */
 export const KINDS = {
   pitch: (p) => typeof p?.point === "string" && p.point.trim().length > 0 && p.point.length <= 120,
+  ask: (p) => typeof p?.report === "string" && /^r\d{1,6}-\d{1,4}$/.test(p.report), // ask the accused (step 2)
 };
 
 /** The exact text a god signs (the browser builds the same string). */

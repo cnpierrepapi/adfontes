@@ -90,6 +90,13 @@ async function look(W) {
     if (now - f.since > FRESH.forMs || f.runs >= FRESH.maxRuns) { W.fresh.delete(id); continue; }
     if (now >= f.next) { W.queue.set(id, true); f.runs++; f.next = now + FRESH.everyMs; }
   }
+  // Ask the accused (PLAN_13NOV step 2): a new ask gets its nation an instant turn, so the answer comes in seconds.
+  try {
+    const since = W.askSeen ?? now - 60e3;
+    const asks = await store.asksSince(W.net, since);
+    for (const a of asks) { W.queue.set(Number(a.clan), W.queue.get(Number(a.clan)) || false); W.aiTouched.add(Number(a.clan)); }
+    W.askSeen = Math.max(since, ...asks.map((a) => Number(a.at) || 0));
+  } catch {}
   if (now - W.lastDay >= DAY_MS || (W.dayDueAt && now >= W.dayDueAt)) W.dayQueued = true;
 }
 

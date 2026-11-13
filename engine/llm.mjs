@@ -246,6 +246,22 @@ export function hearWhisper({ name, field, temperament, situation, keywords = []
   );
 }
 
+// Ask the accused (PLAN_13NOV step 2): the accused answers a report in their own words. A guilty one may lie,
+// deflect or give a little away; an innocent one protests. The god judges the words; the truth stays hidden.
+const REPLY = { type: "object", additionalProperties: false, required: ["says"], properties: { says: { type: "string" } } };
+export function accusedReply({ accused, role, claim, guilty, nation, temperament }) {
+  if (FAKE) return Promise.resolve({ says: guilty ? "Whoever says that wants my place. Look at their work before mine." : "I did nothing of the kind. Read my sources, every one of them is real." });
+  return json(
+    CFG.agentModel,
+    `You are ${accused}, a ${role} in ${nation}, a nation in AD FONTES whose citizens read real research. A fellow citizen has reported you to your god, ` +
+      `and your god has asked you to answer. ${guilty ? "The report is TRUE. You may lie, deflect, blame someone else or let a little slip, as someone in your spot would; never confess outright." : "The report is FALSE: you did nothing wrong. Protest in your own way; you may wonder aloud why the accuser holds a grudge."} ` +
+      `Answer in one or two plain sentences, under 200 characters, in your own voice. No quotation marks. The nation's temperament: ${temperament}.`,
+    `The report: ${claim}`,
+    REPLY,
+    400,
+  );
+}
+
 // The seller names its price (his call 9 Nov: "the seller prices the sale like a real market, for all
 // types of sales"). When another nation's Broker wants something this nation holds, its own Broker
 // asks a price between half and three times the fair one, with one line on why.
@@ -373,7 +389,7 @@ const GODS_PLAN = {
             items: {
               type: "object", additionalProperties: false, required: ["kind", "clan"],
               properties: {
-                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire", "pitch"] }, point: { type: "string" },
+                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire", "pitch", "ask"] }, point: { type: "string" },
                 clan: { type: "integer" }, text: { type: "string" }, near: { type: "number" },
                 report: { type: "string" }, verdict: { type: "string", enum: ["Stunt", "Kill"] }, gift: { type: "integer" }, target: { type: "integer" },
               },
@@ -392,7 +408,7 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
   const lines = sits.map((s) => [
     `GOD ${s.god} (${s.name}; temperament ${s.temperament}; may bless up to ${s.allowance.toFixed(2)} today; Acts of God left today: ${s.aogToday ? 0 : 1})`,
     ...s.nations.map((n) => `  nation ${n.id} "${n.name}": standing ${n.standing}/100; your reverence ${n.myReverence}; ${n.mood === "hungry" ? `HUNGRY (needs ${n.need} NEAR a day, got ${n.fed24h} in the last day)` : `fed (${n.mood})`}; ${n.tricksters ? `${n.tricksters} Trickster(s) among them` : "no Tricksters"}; ${n.war ? `AT WAR with ${n.war}` : "at peace"}; ${Math.round(n.florins)} florins; its scholars are working on: ${(n.looking || []).join(", ") || "nothing new"}; next turn they could study (pitch): ${(s.pitch?.[n.id] || []).join(" | ") || "nothing"}`),
-    ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}`)),
+    ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}; ${r.answer ? (r.answer.silent ? "the accused can't answer (dead or stunted)" : `the accused answered: "${r.answer.says}"`) : r.asked ? "asked, waiting for the answer" : "not asked yet"}`)),
     ...Object.entries(s.gifts || {}).flatMap(([c, gs]) => gs.map((g) => `  gift ${g.id} in nation ${c} waits for a ruling (warden ${g.warden_passed ? "passed" : "failed"} it)`)),
   ].join("\n")).join("\n\n");
   const r = await json(
@@ -406,7 +422,8 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
       "- bless (NEAR, 0.1 or more): feeds a HUNGRY nation (cover what it still needs today) and lifts reverence up to 60; each blessing the same day counts less. " +
       "All of a god's blessings together stay within what it may bless today.\n" +
       "- rule: reward a waiting gift by its number. Only gifts listed.\n" +
-      "- smite: a reported citizen, by the report's id, Stunt unless the claim is strong. Only reports listed.\n" +
+      "- ask: ask the accused of a report that is 'not asked yet' to answer, by the report's id. Always the first step on a report. Free.\n" +
+      "- smite: a reported citizen, by the report's id, only once the accused has answered (or can't). Judge their answer: a guilty one may lie. Stunt unless the claim is strong. Only reports listed.\n" +
       "- fire: at most one a day per god, on another nation that hoards florins or bullies in war. Never its own.\n" +
       "- pitch: pick what a nation's Scholars study next turn, one point from its pitch list, word for word. Free; one per nation.\n" +
       "Write every whisper in the god's own voice, matching its temperament.",

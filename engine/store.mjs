@@ -57,14 +57,21 @@ export async function putChoice(net, row) {
   const p = await db();
   if (p) return void (await p.query("insert into choices (net, day, clan, kind, account, payload) values ($1,$2,$3,$4,$5,$6) on conflict (net, day, clan, kind) do update set account = excluded.account, payload = excluded.payload, at = now()", [net, row.day, row.clan, row.kind, row.account, JSON.stringify(row.payload)]));
   const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
-  all[`${net}|${row.day}|${row.clan}|${row.kind}`] = { ...row, net };
+  all[`${net}|${row.day}|${row.clan}|${row.kind}`] = { ...row, net, at: Date.now() };
   fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(CHOICES_FILE(), JSON.stringify(all));
 }
 export async function choicesFor(net, day) {
   const p = await db();
   if (p) return (await p.query("select day, clan, kind, account, payload from choices where net = $1 and day = $2", [net, day])).rows;
   const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
-  return Object.values(all).filter((r) => r.net === net && r.day === Number(day)).map(({ net: _n, ...r }) => r);
+  return Object.values(all).filter((r) => r.net === net && r.day === Number(day)).map(({ net: _n, at: _a, ...r }) => r);
+}
+/** Asks (PLAN_13NOV step 2) made after `sinceMs`: the loop gives their nations an instant turn. */
+export async function asksSince(net, sinceMs) {
+  const p = await db();
+  if (p) return (await p.query("select day, clan, kind, account, payload, (extract(epoch from at) * 1000)::float8 as at from choices where net = $1 and kind = 'ask' and at > to_timestamp($2 / 1000.0)", [net, sinceMs])).rows;
+  const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
+  return Object.values(all).filter((r) => r.net === net && r.kind === "ask" && (r.at || 0) > sinceMs).map(({ net: _n, ...r }) => r);
 }
 /** Every name given so far. */
 export async function takenNames() {

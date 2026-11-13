@@ -43,7 +43,7 @@ export async function situations({ net, s, onchain, now = Date.now() }) {
     });
     const reports = {}, gifts = {};
     for (const c of clans) {
-      reports[c.id] = Object.values(s.reports || {}).filter((r) => r.clan === c.id && !r.settled).map((r) => ({ id: r.id, accused: r.accused, claim: r.claim }));
+      reports[c.id] = Object.values(s.reports || {}).filter((r) => r.clan === c.id && !r.settled).map((r) => ({ id: r.id, accused: r.accused, claim: r.claim, asked: !!r.asked, answer: r.answer ? { says: r.answer.says, silent: !!r.answer.silent } : null }));
       gifts[c.id] = Object.entries(s.gifts || {}).filter(([, x]) => x.clan === c.id && !x.applied).map(([id, x]) => ({ id: Number(id), warden_passed: s.drafts?.[x.draft]?.passed ?? true }));
     }
     const pitch = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] && canPitch(s, c.id) ? pitchOf(s.clans[c.id], `${s.day + 1}|${c.id}`) : []]));
@@ -81,6 +81,8 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
   for (const sit of sits) for (const a of A.withPassedGifts(A.validatePlan(plans[sit.god] || [], sit), sit)) {
     // A pitch pick is free and decided now: stored as the god's choice for the next turn, not queued or sent on chain.
     if (a.kind === "pitch") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "pitch", account: sit.god, payload: { point: a.point } }); continue; }
+    // Asking the accused (PLAN_13NOV step 2) is free too: stored as the god's choice; the loop answers it in seconds.
+    if (a.kind === "ask") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "ask", account: sit.god, payload: { report: a.report } }); continue; }
     all.push({ ...a, god: sit.god });
   }
   const timed = A.schedule(all, start, span, seed);

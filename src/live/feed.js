@@ -71,7 +71,12 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
     const fm = N.famine;
     if (fm && fm.hungry >= fm.needs - 1) world.push(item("🌾", `${fm.hungry} of ${fm.of} nations are hungry.${fm.hungry >= fm.needs && fm.richest_name ? (fm.richest_hungry ? " The richest is hungry too, so no fire yet." : ` ${fm.richest_name} burns next turn if it stays fed.`) : ` At ${fm.needs}, the richest fed nation burns.`}`, [], false, fm.richest));
     for (const c of W.clans || []) if (isMine(c.id) && c.mood === "hungry") mineList.push(item("🍞", `${c.name}'s citizens are hungry. They slow down until fed.`, [["Bless", () => act({ kind: "bless", clan: c.id })]], true, c.id));
-    for (const r of N.reports || []) if (isMine(r.clan)) mineList.push(item("👁", `${r.accuser} accuses ${r.accused}. Smite to find out, or let it lapse.`, [["Open", () => flyTo(r.clan)]], true, r.clan));
+    // Ask the accused first (PLAN_13NOV step 2): Ask -> their answer -> Stunt or let it lapse.
+    for (const r of N.reports || []) if (isMine(r.clan)) {
+      if (r.answer) mineList.push(item("👁", r.answer.silent ? `${r.accused} can't answer the report (stunted or gone). Stunt, or let it lapse.` : `${r.accused} answered the report: "${r.answer.says}" Stunt, or let it lapse?`, [["Stunt", () => act({ kind: "smite", clan: r.clan, agent: r.accused })]], true, r.clan));
+      else if (r.asked) mineList.push(item("👁", `You asked ${r.accused} to answer ${r.accuser}'s report. Their answer is on its way.`, [], true, r.clan));
+      else mineList.push(item("👁", `${r.accuser} accuses ${r.accused}. Hear them out first.`, [[`Ask ${r.accused}`, () => gods?.choose("ask", r.clan, { report: r.id }, N.choice_day).then((done) => done && refresh())]], true, r.clan));
+    }
     for (const g of N.rulings || []) if (isMine(g.clan)) mineList.push(item("📜", `A draft from ${name(g.clan)} waits for your ruling.`, [["Open", () => flyTo(g.clan)]], true, g.clan));
     // The Scholars' pitch (PLAN_13NOV step 1): three directions for next turn; your pick replaces the dice.
     for (const p of N.pitches || []) if (isMine(p.clan)) {
@@ -114,6 +119,9 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
       case "ruling": return ["📜", `${name(r.clan)}'s gods ${r.status === "Rewarded" ? "rewarded" : r.status === "Punished" ? "punished" : "ignored"} a draft.`, r.clan];
       case "correction": return /lift/i.test(r.why || "") ? ["☀", `${name(r.clan)} turns back to its gods: a fresh start.`, r.clan] : null;
       case "outsiders-gone": return ["🏛", `${name(r.clan)} belongs to its own gods again.`, r.clan];
+      case "asked": return ["👁", `${r.god ? godName(r.god) : "A god"} asked ${r.accused} in ${name(r.clan)} to answer a report.`, r.clan];
+      case "answer": return ["👁", r.silent ? `${r.accused} in ${name(r.clan)} couldn't answer the report.` : `${r.accused} in ${name(r.clan)} answered the report.`, r.clan];
+      case "report-settled": return ["⚖", `${r.accused} in ${name(r.clan)}: the report ${r.outcome === "stunted" ? "ended in a stunt" : "lapsed"}. It was ${r.truth ? "true" : "a grudge"}.`, r.clan];
       default: return null;
     }
   }
@@ -148,6 +156,9 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
       dialogue.say({ key: `h${r.day}:${r.i ?? r.at}:${who}`, name: who, role: await roleOf(r.clan, who), nation: name(r.clan), badge: `reverence ${r.delta >= 0 ? "+" : ""}${r.delta}`, text: r.says });
     } else if (r.kind === "report" && r.claim && forMe(r.clan)) {
       dialogue.say({ key: `r${r.report}`, name: r.accuser, role: await roleOf(r.clan, r.accuser), nation: name(r.clan), text: r.claim });
+    } else if (r.kind === "answer" && r.says && forMe(r.clan)) {
+      // Ask the accused (PLAN_13NOV step 2): the accused speaks for themselves.
+      dialogue.say({ key: `a${r.report}`, name: r.accused, role: r.role ?? (await roleOf(r.clan, r.accused)), nation: name(r.clan), badge: "answers the report", text: r.says });
     } else if (r.kind === "war" && r.reason && forMe(r.attacker)) {
       const p = await patronOf(r.attacker);
       dialogue.say({ key: `w${r.war}`, name: p ?? "The Patron", role: "Patron", nation: name(r.attacker), badge: `war on ${name(r.defender)}`, text: r.reason });

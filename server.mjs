@@ -84,7 +84,7 @@ function revOf(s, id) {
 // Reports: open ones without the truth (the god must decide blind); settled ones with it.
 function reportsOf(s, id) {
   return Object.values(s.reports || {}).filter((r) => r.clan === id).sort((a, b) => b.day - a.day).slice(0, 8)
-    .map((r) => ({ id: r.id, day: r.day, accuser: r.accuser, accused: r.accused, claim: r.claim, settled: r.settled, ...(r.settled ? { outcome: r.outcome, truth: r.truth } : { lapses_day: r.day + 12 }) }));
+    .map((r) => ({ id: r.id, day: r.day, accuser: r.accuser, accused: r.accused, claim: r.claim, settled: r.settled, asked: !!r.asked, answer: r.answer ? { says: r.answer.says, silent: !!r.answer.silent } : null, ...(r.settled ? { outcome: r.outcome, truth: r.truth } : { lapses_day: r.day + 12 }) }));
 }
 
 // Development only: ADF_SIM_CHAIN=<a fast-forward run's chain.json> (with ADF_STATE_DIR=<its state>)
@@ -268,7 +268,11 @@ function makeApi(NET) {
           wars: wars.map((w) => { const a = warInfo(s, w.a); return { a: w.a, a_name: name(w.a), b: w.b, b_name: name(w.b), round: (w.rounds || 0) + 1, a_points: a.hp + 1, b_points: a.enemyHp + 1, offer: w.offer?.by ?? null }; }),
           hoard: richest && line && total > 0 ? { clan: richest.id, name: richest.name, share: +(spend(richest) / total).toFixed(4), line: +line.toFixed(4) } : null,
           famine: standing.length >= 3 ? { hungry, of: standing.length, needs: Math.ceil(standing.length / 2), richest: richest?.id ?? null, richest_name: richest?.name ?? null, richest_hungry: richest ? s.clans[richest.id]?.mood === "hungry" : null } : null,
-          reports: Object.values(s.reports || {}).filter((r) => !r.settled).map((r) => ({ id: r.id, clan: r.clan, accuser: r.accuser, accused: r.accused, claim: r.claim })),
+          // Ask the accused (step 2): asked, and the answer once it's in (silent = dead or stunted, can't answer).
+          reports: await (async () => {
+            const asks = new Set((await store.choicesFor(NET, s.day + 1).catch(() => [])).filter((x) => x.kind === "ask").map((x) => x.payload?.report));
+            return Object.values(s.reports || {}).filter((r) => !r.settled).map((r) => ({ id: r.id, clan: r.clan, accuser: r.accuser, accused: r.accused, claim: r.claim, asked: !!r.asked || asks.has(r.id), answer: r.answer ? { says: r.answer.says, silent: !!r.answer.silent } : null }));
+          })(),
           rulings: Object.entries(s.gifts || {}).filter(([, g]) => !g.applied).map(([id, g]) => ({ gift: Number(id), clan: g.clan, until: (g.at || 0) + 24 * 3600e3 })),
           // The Scholars' pitch (PLAN_13NOV step 1): for the next turn, the 3 points the dice would draw from, with
           // what a god needs to choose: how deep, how many other nations know it already, its best Scholar.
@@ -298,6 +302,12 @@ function makeApi(NET) {
         },
         godOf: async (clan, account) => ((await view("list_clans", { limit: 100 })).find((c) => c.id === clan)?.gods || []).some((g) => g.account === account),
       });
+      // Ask the accused (PLAN_13NOV step 2): only an open report of that nation, not already asked.
+      if (r.ok && r.row.kind === "ask") {
+        const rep = s.reports?.[r.row.payload.report];
+        if (!rep || rep.clan !== r.row.clan || rep.settled) return { error: "That report is closed." };
+        if (rep.asked) return { error: "You've already asked. Their answer is on its way." };
+      }
       if (r.ok) { await store.putChoice(NET, r.row); cache.delete(`${NET}:next`); }
       return r;
     },

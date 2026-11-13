@@ -427,12 +427,23 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       rev.append(list);
       const mine = R.gods[account];
       if (mine && mine.r < 30) rev.append(el("p", { className: "fine warn", textContent: mine.r === 0 ? "This nation has turned on you. Your whispers are ignored." : "Your reverence is low: the citizens ignore your whispers and go their own way. Whisper, rule well and let the nation do well to win them back." }));
-      for (const r of (info.reports || []).filter((x) => !x.settled)) {
+      // Ask the accused first (PLAN_13NOV step 2): Ask -> their answer -> Stunt, or let it lapse.
+      const open = (info.reports || []).filter((x) => !x.settled);
+      const choiceDay = open.length && me && seated ? (await api("next").catch(() => null))?.choice_day : null;
+      for (const r of open) {
         const row = el("div", { className: "gift report" }, el("span", { textContent: `Report, turn ${r.day}: ${r.claim}. Lapses on turn ${r.lapses_day}.` }));
+        if (r.answer) row.append(el("p", { className: "fine answer" }, r.answer.silent ? `${r.accused} can't answer: they're stunted or gone.` : `${r.accused} answers: `, r.answer.silent ? "" : el("i", { textContent: r.answer.says })));
+        else if (r.asked) row.append(el("p", { className: "fine" }, `You asked ${r.accused}. Their answer is on its way.`));
         if (me && seated) {
-          const b = el("button", { type: "button", className: "viewbtn", textContent: `Stunt ${r.accused}` });
-          b.addEventListener("click", () => smiteCard(clan, r.accused));
-          row.append(b, el("small", { textContent: "or do nothing and let it lapse. Stunt the guilty and the nation sees justice; stunt the innocent and you make an enemy; ignore a true report and the accuser loses faith." }));
+          if (r.answer) {
+            const b = el("button", { type: "button", className: "viewbtn", textContent: `Stunt ${r.accused}` });
+            b.addEventListener("click", () => smiteCard(clan, r.accused));
+            row.append(b, el("small", { textContent: "or do nothing and let it lapse. A guilty one may lie. Stunt the guilty and the nation sees justice; stunt the innocent and you make an enemy; ignore a true report and the accuser loses faith." }));
+          } else if (!r.asked && choiceDay) {
+            const b = el("button", { type: "button", className: "viewbtn", textContent: `Ask ${r.accused}` });
+            b.addEventListener("click", () => { b.disabled = true; choose("ask", c.id, { report: r.id }, choiceDay).then((done) => { if (!done) b.disabled = false; }); });
+            row.append(b, el("small", { textContent: "Hear them out first: they answer in their own words, then you decide. Or let it lapse." }));
+          }
         }
         rev.append(row);
       }
@@ -845,13 +856,14 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     return clans.filter((c) => c.alive && c.gods.some((g) => g.account === account)).map((c) => c.id);
   }
   /** The personal feed's buttons (src/live/feed.js): open a god's card on a nation, preset. */
-  async function act({ kind, clan: clanId, target = null, text = "" }) {
+  async function act({ kind, clan: clanId, target = null, text = "", agent = null }) {
     const clan = (live.world?.clans || W.clans).find((c) => c.id === Number(clanId)) || W.clans.find((c) => c.id === Number(clanId));
     if (!account) { openMenu(); return toast("Become a god first: it takes a few seconds."); }
     if (!clan) return;
     if (kind === "fire") return fireCard(clan, target);
     if (kind === "whisper") return whisperCard(clan, text);
     if (kind === "bless") return blessCard(clan);
+    if (kind === "smite") { const ch = await wallet.view(WORLD, "get_clan", { clan_id: clan.id }).catch(() => null); return ch ? smiteCard(ch, agent) : toast("Couldn't read the world just now. Try again."); }
   }
   /** A signed choice (PLAN_13NOV step 0): the same text the server checks (engine/choices.mjs messageOf). */
   async function choose(kind, clan, payload, day) {
@@ -860,7 +872,8 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const signed = await wallet.signChoice(msg);
     if (!signed) { toast(account ? "The choice wasn't signed, so nothing was saved." : "Become a god first to choose."); return false; }
     const r = await fetch("/api/choice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...c, ...signed }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world. Try again." }));
-    toast(r.ok ? "Chosen. Your Scholars follow it next turn." : r.error);
+    toast(r.ok ? (kind === "ask" ? "Asked. The accused answers in a moment." : "Chosen. Your Scholars follow it next turn.") : r.error);
+    if (r.ok) setTimeout(() => refreshPanel(), 1500); // asked: the panel shows "waiting for the answer"
     return !!r.ok;
   }
   return { section, wallet, openMenu, myNations, act, choose, account: () => account };
