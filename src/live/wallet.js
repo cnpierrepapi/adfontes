@@ -244,8 +244,18 @@ export async function createWallet(net) {
     tell();
   }
   /** What the page shows for you: your email when you signed up with one, else the account. */
+  /** Sign a choice's message with this browser's own key (PLAN_13NOV step 0). Email and no-wallet players only;
+   *  returns null for an outside wallet (Meteor), which signs messages its own way (not yet supported). */
+  async function signChoice(message) {
+    if (!localOn()) return null;
+    const { KeyPair } = await import("@near-js/crypto");
+    const lk = localKey(), kp = KeyPair.fromString(lk.key);
+    const sig = kp.sign(new TextEncoder().encode(message)).signature;
+    let s = ""; for (const b of sig) s += String.fromCharCode(b);
+    return { account: lk.account, publicKey: kp.getPublicKey().toString(), signature: btoa(s) };
+  }
   const label = () => (localOn() && localStorage.getItem(EMAIL)) || account();
-  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, takeSponsored, signUpEmail, logInEmail, forgetEmail, label, email: () => (localOn() ? localStorage.getItem(EMAIL) : null), hasLocalKey: () => !!localKey(), isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
+  return { net, rpc, view, balance, encodeCheck, txStatus, wallets, signIn, signOut, send, account, exportKey, takeSponsored, signUpEmail, logInEmail, forgetEmail, label, signChoice, email: () => (localOn() ? localStorage.getItem(EMAIL) : null), hasLocalKey: () => !!localKey(), isLocal: () => localOn(), onAccount: (f) => listeners.add(f), explorer: net === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io" };
 }
 
 /** Did this outcome fail anywhere? Returns the first failure in plain-ish words, or null. */

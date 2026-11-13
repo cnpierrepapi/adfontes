@@ -373,7 +373,7 @@ const GODS_PLAN = {
             items: {
               type: "object", additionalProperties: false, required: ["kind", "clan"],
               properties: {
-                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire"] },
+                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire", "pitch"] }, point: { type: "string" },
                 clan: { type: "integer" }, text: { type: "string" }, near: { type: "number" },
                 report: { type: "string" }, verdict: { type: "string", enum: ["Stunt", "Kill"] }, gift: { type: "integer" }, target: { type: "integer" },
               },
@@ -391,7 +391,7 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
   if (FAKE) return Object.fromEntries(sits.map((s) => [s.god, fake(s)]));
   const lines = sits.map((s) => [
     `GOD ${s.god} (${s.name}; temperament ${s.temperament}; may bless up to ${s.allowance.toFixed(2)} today; Acts of God left today: ${s.aogToday ? 0 : 1})`,
-    ...s.nations.map((n) => `  nation ${n.id} "${n.name}": standing ${n.standing}/100; your reverence ${n.myReverence}; ${n.mood === "hungry" ? `HUNGRY (needs ${n.need} NEAR a day, got ${n.fed24h} in the last day)` : `fed (${n.mood})`}; ${n.tricksters ? `${n.tricksters} Trickster(s) among them` : "no Tricksters"}; ${n.war ? `AT WAR with ${n.war}` : "at peace"}; ${Math.round(n.florins)} florins; its scholars are working on: ${(n.looking || []).join(", ") || "nothing new"}`),
+    ...s.nations.map((n) => `  nation ${n.id} "${n.name}": standing ${n.standing}/100; your reverence ${n.myReverence}; ${n.mood === "hungry" ? `HUNGRY (needs ${n.need} NEAR a day, got ${n.fed24h} in the last day)` : `fed (${n.mood})`}; ${n.tricksters ? `${n.tricksters} Trickster(s) among them` : "no Tricksters"}; ${n.war ? `AT WAR with ${n.war}` : "at peace"}; ${Math.round(n.florins)} florins; its scholars are working on: ${(n.looking || []).join(", ") || "nothing new"}; next turn they could study (pitch): ${(s.pitch?.[n.id] || []).join(" | ") || "nothing"}`),
     ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}`)),
     ...Object.entries(s.gifts || {}).flatMap(([c, gs]) => gs.map((g) => `  gift ${g.id} in nation ${c} waits for a ruling (warden ${g.warden_passed ? "passed" : "failed"} it)`)),
   ].join("\n")).join("\n\n");
@@ -408,6 +408,7 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
       "- rule: reward a waiting gift by its number. Only gifts listed.\n" +
       "- smite: a reported citizen, by the report's id, Stunt unless the claim is strong. Only reports listed.\n" +
       "- fire: at most one a day per god, on another nation that hoards florins or bullies in war. Never its own.\n" +
+      "- pitch: pick what a nation's Scholars study next turn, one point from its pitch list, word for word. Free; one per nation.\n" +
       "Write every whisper in the god's own voice, matching its temperament.",
     `Your gods and their nations now:\n\n${lines}`,
     GODS_PLAN,

@@ -9,6 +9,7 @@ import * as store from "./store.mjs";
 import { godsPlan, canSpend } from "./llm.mjs";
 import { CFG } from "./config.mjs";
 import { NAMES } from "./godnames.mjs";
+import { pitchOf } from "./world.mjs";
 
 export const ALLOWANCE = 2; // NEAR an AI god may bless with in a UTC day (testnet NEAR from the sponsor pool)
 const TEMPERAMENTS = ["devout", "stern", "generous", "patient", "fiery", "playful", "watchful", "proud"];
@@ -44,7 +45,8 @@ export async function situations({ net, s, onchain, now = Date.now() }) {
       reports[c.id] = Object.values(s.reports || {}).filter((r) => r.clan === c.id && !r.settled).map((r) => ({ id: r.id, accused: r.accused, claim: r.claim }));
       gifts[c.id] = Object.entries(s.gifts || {}).filter(([, x]) => x.clan === c.id && !x.applied).map(([id, x]) => ({ id: Number(id), warden_passed: s.drafts?.[x.draft]?.passed ?? true }));
     }
-    out.push({ god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: Math.max(0, ALLOWANCE - blessed), clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
+    const pitch = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] ? pitchOf(s.clans[c.id], `${s.day + 1}|${c.id}`) : []]));
+    out.push({ pitch, god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: Math.max(0, ALLOWANCE - blessed), clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
   }
   return out;
 }
@@ -75,7 +77,11 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
   if (!canSpend("god")) return { gods: sits.length, actions: 0, why: `the AI gods' $${CFG.godsCapUsd} for today is spent` };
   const plans = await godsPlan(sits, A.fakePlan);
   const all = [];
-  for (const sit of sits) for (const a of A.withPassedGifts(A.validatePlan(plans[sit.god] || [], sit), sit)) all.push({ ...a, god: sit.god });
+  for (const sit of sits) for (const a of A.withPassedGifts(A.validatePlan(plans[sit.god] || [], sit), sit)) {
+    // A pitch pick is free and decided now: stored as the god's choice for the next turn, not queued or sent on chain.
+    if (a.kind === "pitch") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "pitch", account: sit.god, payload: { point: a.point } }); continue; }
+    all.push({ ...a, god: sit.god });
+  }
   const timed = A.schedule(all, start, span, seed);
   await store.queueAiActions(net, timed);
   return { gods: sits.length, actions: timed.length };

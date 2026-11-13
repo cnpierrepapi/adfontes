@@ -13,7 +13,8 @@ import { fairOf, kindOf, holderOfPatent } from "./engine/market.mjs";
 import * as store from "./engine/store.mjs";
 import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, fundFounding, PUBLIC_KEY } from "./engine/sponsor.mjs";
-import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS } from "./engine/world.mjs";
+import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS, pitchOf } from "./engine/world.mjs";
+import { acceptChoice } from "./engine/choices.mjs";
 import { standings } from "./engine/reverence.mjs";
 import { inRanking } from "./src/season.js";
 
@@ -267,8 +268,36 @@ function makeApi(NET) {
           famine: standing.length >= 3 ? { hungry, of: standing.length, needs: Math.ceil(standing.length / 2), richest: richest?.id ?? null, richest_name: richest?.name ?? null, richest_hungry: richest ? s.clans[richest.id]?.mood === "hungry" : null } : null,
           reports: Object.values(s.reports || {}).filter((r) => !r.settled).map((r) => ({ id: r.id, clan: r.clan, accuser: r.accuser, accused: r.accused, claim: r.claim })),
           rulings: Object.entries(s.gifts || {}).filter(([, g]) => !g.applied).map(([id, g]) => ({ gift: Number(id), clan: g.clan, until: (g.at || 0) + 24 * 3600e3 })),
+          // The Scholars' pitch (PLAN_13NOV step 1): for the next turn, the 3 points the dice would draw from, with
+          // what a god needs to choose: how deep, how many other nations know it already, its best Scholar.
+          choice_day: s.day + 1,
+          pitches: await (async () => {
+            const picked = await store.choicesFor(NET, s.day + 1).catch(() => []);
+            return standing.map((c) => {
+              const st = s.clans[c.id];
+              const points = pitchOf(st, `${s.day + 1}|${c.id}`).map((p) => {
+                const skills = Object.entries(st.skills || {}).map(([who, sk]) => [who, sk?.[p] || 0]).sort((x, y) => y[1] - x[1]);
+                return { point: p, depth: st.frontier[p]?.depth ?? null, known_by: Object.entries(s.clans).filter(([id, o]) => Number(id) !== c.id && o.owned?.[p]).length, best_scholar: skills[0]?.[1] > 0 ? skills[0][0] : null };
+              });
+              return { clan: c.id, name: c.name, points, picked: picked.find((x) => x.clan === c.id && x.kind === "pitch")?.payload?.point ?? null };
+            }).filter((p) => p.points.length);
+          })(),
         };
       });
+    },
+    // A god's signed choice (PLAN_13NOV step 0, engine/choices.mjs). Not a GET endpoint (the name has an underscore).
+    async _choice(b) {
+      const s = await stateNow();
+      const r = await acceptChoice(b, {
+        world: WORLD, day: s.day + 1,
+        keyOn: async (account, publicKey) => {
+          const ask = (p) => p.query({ request_type: "view_access_key", finality: "final", account_id: account, public_key: publicKey });
+          try { await ask(rpcs[0]); return true; } catch (e) { if (/does not exist|UNKNOWN_ACCESS_KEY|doesn't exist/i.test(String(e?.message ?? e))) return false; try { await ask(rpcs[1]); return true; } catch { return false; } }
+        },
+        godOf: async (clan, account) => ((await view("list_clans", { limit: 100 })).find((c) => c.id === clan)?.gods || []).some((g) => g.account === account),
+      });
+      if (r.ok) { await store.putChoice(NET, r.row); cache.delete(`${NET}:next`); }
+      return r;
     },
     async clan(q) {
       const id = whole(q, "id", 1);
@@ -588,6 +617,19 @@ function limited(key, max, ms) {
   if (loginHits.size > 5000) for (const [k, v] of loginHits) if (!v.some((t) => now - t < 3600e3)) loginHits.delete(k);
   return list.length > max;
 }
+// A god's signed choice (13 Nov): the body is checked in engine/choices.mjs (signature, key on the account, god of
+// the nation, the open turn, the kind). Testnet only; small bodies; a few a minute per connection.
+async function choicePost(req, res) {
+  const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
+  let body = "";
+  for await (const chunk of req) { body += chunk; if (body.length > 4096) return json(413, { error: "Too long." }); }
+  let b; try { b = JSON.parse(body); } catch { return json(400, { error: "Bad request." }); }
+  const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  if (limited(`choice|${ip}`, 30, 60e3)) return json(429, { error: "Too many choices at once. Wait a minute." });
+  try { const r = await APIS.testnet._choice(b); return json(r.ok ? 200 : 400, r.ok ? { ok: true } : { error: r.error }); }
+  catch (e) { console.error("choice", e); return json(500, { error: "Couldn't save that choice just now. Try again." }); }
+}
+
 async function loginPost(req, res, what) {
   const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
   let body = "";
@@ -685,6 +727,7 @@ http
   .createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     if (req.method === "POST" && url.pathname === "/api/sponsor") return sponsorPost(req, res);
+    if (req.method === "POST" && url.pathname === "/api/choice") return choicePost(req, res);
     { const lm = req.method === "POST" && url.pathname.match(/^\/api\/login(?:\/(salt|signup|forget))?$/); if (lm) return loginPost(req, res, lm[1] || "login"); }
     // The sandbox (/timelapse, timelapse/service.mjs): copies of the live world to shock and fast-forward.
     if (SANDBOX && (url.pathname === "/sbx" || url.pathname.startsWith("/sbx/"))) return (await SANDBOX).handleSandbox(req, res, url);

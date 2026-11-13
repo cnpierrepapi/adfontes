@@ -174,3 +174,14 @@ ok(fake.some((a) => a.kind === "rule" && a.gift === 5) && fake.some((a) => a.kin
   const fs = await import("node:fs");
   ok(/withPassedGifts\(A\.validatePlan\(/.test(fs.readFileSync(new URL("./aiact.mjs", import.meta.url), "utf8")), "planGods adds the passed gifts to every god's plan");
 }
+// 14. AI gods pick their Scholars' direction too (PLAN_13NOV step 1, open to AI gods): only a point from that
+//     nation's pitch, one a nation; the pick is stored as the god's choice for the next turn, not sent on chain.
+{
+  const sitP = { god: "odin.op", allowance: 1, clans: [1], reports: {}, gifts: {}, aogToday: 0, pitch: { 1: ["graphene", "co2 capture", "nickel"] } };
+  const v = A.validatePlan([{ kind: "pitch", clan: 1, point: "nickel" }, { kind: "pitch", clan: 1, point: "graphene" }, { kind: "pitch", clan: 1, point: "not offered" }], sitP);
+  ok(v.filter((a) => a.kind === "pitch").length === 1 && v[0].point === "nickel", "one pitch pick per nation, only from its pitch");
+  const fs = await import("node:fs");
+  const act = fs.readFileSync(new URL("./aiact.mjs", import.meta.url), "utf8");
+  ok(/kind === "pitch"[\s\S]{0,300}putChoice/.test(act), "planGods stores AI pitch picks as choices (free, no transaction)");
+  ok(/pitch = Object\.fromEntries[\s\S]{0,200}pitchOf\(/.test(act) && /out\.push\(\{ pitch,/.test(act), "each AI god's situation carries its nations' pitches");
+}

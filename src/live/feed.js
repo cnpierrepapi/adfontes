@@ -73,6 +73,11 @@ export function createFeed({ box, W, flyTo, sandbox = false }) {
     for (const c of W.clans || []) if (isMine(c.id) && c.mood === "hungry") mineList.push(item("🍞", `${c.name}'s citizens are hungry. They slow down until fed.`, [["Bless", () => act({ kind: "bless", clan: c.id })]], true, c.id));
     for (const r of N.reports || []) if (isMine(r.clan)) mineList.push(item("👁", `${r.accuser} accuses ${r.accused}. Smite to find out, or let it lapse.`, [["Open", () => flyTo(r.clan)]], true, r.clan));
     for (const g of N.rulings || []) if (isMine(g.clan)) mineList.push(item("📜", `A draft from ${name(g.clan)} waits for your ruling.`, [["Open", () => flyTo(g.clan)]], true, g.clan));
+    // The Scholars' pitch (PLAN_13NOV step 1): three directions for next turn; your pick replaces the dice.
+    for (const p of N.pitches || []) if (isMine(p.clan)) {
+      const tip = (x) => `${x.point}${x.known_by ? ` (${x.known_by} other nation${x.known_by === 1 ? " knows" : "s know"} it)` : ""}`;
+      mineList.push(item("🔭", p.picked ? `${p.name}'s Scholars will work on ${p.picked} next turn. Change it?` : `${p.name}'s Scholars want a direction for next turn.`, p.points.map((x) => [tip(x), () => gods?.choose("pitch", p.clan, { point: x.point }, N.choice_day).then((done) => done && refresh())]), true, p.clan));
+    }
     soon.replaceChildren(...mineList, ...world.slice(0, mineList.length ? 4 : 6));
     if (!soon.children.length) soon.append(item("☾", "Quiet. Nothing is set for next turn yet."));
   }

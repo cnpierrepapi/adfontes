@@ -837,5 +837,15 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     if (kind === "whisper") return whisperCard(clan, text);
     if (kind === "bless") return blessCard(clan);
   }
-  return { section, wallet, openMenu, myNations, act, account: () => account };
+  /** A signed choice (PLAN_13NOV step 0): the same text the server checks (engine/choices.mjs messageOf). */
+  async function choose(kind, clan, payload, day) {
+    const c = { world: WORLD, kind, clan: Number(clan), payload, day: Number(day), nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` };
+    const msg = `adfontes-choice:${JSON.stringify({ world: c.world, kind: c.kind, clan: c.clan, payload: c.payload, day: c.day, nonce: c.nonce })}`;
+    const signed = await wallet.signChoice(msg);
+    if (!signed) { toast("Choices need email play for now. Sign in with email to choose."); return false; }
+    const r = await fetch("/api/choice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...c, ...signed }) }).then((x) => x.json()).catch(() => ({ error: "Couldn't reach the world. Try again." }));
+    toast(r.ok ? "Chosen. Your Scholars follow it next turn." : r.error);
+    return !!r.ok;
+  }
+  return { section, wallet, openMenu, myNations, act, choose, account: () => account };
 }

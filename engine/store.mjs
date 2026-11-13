@@ -25,6 +25,7 @@ async function db() {
     create table if not exists llm_spend (date text primary key, usd double precision not null default 0);
     create table if not exists logins (id text primary key, net text not null, account text not null, salt text not null, auth text not null, iv text not null, ct text not null, at timestamptz default now());
     create table if not exists god_names (account text primary key, name text unique not null, at timestamptz default now());
+    create table if not exists choices (net text not null, day int not null, clan int not null, kind text not null, account text not null, payload jsonb not null, at timestamptz default now(), primary key (net, day, clan, kind));
     create table if not exists ai_gods (account text primary key, net text not null, name text not null, temperament text, at timestamptz default now());
     create table if not exists ai_actions (id serial primary key, net text not null, at bigint not null, god text not null, action jsonb not null, done boolean not null default false, result text);
   `);
@@ -49,6 +50,21 @@ export async function claimGodName(account, name) {
   const all = fs.existsSync(NAMES_FILE()) ? JSON.parse(fs.readFileSync(NAMES_FILE(), "utf8")) : {};
   if (Object.entries(all).some(([a, n]) => n === name && a !== account)) return false;
   all[account] = name; fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(NAMES_FILE(), JSON.stringify(all)); return true;
+}
+// Signed choices (13 Nov, engine/choices.mjs): one per kind, nation and turn; a new one replaces the old.
+const CHOICES_FILE = () => `${DIR}/choices.json`;
+export async function putChoice(net, row) {
+  const p = await db();
+  if (p) return void (await p.query("insert into choices (net, day, clan, kind, account, payload) values ($1,$2,$3,$4,$5,$6) on conflict (net, day, clan, kind) do update set account = excluded.account, payload = excluded.payload, at = now()", [net, row.day, row.clan, row.kind, row.account, JSON.stringify(row.payload)]));
+  const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
+  all[`${net}|${row.day}|${row.clan}|${row.kind}`] = { ...row, net };
+  fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(CHOICES_FILE(), JSON.stringify(all));
+}
+export async function choicesFor(net, day) {
+  const p = await db();
+  if (p) return (await p.query("select day, clan, kind, account, payload from choices where net = $1 and day = $2", [net, day])).rows;
+  const all = fs.existsSync(CHOICES_FILE()) ? JSON.parse(fs.readFileSync(CHOICES_FILE(), "utf8")) : {};
+  return Object.values(all).filter((r) => r.net === net && r.day === Number(day)).map(({ net: _n, ...r }) => r);
 }
 /** Every name given so far. */
 export async function takenNames() {

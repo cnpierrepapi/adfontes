@@ -24,6 +24,7 @@ import { researchPrice, kitPrice } from "./prices.mjs";
 import * as TK from "./tokens.mjs";
 import * as MK from "./market.mjs";
 import * as B from "./budget.mjs";
+import * as CH from "./choices.mjs";
 import { planGods } from "./aiact.mjs";
 import * as FIRE from "./fire.mjs";
 import { clampPrice } from "./prices.mjs";
@@ -163,6 +164,11 @@ for (let n = 0; n < days; n++) {
   // AI gods have full control of their nations (his call 13 Nov): no outside god stays in an AI-led nation, and
   // an AI-led nation never turns to one (RV.follow with AI_SET).
   const AI_SET = new Set((await store.aiGods(net).catch(() => [])).map((g) => g.account));
+  // Signed choices for this turn (PLAN_13NOV step 0, engine/choices.mjs). Read by every run of the turn; sealed as
+  // records once, by the scheduled run. Silence = today's behaviour.
+  const CHOICES = await store.choicesFor(net, day).catch(() => []);
+  if (!INSTANT) for (const ch of CHOICES) log(CH.recordOf(ch));
+  const pitchPick = (id) => CHOICES.find((x) => x.clan === id && x.kind === "pitch")?.payload?.point ?? null;
   if (AI_SET.size) for (const [cid, gods] of Object.entries(RV.dropOutsiders(s, await chain.clans(), AI_SET))) log({ kind: "outsiders-gone", clan: Number(cid), gods, why: "its AI gods have full control: the outside gods let go" });
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
   // Cap reached: say so once a day; turns that need Claude are skipped, everything else goes on.
@@ -728,7 +734,7 @@ for (let n = 0; n < days; n++) {
       const instantScholar = INSTANT ? scholars[(c.instantTurns = (c.instantTurns || 0) + 1) % Math.max(1, scholars.length)] : null;
       for (const sch of scholars) {
         if (INSTANT && sch !== instantScholar) continue;
-        const target = pickTarget(c);
+        const target = pickTarget(c, pitchPick(oc.id), `${day}|${oc.id}`); // the Scholars' pitch: the god's pick, else the dice (PLAN_13NOV step 1)
         const skill = c.skills[sch.name]?.[target] || 0;
         for (let t = 0; t < (INSTANT ? 1 : turns(CFG.scholarTurnsPerDay * share * effort * (1 + skill) * (w.phase === "night" && !W.hasTech(c, "spectacles") ? CFG.nightPace : 1))); t++) {
           if (capped("agent")) break;
@@ -1203,5 +1209,5 @@ for (const c of await chain.clans()) {
   console.log(`clan ${c.id} ${c.name} (${st?.field}, ${st?.mbti}) florins ${toFlorins(c.florins)} in ${toNear(c.total_in)} NEAR | ${st?.mood ?? "?"} | mindmap ${Object.keys(st?.owned || {}).length} points, depth ${st ? W.chainDepth(st) : 0}, frontier ${Object.keys(st?.frontier || {}).length} | clean gifts ${c.clean_gifts} | fortune ${st?.fortune.toFixed(2)}`);
 }
 
-function pickTarget(c) { return W.pickTarget(c); }
+function pickTarget(c, pick = null, seed = null) { return W.pickTarget(c, pick, seed); }
 await store.close();

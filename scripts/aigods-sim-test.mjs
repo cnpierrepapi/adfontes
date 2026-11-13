@@ -73,7 +73,7 @@ for (let k = 2; k < 2 + TURNS; k++) {
 }
 const end = revOf(), endStanding = standingOf();
 const s = ST();
-const errRecords = fs.readdirSync(`${DIR}/state/testnet`).filter((f) => /^day-\d+\.json$/.test(f)).flatMap((f) => (JSON.parse(fs.readFileSync(`${DIR}/state/testnet/${f}`, "utf8")).records || []).filter((r) => r.kind === "error" && r.day > ST().day - TURNS - 2));
+const errRecords = fs.readdirSync(`${DIR}/state/testnet`).filter((f) => /^day-\d+\.json$/.test(f)).flatMap((f) => ((j) => (Array.isArray(j) ? j : j.records || []))(JSON.parse(fs.readFileSync(`${DIR}/state/testnet/${f}`, "utf8"))).filter((r) => r.kind === "error" && r.day > ST().day - TURNS - 2));
 const avg = (o, keys) => keys.reduce((a, k) => a + (o[k] || 0), 0) / Math.max(1, keys.length);
 console.log(`planned ${planned}, sent ${sent}, errors ${errors.length}`);
 ok(planned > 0 && sent === planned, `every planned action was sent (${sent} of ${planned})`);
@@ -82,7 +82,11 @@ ok(notAllowed === 0, "no AI god ever tried to take money out");
 ok(errRecords.length === 0, `no error records in the world (${errRecords.slice(0, 2).map((r) => r.error).join(" | ") || "none"})`);
 const aiNations = new Set(moved.map((m) => m.clan));
 ok(C().clans.filter((c) => aiNations.has(c.id)).every((c) => c.alive || s.clans[c.id]?.fallen), "no nation under AI gods ended, except by falling in war");
-ok(avg(end, fallen) > avg(start, fallen) + 5, `the fallen-away nations' reverence for their AI gods rose: average ${avg(start, fallen).toFixed(1)} -> ${avg(end, fallen).toFixed(1)} over ${TURNS} turns (${fallen.length} seats under 30)`);
+// Recovery where there is something to recover; otherwise the AI gods must hold their nations (13 Nov: after the
+// reverence floor no seat is under 30, so "rose" had nothing to measure).
+const all = Object.keys(start);
+if (fallen.length) ok(avg(end, fallen) > avg(start, fallen) + 5, `the fallen-away nations' reverence for their AI gods rose: average ${avg(start, fallen).toFixed(1)} -> ${avg(end, fallen).toFixed(1)} over ${TURNS} turns (${fallen.length} seats under 30)`);
+else ok(avg(end, all) >= avg(start, all) - 5, `no seat was under 30, so the AI gods must hold their nations: average ${avg(start, all).toFixed(1)} -> ${avg(end, all).toFixed(1)} over ${TURNS} turns`);
 for (const m of moved) console.log(`   ${String(m.clan).padStart(2)} ${m.to.split(".")[0].padEnd(14)} ${String(start[`${m.clan}|${m.to}`]?.toFixed?.(1) ?? 0).padStart(5)} -> ${String(end[`${m.clan}|${m.to}`]?.toFixed?.(1) ?? 0).padStart(5)}   nation standing ${(startStanding[m.clan] ?? 0).toFixed?.(1)} -> ${(endStanding[m.clan] ?? 0).toFixed?.(1)}`);
 console.log(bad ? `${bad} FAILED` : "ALL PASS");
 await store.close();

@@ -37,7 +37,7 @@ export function guard(call, world = NETWORKS.testnet.world) {
 }
 
 // ---- checking Claude's plan ----
-const KINDS = new Set(["whisper", "bless", "smite", "rule", "fire"]);
+const KINDS = new Set(["whisper", "bless", "smite", "rule", "fire", "pitch"]);
 export const MAX_ACTIONS = 10; // per god per turn
 export const MIN_BLESS = 0.1; // under 0.1 a blessing moves nobody (reverence rules, 9 Nov)
 // Each whisper costs a Claude call when the citizens judge it: 2 a turn, 8 a UTC day per god (12 Nov).
@@ -64,6 +64,9 @@ export function validatePlan(plan, sit) {
     } else if (a.kind === "rule") {
       const g = (sit.gifts?.[clan] || []).find((x) => Number(x.id) === Number(a.gift));
       if (g && a.reward !== false) out.push({ kind: "rule", clan, gift: Number(g.id), reward: true });
+    } else if (a.kind === "pitch") {
+      // The Scholars' pitch (PLAN_13NOV step 1): one pick a nation, only a point it was pitched. Free: stored as a choice.
+      if ((sit.pitch?.[clan] || []).includes(a.point) && !out.some((x) => x.kind === "pitch" && x.clan === clan)) out.push({ kind: "pitch", clan, point: a.point });
     } else if (a.kind === "fire") {
       const target = Number(a.target);
       if (fires < 1 && Number.isInteger(target) && !sit.clans.includes(target)) { out.push({ kind: "fire", clan, target }); fires++; }

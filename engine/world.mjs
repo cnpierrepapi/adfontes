@@ -114,14 +114,26 @@ export function rootOut(c, point) {
 
 /** Patron picks the next point. N or J leap/finish deep; S or P stay shallow and explore.
  *  Lines stop at CFG.maxDepth, so the mindmap branches instead of running off in one line. */
-export function pickTarget(c) {
-  const pts = Object.entries(c.frontier).filter(([, v]) => v.depth <= CFG.maxDepth);
-  if (!pts.length) return null;
+/** The Scholars' pitch (PLAN_13NOV step 1, 13 Nov): the 3 points the dice would draw from this turn, fixed by the
+ *  turn's seed so the gods see exactly what the dice would choose from. N/J nations: deepest first; S/P: anywhere. */
+export function pitchOf(c, seed) {
+  const pts = Object.entries(c.frontier || {}).filter(([, v]) => v.depth <= CFG.maxDepth);
+  if (!pts.length) return [];
+  let h = 2166136261; for (const ch of String(seed)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const R = () => { h = (h + 0x6d2b79f5) >>> 0; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const tie = new Map(pts.map(([k]) => [k, R()]));
   const deep = c.mbti[1] === "N" || c.mbti[3] === "J";
-  // N/J: deepest first. S/P: anywhere on the map (still reaching drafting depth, just slower).
-  if (deep) pts.sort((a, b) => b[1].depth - a[1].depth || Math.random() - 0.5);
-  else pts.sort(() => Math.random() - 0.5);
-  return pts[Math.floor(Math.random() * Math.min(3, pts.length))][0];
+  if (deep) pts.sort((a, b) => b[1].depth - a[1].depth || tie.get(a[0]) - tie.get(b[0]));
+  else pts.sort((a, b) => tie.get(a[0]) - tie.get(b[0]));
+  return pts.slice(0, 3).map(([k]) => k);
+}
+/** The point a Scholar researches: the god's pick if it's still in the pitch, else the dice among the pitch.
+ *  With no seed (old callers) the dice are fresh each call, as before. */
+export function pickTarget(c, pick = null, seed = null) {
+  const pitch = pitchOf(c, seed ?? Math.random());
+  if (!pitch.length) return null;
+  if (pick && pitch.includes(pick)) return pick;
+  return pitch[Math.floor(Math.random() * pitch.length)];
 }
 
 /** Warden on a corpus: every citation must be one of the papers the Scholar was given. */
