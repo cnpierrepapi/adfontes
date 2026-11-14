@@ -48,3 +48,10 @@ export function cleanNationName(s, existing = []) {
 }
 /** Nations a newcomer may bless: living, every god an AI god. */
 export const blessTargets = (clans, ai) => clans.filter((c) => c.alive !== false && (c.gods || []).length && c.gods.every((g) => ai.has(g.account)));
+
+/** An AI god under the operator that holds no seat anywhere (an arrival whose founding failed, like Chang'e on 13 Nov):
+ *  the next arrival is this god, whose account is already made and funded, before any new name. */
+export function idleNewcomer(aiRows, clans, operator) {
+  const seated = new Set(clans.flatMap((c) => (c.gods || []).map((g) => g.account))); // fallen nations count: their gods aren't newcomers
+  return aiRows.find((g) => g.account.endsWith(`.${operator}`) && !seated.has(g.account)) || null;
+}

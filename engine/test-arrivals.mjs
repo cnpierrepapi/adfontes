@@ -84,3 +84,15 @@ const H = 3600e3, T0 = 1_800_000_000_000;
   ok(/export async function arrive/.test(aiact) && /addAiGod/.test(aiact), "aiact.arrive registers the newcomer as an AI god at once");
   ok(/case "arrival"/.test(src("src/live/feed.js")), "the feed tells the world a new god arrived");
 }
+
+// 6. Cold audit, 14 Nov: Chang'e's founding failed with "access key does not exist" (her account was made through one
+//    node and signed through another a second later). She stayed an AI god with no seat. Now the founding waits for the
+//    key, and the next arrival is an unseated newcomer before any new name.
+{
+  const chain = src("engine/chain.mjs"), aiact = src("engine/aiact.mjs");
+  ok(/does not exist/.test(chain.slice(chain.indexOf("async aiFound"), chain.indexOf("async aiFound") + 2500)), "aiFound waits and retries while the new key isn't visible yet");
+  ok(AR.idleNewcomer && AR.idleNewcomer([{ account: "a.op", name: "A" }, { account: "change.op", name: "Chang'e" }], [{ id: 1, alive: true, gods: [{ account: "a.op" }] }], "op")?.account === "change.op", "an AI god under the operator with no seat is found");
+  ok(AR.idleNewcomer([{ account: "a.op", name: "A" }], [{ id: 1, alive: true, gods: [{ account: "a.op" }] }], "op") === null, "none idle: a new name");
+  ok(AR.idleNewcomer([{ account: "mars.op", name: "Mars" }], [{ id: 6, alive: false, gods: [{ account: "mars.op" }] }], "op") === null, "a god whose nation fell isn't a newcomer");
+  ok(/idleNewcomer\(/.test(aiact), "arrive() reuses an idle newcomer first (her account is already funded)");
+}

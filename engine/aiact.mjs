@@ -194,9 +194,10 @@ export async function judgeMotions({ net, chain, log = () => {} }) {
  *  the next turn. Returns what happened, for the 'arrival' record (or { kind: "wait" | "none", why }). */
 export async function arrive({ net, s, chain, log = () => {}, forceName = null }) {
   const onchain = await chain.clans(), alive = onchain.filter((c) => c.alive);
-  const ai = new Set((await store.aiGods(net)).map((g) => g.account));
+  const aiRows = await store.aiGods(net), ai = new Set(aiRows.map((g) => g.account));
   const a = s.arrivals;
-  const name = forceName || AR.pickName(NAMES, new Set(await store.takenNames()), `${a.seed}|${a.n}`); // forceName: the v2d chain test only
+  const idle = forceName ? null : AR.idleNewcomer(aiRows, onchain, chain.operator); // a newcomer whose founding failed comes back first
+  const name = idle?.name || forceName || AR.pickName(NAMES, new Set(await store.takenNames()), `${a.seed}|${a.n}`); // forceName: the v2d chain test only
   if (!name) return { kind: "none", why: "every god name is taken" };
   const account = A.accountFor(name, chain.operator), temperament = temperamentOf(name);
   const targets = AR.blessTargets(alive, ai);

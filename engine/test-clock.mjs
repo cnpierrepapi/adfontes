@@ -7,6 +7,11 @@ const H = 3600;
 assert.equal(nearTimeAt(CLOCK.seasonEnd), CLOCK.seasonEnd);
 assert.equal(nearTimeAt(CLOCK.seasonEnd - 3600e3), CLOCK.seasonEnd - 5 * 3600e3);
 assert.equal(realTimeAt(nearTimeAt(1.79e12)), 1.79e12);
+// Cold audit 14 Nov: after 30 Nov the replay has met live NEAR; to the season's end (12 Dec) it runs live, hour for
+// hour (before this it mapped onto hours that hadn't happened yet, and day and night froze).
+assert.equal(nearTimeAt(CLOCK.seasonEnd + 3600e3), CLOCK.seasonEnd + 3600e3);
+assert.equal(realTimeAt(CLOCK.seasonEnd + 7200e3), CLOCK.seasonEnd + 7200e3);
+console.log("PASS after 30 Nov the clock is NEAR's live hour");
 // One NEAR hour = 12 real minutes.
 assert.equal(realTimeAt(CLOCK.seasonEnd - 3600e3), CLOCK.seasonEnd - 12 * 60e3);
 

@@ -12,9 +12,10 @@ export const CLOCK = {
 };
 
 /** The NEAR moment (ms) the world shows at real time `realMs`. Equals realMs at season end. */
-export const nearTimeAt = (realMs, c = CLOCK) => c.seasonEnd - c.speed * (c.seasonEnd - realMs);
+// After the replay meets live NEAR (30 Nov) the clock runs live, hour for hour, to the season's end (cold audit 14 Nov).
+export const nearTimeAt = (realMs, c = CLOCK) => (realMs >= c.seasonEnd ? realMs : c.seasonEnd - c.speed * (c.seasonEnd - realMs));
 /** The real time (ms) at which the world reaches NEAR moment `nearMs`. */
-export const realTimeAt = (nearMs, c = CLOCK) => c.seasonEnd - (c.seasonEnd - nearMs) / c.speed;
+export const realTimeAt = (nearMs, c = CLOCK) => (nearMs >= c.seasonEnd ? nearMs : c.seasonEnd - (c.seasonEnd - nearMs) / c.speed);
 
 /**
  * Split hourly closes into day/night phases. `rows` = [[unixSec, close], ...] sorted, one per hour,

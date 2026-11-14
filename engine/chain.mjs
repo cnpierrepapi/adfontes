@@ -164,7 +164,15 @@ export function connect(net) {
      *  refuses found_clan to planned actions). Via FastNEAR (dRPC 500s on long calls); an error is checked against the
      *  chain before it counts: the nation may exist anyway. */
     async aiFound(account, name, near) {
-      const acct = new Account(account, new JsonRpcProvider({ url: n.backupRpc }), godKeyPair(opKey, world, account).toString());
+      const fast = new JsonRpcProvider({ url: n.backupRpc }), kp = godKeyPair(opKey, world, account);
+      const acct = new Account(account, fast, kp.toString());
+      // A just-made account's key can take a few seconds to show on this node (cold audit 14 Nov: Chang'e's founding
+      // failed with "access key does not exist"): wait until it does.
+      for (let i = 0; i < 10; i++) {
+        const seen = await fast.query({ request_type: "view_access_key", finality: "final", account_id: account, public_key: kp.getPublicKey().toString() }).then(() => true, () => false);
+        if (seen) break;
+        await new Promise((res) => setTimeout(res, 2000));
+      }
       try {
         const r = await acct.callFunctionRaw({ contractId: world, methodName: "found_clan", args: { name }, deposit: BigInt(Math.round(near * 1e6)) * 10n ** 18n, gas: BigInt(T(300)) });
         const fail = r.receipts_outcome.find((o) => o.outcome.status.Failure);
