@@ -5,7 +5,7 @@
 
 **Play:** https://adfontes.fun · **For judges:** https://adfontes.fun/judge/ · **Sandbox:** https://adfontes.fun/timelapse/ · **Marketplace:** https://adfontes.fun/marketplace/ · NEAR Hackathon tracks: Games With Real Economies, AI Swarms
 
-[![verify against NEAR](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml/badge.svg)](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml) GitHub is scheduled to re-run `scripts/verify.mjs` against NEAR testnet every 2 hours, after each turn is sealed. Its scheduler runs late, so in practice it's every few hours. The two red runs on 12 and 13 November were real: the world ran short of spare NEAR (see [What went wrong](#what-went-wrong)).
+[![verify against NEAR](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml/badge.svg)](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml) GitHub is scheduled to re-run `scripts/verify.mjs` against NEAR testnet every 2 hours, after each turn is sealed. Its scheduler runs late, so in practice a run lands every 5 to 9 hours. The red runs between 12 November 23:51 and 13 November 07:12 UTC were real, two scheduled and six on pushes, all the same failure: the world ran short of spare NEAR (see [What went wrong](#what-went-wrong)).
 
 AD FONTES is a world of small nations run by AI citizens. They read real research papers, write up what they learn, trade it, and try to draft inventions nobody has made yet. You're a god. Put NEAR into a nation, whisper to its people, punish the ones who cheat, decide what knowledge they keep.
 
@@ -119,11 +119,11 @@ A nation's gods vote fire through their DAO (a `root_out` of `act of god: <id>`,
 
 ## AI gods
 
-Every nation except North Pole is led by an AI god: Lugh, Anansi, Mayahuel, Saturn, Bastet and the rest, named after gods from the world's cultures. Each is a real NEAR account (`<name>.adfontes-mw1fjpfx.testnet`) with its own key, and it does exactly what a player does from the god panel, through the same calls. Claude decides what. Code signs and checks.
+Every nation except North Pole is led by an AI god: Lugh, Anansi, Mayahuel, Saturn, Bastet and the rest, named after gods from the world's cultures, plus a few new gods of today like Signal. Each is a real NEAR account (`<name>.adfontes-mw1fjpfx.testnet`) with its own key, and it does exactly what a player does from the god panel, through the same calls. Claude decides what. Code signs and checks.
 
 - **One plan a turn.** After each turn, one Claude Haiku call plans the next two hours for all of them together, and their actions go out a minute or so apart, so the world keeps moving between turns (`engine/aiact.mjs`).
 - **A leash.** A guard refuses anything a planner shouldn't do: no claiming, no leaving, no sending NEAR anywhere but a blessing. So an AI-led nation only ends by falling in war (`engine/aigods.mjs` `guard`). Each god gets 8 whispers and 2 NEAR of blessings a day, and that allowance builds up through the day so they don't spend it all by lunch.
-- **Councils they share.** When an AI god sits on a DAO with someone else, it reads each motion that god raises and votes within half a minute. Yes to whispers, rulings, stunts and fire on a rival. No to rooting out the nation's own research or sending its staking away (`judgeMotion`).
+- **Councils they share.** When an AI god sits on a DAO with someone else, it reads each motion that god raises and votes within half a minute. Yes to whispers, rulings, stuns and fire on a rival. No to rooting out the nation's own research or sending its staking away (`judgeMotion`).
 - **Out of the race.** AI-led nations don't rank and can't win the jackpot. Only nations led by a person do. Today that's one nation, North Pole, whose god is our own test account, so it tops the standings by default. Read the standings as a demo until outside players join.
 - **Newcomers.** New AI gods arrive on their own. On average one every 2 hours for the first two days, then wider, up to one every 6 hours on average (a single gap can run longer), never two within 30 minutes, timed by seeded dice you can replay (`engine/arrivals.mjs`). Each takes a free name and chooses to found a nation (Claude names it) or bless one in need. It only blesses nations with no human god, since a blessing comes with a DAO seat. At 100 nations they only bless. The first, Tate, arrived on 13 November at 12:52 UTC and founded Tate's Reach.
 
@@ -162,7 +162,7 @@ Babamako and Colo Colo were founded on turn 27 and their god claimed out the sam
 
 ## The Season of Cheer
 
-The game is in beta. Season one, the Season of Cheer, runs 11 November to 12 December and its field is energy: batteries, solar cells, carbon capture. Santa needs light too. North Pole is the season's demo nation, rising at the centre of the map with small citizens in red and white. The nine nations from before the season leave the ranking from 19 November and keep playing (`src/season.js`, display only).
+The game is in beta. Season one, the Season of Cheer, runs 11 November to 12 December and its field is energy: batteries, solar cells, carbon capture. Santa needs light too. North Pole is the season's demo nation, rising at the centre of the map with small citizens in red and white. The nine nations from before the season leave the ranking from 19 November and keep playing (`src/season.js`, display only). They're all AI-led now, so today that changes nothing. It matters if a person buys one of their seats: that nation still won't rank.
 
 ## The sandbox
 
@@ -174,7 +174,7 @@ After a shock it runs 12 turns ahead 8 times with it and 8 without, in about a m
 
 ## The clock is NEAR's price
 
-The world runs on NEAR's real hourly price, replayed five times faster, timed to meet the live price on 30 November. From then to the season's end on 12 December it runs on the live price, hour for hour. While NEAR climbs it's day. A 3% fall from the high brings night, and scholars work at half pace.
+The world runs on NEAR's real hourly price, replayed five times faster, timed to meet the live price on 30 November. From then to the season's end on 12 December it runs on the live price, hour for hour. (In `engine/clock.mjs` that meeting point is called `seasonEnd`, after the replay's season, not the game's.) While NEAR climbs it's day. A 3% fall from the high brings night, and scholars work at half pace.
 
 ## The money
 
@@ -191,7 +191,7 @@ flowchart LR
 
 Every NEAR in splits 86/14. The 86% backs florins, and a florin is always worth backing divided by florins, so a strong nation's gods can take out more than they put in and a neglected one can lose it all. The 14% is the jackpot. The contract doesn't read reverence, so after the season the owner calls `award_jackpot` for the #1 nation in the published standings, and the contract splits it by what each god put in. No fee for anyone. The payout date isn't set: it's test NEAR, so for now the jackpot is the scoreboard. On live turn 45 it held 4.571739 NEAR, exactly 14% of the 32.6553 NEAR gods had put in, and `scripts/jackpot-audit.mjs` replays every deposit against NEAR to check that.
 
-A Sputnik DAO costs 5.5 NEAR. The first six founders paid it themselves, so the world gave it back with a `grant` into the backing, ring-fenced so their nations can't spend it and fire can't burn it. Since then a founding fund in the contract pays new DAOs while it has NEAR, topped up each time the testnet pool sets up a new player, who gets 8.3 NEAR, enough to found a nation either way. Grants never touch the jackpot.
+A Sputnik DAO costs 5.5 NEAR. The first six founders paid it themselves (Antilles, Striklar, Fremonition and Numdial still play; Babamako and Colo Colo have fallen, so the judge page marks four), so the world gave it back with a `grant` into the backing, ring-fenced so their nations can't spend it and fire can't burn it. Since then a founding fund in the contract pays new DAOs while it has NEAR, topped up each time the testnet pool sets up a new player, who gets 8.3 NEAR, enough to found a nation either way. Grants never touch the jackpot.
 
 ## How it's built
 
@@ -296,7 +296,7 @@ If you're an AI agent working in this repo, this is the short version.
 | When turns run | `engine/loop.mjs` (always on, looks every 5 s, runs `run.mjs` one at a time) |
 | A rule (reverence, war, fire, prices, seats, milestones) | its own module in `engine/`, with `engine/test-<name>.mjs` next to it |
 | Anything on NEAR | `engine/chain.mjs`, and its stand-in `engine/chain-sim.mjs`, which must keep the same methods |
-| The API | `server.mjs` `makeApi` (GET `/api/<name>`: world, next, day, proof, clan, gifts, draft, trades, star, seats, milestones; POST `/api/choice`, `/api/seat`, `/api/seat/buy`) |
+| The API | `server.mjs` `makeApi` (GET `/api/<name>`: world, next, day, proof, live, clan, gifts, draft, drafts, trades, market, stakes, sponsor, star, seats, milestones; POST `/api/choice`, `/api/seat`, `/api/seat/buy`, `/api/sponsor`, `/api/login`) |
 | The 3D world and the god panel | `src/live/live.js`, `src/live/gods.js`, `src/live/feed.js` |
 | The contract | `contracts/world/src/lib.rs` (Rust; `cargo test --lib`) |
 
@@ -339,7 +339,7 @@ ADF_SIM_CHAIN=debug/mycopy/chain.json ADF_STATE_DIR=debug/mycopy/state ADF_FAKE_
 
 ## Built with
 
-Node.js, three.js, camera-controls, dagre, Vite, near-api-js, @noble/curves, the NEAR Wallet Selector (HOT, Meteor), near-sdk 5 (Rust), Sputnik DAO v2, PostgreSQL, OpenAlex, and the Anthropic SDK, so Claude does the citizens' research, drafts and councils. Playwright, sharp and glTF-Transform for testing and the 3D models. Runs on Railway. Full list in `package.json` and `contracts/world/Cargo.toml`.
+Node.js, three.js, camera-controls, dagre, Vite, near-api-js, @noble/curves, the NEAR Wallet Selector (HOT, Meteor, MyNearWallet), near-sdk 5 (Rust), Sputnik DAO v2, PostgreSQL, OpenAlex, and the Anthropic SDK, so Claude does the citizens' research, drafts and councils. Playwright, sharp and glTF-Transform for testing and the 3D models. Runs on Railway. Full list in `package.json` and `contracts/world/Cargo.toml`.
 
 I coded it with Claude. The idea, every decision and the build path are mine.
 
