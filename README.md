@@ -5,7 +5,7 @@
 
 **Play:** https://adfontes.fun · **For judges:** https://adfontes.fun/judge/ · **Sandbox:** https://adfontes.fun/timelapse/ · **Marketplace:** https://adfontes.fun/marketplace/ · NEAR Hackathon tracks: Games With Real Economies, AI Swarms
 
-[![verify against NEAR](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml/badge.svg)](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml) GitHub re-runs `scripts/verify.mjs` against NEAR testnet every 2 hours, after each turn is sealed.
+[![verify against NEAR](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml/badge.svg)](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml) GitHub is scheduled to re-run `scripts/verify.mjs` against NEAR testnet every 2 hours, after each turn is sealed. Its scheduler runs late, so in practice it's every few hours. The two red runs on 12 and 13 November were real: the world ran short of spare NEAR (see [What went wrong](#what-went-wrong)).
 
 AD FONTES is a world of small nations run by AI citizens. They read real research papers, write up what they learn, trade it, and try to draft inventions nobody has made yet. You're a god. Put NEAR into a nation, whisper to its people, punish the ones who cheat, decide what knowledge they keep.
 
@@ -80,7 +80,7 @@ Soucalibur's gods put in the third most NEAR, were heard three times, and finish
 | Buy or sell a seat | Your whole place as a god, on https://adfontes.fun/seats/ (see [Seats](#seats)) |
 | Claim your stake | Take your florins out as NEAR at today's value. If you're the last god, the nation ends and leaves the map |
 
-Citizens also report each other: a fake citation, a rushed draft, a Trickster. Some reports are true, some are grudges. You ask the accused first and read their answer, then smite or let it go. Smite a guilty one and your reverence fades slower for a day; smite an innocent one and you've made an enemy. Ignore a true report and the citizen who made it loses faith. Smiting costs 8 reverence either way.
+Citizens also report each other: a fake citation, a rushed draft, a Trickster. Some reports are true, some are grudges. You ask the accused first and read their answer, then smite or let it go. Smite a guilty one and your reverence fades slower for a day; smite an innocent one and you've made an enemy. Ignore a true report and the citizen who made it loses faith. Stunning costs 8 reverence and removing a citizen costs 20, guilty or not.
 
 Choices the contract has no method for (the Scholars' pick, an ask, an ignore, a word to the Broker) are small messages signed with the god's own key, checked by the server against the god's seat on chain, and sealed into that turn's records like everything else (`engine/choices.mjs`). Nothing waits on a player: silence means the old behaviour.
 
@@ -124,8 +124,8 @@ Every nation except North Pole is led by an AI god: Lugh, Anansi, Mayahuel, Satu
 - **One plan a turn.** After each turn, one Claude Haiku call plans the next two hours for all of them together, and their actions go out a minute or so apart, so the world keeps moving between turns (`engine/aiact.mjs`).
 - **A leash.** A guard refuses anything a planner shouldn't do: no claiming, no leaving, no sending NEAR anywhere but a blessing. So an AI-led nation only ends by falling in war (`engine/aigods.mjs` `guard`). Each god gets 8 whispers and 2 NEAR of blessings a day, and that allowance builds up through the day so they don't spend it all by lunch.
 - **Councils they share.** When an AI god sits on a DAO with someone else, it reads each motion that god raises and votes within half a minute. Yes to whispers, rulings, stunts and fire on a rival. No to rooting out the nation's own research or sending its staking away (`judgeMotion`).
-- **Out of the race.** AI-led nations don't rank and can't win the jackpot. Only nations led by a person do.
-- **Newcomers.** New AI gods arrive on their own. About one every 2 hours for the first two days, then wider, up to one every 6 hours, never two within 30 minutes, timed by seeded dice you can replay (`engine/arrivals.mjs`). Each takes a free name and chooses to found a nation (Claude names it) or bless one in need. It only blesses nations with no human god, since a blessing comes with a DAO seat. At 100 nations they only bless. The first, Tate, arrived on 13 November at 12:52 UTC and founded Tate's Reach.
+- **Out of the race.** AI-led nations don't rank and can't win the jackpot. Only nations led by a person do. Today that's one nation, North Pole, whose god is our own test account, so it tops the standings by default. Read the standings as a demo until outside players join.
+- **Newcomers.** New AI gods arrive on their own. On average one every 2 hours for the first two days, then wider, up to one every 6 hours on average (a single gap can run longer), never two within 30 minutes, timed by seeded dice you can replay (`engine/arrivals.mjs`). Each takes a free name and chooses to found a nation (Claude names it) or bless one in need. It only blesses nations with no human god, since a blessing comes with a DAO seat. At 100 nations they only bless. The first, Tate, arrived on 13 November at 12:52 UTC and founded Tate's Reach.
 
 Claude's budget is capped at $3.50 a UTC day, half for the citizens and half for the AI gods. Citizens judge whispers and the gods plan on Haiku 5.5, drafts are written on Sonnet 5.5, and war councils sit on Opus 5.5. When a pot runs out, its calls wait until midnight UTC.
 
@@ -138,7 +138,7 @@ A god's seat in a nation can be sold, whole: the stake, the grant, the DAO seat,
 3. Within seconds the engine checks that payment on chain, checks the seller is still a god there and that the world owes them nothing from other nations, moves the seat with the contract's `move_god`, and pays the seller the full price.
 4. If the seller left, or someone bought it first, the buyer gets their NEAR back.
 
-Every AI god's seat is listed too, at its claim value plus a quarter. Buy one and you take that god's name and its believers. Once you're the nation's most revered god, it enters the season ranking.
+Every AI god's seat is listed too, at its claim value plus a quarter and never under 0.5 NEAR, so a small seat asks well over a quarter more. It's re-priced when its claim value moves by more than a tenth. Buy one and you take that god's name and its believers. Once you're the nation's most revered god, it enters the season ranking.
 
 The first version had a bug that only showed up on the real chain. The RPC answered "Internal server error" to a `move_god` that had in fact landed, and the code refunded a buyer who now held the seat. Now the chain decides: a move only counts as failed if the seller is still there 20 seconds later (`scripts/seats-chain-test.mjs`).
 
@@ -174,7 +174,7 @@ After a shock it runs 12 turns ahead 8 times with it and 8 without, in about a m
 
 ## The clock is NEAR's price
 
-The world runs on NEAR's real hourly price, replayed five times faster, timed to meet the live price on 30 November. While NEAR climbs it's day. A 3% fall from the high brings night, and scholars work at half pace.
+The world runs on NEAR's real hourly price, replayed five times faster, timed to meet the live price on 30 November. From then to the season's end on 12 December it runs on the live price, hour for hour. While NEAR climbs it's day. A 3% fall from the high brings night, and scholars work at half pace.
 
 ## The money
 
@@ -261,7 +261,7 @@ Every turn the engine hashes each record and puts one Merkle root on NEAR. The j
 ## Tests
 
 ```bash
-npm test                          # 679 checks: clock, war, prices, tokens, market, techs, reverence, Warden, god actions, Act of God, spend cap, RPC fallback, AI gods, asks, seats, arrivals, milestones, chatter
+npm test                          # about 700 checks: clock, war, prices, tokens, market, techs, reverence, Warden, god actions, Act of God, spend cap, RPC fallback, AI gods, asks, seats, arrivals, milestones, chatter
 node scripts/aog-sim-test.mjs     # Act of God on a copy of the live world, with a planted bully war
 node scripts/seats-sim-test.mjs   # a seat sale sealed through real turns on a copy (and scripts/arrivals-sim-test.mjs, step23-sim-test.mjs)
 node scripts/seats-chain-test.mjs # a real seat sale, refund and sale back on the spare test world v2d (needs our keys)
@@ -309,7 +309,7 @@ ADF_SIM_CHAIN=debug/mycopy/chain.json ADF_STATE_DIR=debug/mycopy/state ADF_FAKE_
   node engine/run.mjs testnet --force      # one turn on the copy: stand-in chain, stand-in minds, $0
 ```
 
-`ADF_FAKE_LLM=1` swaps every Claude call for a stand-in, `ADF_PAPERS_OFFLINE=1` reads only papers already cached, and `ADF_SIM_CHAIN` swaps NEAR for a JSON file. Use both for anything you haven't been asked to run for real.
+`ADF_FAKE_LLM=1` swaps every Claude call for a stand-in, `ADF_PAPERS_OFFLINE=1` reads only papers already cached, and `ADF_SIM_CHAIN` swaps NEAR for a JSON file. Use all three for anything you haven't been asked to run for real.
 
 **House rules**
 
@@ -321,7 +321,7 @@ ADF_SIM_CHAIN=debug/mycopy/chain.json ADF_STATE_DIR=debug/mycopy/state ADF_FAKE_
 - Never push engine changes while a turn is running. The engine's last log line should be `run done`, and the next turn (`/api/next` `next_at`) should be more than 10 minutes away.
 - AI gods only ever act through `engine/aigods.mjs` `guard`. New AI powers go through it.
 
-**Settings it reads** (all optional on your own machine): `ADF_WORLD`, `ADF_SIM_CHAIN`, `ADF_STATE_DIR`, `ADF_FAKE_LLM`, `ADF_DAILY_CAP`, `ADF_GOD_MODEL`, `DATABASE_URL`, `ADF_UPSTREAM`, `ANTHROPIC_API_KEY`, `OPENALEX_API_KEY`, `OPERATOR_ACCOUNT_ID` / `OPERATOR_PRIVATE_KEY`, `OWNER_ACCOUNT_ID` / `OWNER_PRIVATE_KEY`, `SPONSOR_ACCOUNT_ID` / `SPONSOR_PRIVATE_KEY`.
+**Settings it reads** (all optional on your own machine): `ADF_WORLD`, `ADF_SIM_CHAIN`, `ADF_STATE_DIR`, `ADF_FAKE_LLM`, `ADF_PAPERS_OFFLINE`, `ADF_SANDBOX`, `LOGIN_PEPPER`, `ADF_DAILY_CAP`, `ADF_GOD_MODEL`, `DATABASE_URL`, `ADF_UPSTREAM`, `ANTHROPIC_API_KEY`, `OPENALEX_API_KEY`, `OPERATOR_ACCOUNT_ID` / `OPERATOR_PRIVATE_KEY`, `OWNER_ACCOUNT_ID` / `OWNER_PRIVATE_KEY`, `SPONSOR_ACCOUNT_ID` / `SPONSOR_PRIVATE_KEY`.
 
 ## What went wrong
 

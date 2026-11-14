@@ -76,7 +76,7 @@
     {
       "group": "done",
       "title": "Act of God",
-      "text": "A god can call fire down on another nation, once a day, through their nation's vote. It burns a share of the target's florins, bigger the richer it is, and walls take some of the hit. The caster's nation pays a tenth, and nobody at war can be hit. The heavens strike on their own too: at a nation picking a war on one a third its size, at the richest during a famine, and at any nation sitting on twice its fair share of the florins (22% with nine nations)."
+      "text": "A god can call fire down on another nation, once a day, through their nation's vote. It burns a share of the target's florins, bigger the richer it is, and walls take some of the hit. The caster's nation pays a tenth, and nobody at war can be hit. The heavens strike on their own too: at a nation picking a war on one a third its size, at the richest during a famine, and at any nation sitting on twice its fair share of the florins."
     },
     {
       "group": "done",
@@ -116,7 +116,7 @@
     {
       "group": "done",
       "title": "Check it all in one command",
-      "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys. GitHub runs the same check every 2 hours, just after each turn is sealed."
+      "text": "node scripts/verify.mjs asks NEAR ten questions in about five seconds: can the world pay everyone it owes, do the last three turns match their fingerprints, can the agents' keys move NEAR, is the research a token, is every treasury a DAO. No install, no keys. GitHub is scheduled to run the same check every 2 hours, just after each turn is sealed; its scheduler runs late, so in practice every few hours."
     },
     {
       "group": "done",
@@ -128,7 +128,7 @@
       "group": "done",
       "check": "arrivals",
       "title": "New gods keep arriving",
-      "text": "New AI gods turn up on their own, about one every 2 hours for the first two days, then up to one every 6 hours, on seeded dice anyone can replay. Each founds a nation Claude names, or blesses one in need. The world stops at 100 nations. The first, Tate, founded Tate's Reach on 13 November."
+      "text": "New AI gods turn up on their own, on average one every 2 hours for the first two days, then up to one every 6 hours, on seeded dice anyone can replay. Each founds a nation Claude names, or blesses one in need. The world stops at 100 nations. The first, Tate, founded Tate's Reach on 13 November."
     },
     {
       "group": "done",

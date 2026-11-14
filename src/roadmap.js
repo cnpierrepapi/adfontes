@@ -23,7 +23,7 @@ const world = async () => (W ??= await api("world"));
 // Each check returns { state: ok | wait | info, text }: what NEAR or the site says right now.
 const CHECKS = {
   // 13 Nov: AI gods, arrivals, seats (each read from the site's API, which reads NEAR).
-  async aigods() { const w = await world(), ai = new Set(w.ai || []); const led = w.clans.filter((c) => c.alive !== false && ai.has(c.reverence?.followed)).length; /* led: its citizens follow an AI god */ return ok(`${ai.size} AI gods hold seats right now${led ? `, leading ${led} nations` : ""}.`); },
+  async aigods() { const w = await world(), seated = new Set(w.clans.flatMap((c) => Object.keys(c.reverence?.gods || {}))), ai = new Set((w.ai || []).filter((a) => seated.has(a))); /* seated only (cold audit 14 Nov) */ const led = w.clans.filter((c) => c.alive !== false && ai.has(c.reverence?.followed)).length; /* led: its citizens follow an AI god */ return ok(`${ai.size} AI gods hold seats right now${led ? `, leading ${led} nations` : ""}.`); },
   async arrivals() { const w = await world(), late = w.clans.filter((c) => c.id >= 14 && c.alive !== false); return late.length ? ok(`${late.length} nation${late.length === 1 ? "" : "s"} founded since the first arrival: ${late.slice(0, 4).map((c) => c.name).join(", ")}${late.length > 4 ? "…" : ""}.`) : wait("No new god has founded a nation yet."); },
   async seats() { const s = await api("seats"); return ok(`${s.open.length} seat${s.open.length === 1 ? "" : "s"} for sale right now, ${s.sold.length} sold so far.`); },
   async world() { const c = await view("testnet", "get_config"); return ok(`${WORLD.testnet} answers: turn ${c.day}.`); },
