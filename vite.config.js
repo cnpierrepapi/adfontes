@@ -1,7 +1,13 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
+import fs from "node:fs";
+
+// public/_lab (the character lab's 132 MB of source textures) is for `vite dev` only. Vite copies all
+// of public/ into dist, so drop it after the build: no live page loads it (15 Nov).
+const dropLab = { name: "drop-lab", apply: "build", closeBundle() { fs.rmSync(resolve(import.meta.dirname, "dist/_lab"), { recursive: true, force: true }); } };
 
 export default defineConfig({
+  plugins: [dropLab],
   // The NEAR wallet packages expect Node's `global`.
   define: { global: "globalThis" },
   // Dev only: the API comes from the live site, so local stills show the real world.

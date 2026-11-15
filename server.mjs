@@ -20,6 +20,7 @@ import * as SE from "./engine/seats.mjs";
 import * as MS from "./engine/milestones.mjs";
 import { standings } from "./engine/reverence.mjs";
 import { inRanking } from "./src/season.js";
+import { sweepExpired, makeFileCache, hiddenPath } from "./src/server/memo.mjs";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
 // each network has its own chain connection, world contract and cache. SITE_NET is the default.
@@ -53,7 +54,7 @@ async function cached(key, ms, fn) {
   if (hit && Date.now() - hit.t < ms) return hit.v;
   let run = inflight.get(key);
   if (!run) {
-    run = Promise.resolve().then(fn).then((v) => { cache.set(key, { t: Date.now(), v }); return v; }).finally(() => inflight.delete(key));
+    run = Promise.resolve().then(fn).then((v) => { cache.set(key, { t: Date.now(), ms, v }); return v; }).finally(() => inflight.delete(key));
     inflight.set(key, run);
   }
   if (hit) { run.catch((e) => console.error("refresh failed, serving stale:", key, String(e?.message ?? e).slice(0, 120))); return hit.v; } // stale while it refreshes
@@ -61,7 +62,9 @@ async function cached(key, ms, fn) {
 }
 // One failed RPC read must never take the site down (8 Nov: a 429 from the public RPC, rejected in a
 // background refresh nobody awaited, crashed the web service). Log it and keep serving.
-process.on("unhandledRejection", (e) => console.error("unhandled rejection:", String(e?.message ?? e).slice(0, 200)));
+// Every minute, drop entries nobody has asked for since they expired (15 Nov, src/server/memo.mjs).
+setInterval(() => sweepExpired(cache, inflight), 60_000).unref();
+process.on("unhandledRejection",(e) => console.error("unhandled rejection:", String(e?.message ?? e).slice(0, 200)));
 
 // Reverence (SPEC §12m) as the site sees it: who the nation follows and how much each god is revered.
 // A nation's standing is the reverence of the god it follows.
@@ -666,6 +669,7 @@ function serveStatic(req, res, url) {
   // The live world is the homepage (his call 8 Nov). The old landing page (/about) and the 4 Nov
   // recorded demo (/demo) described an earlier design, so both send you to the judge page (9 Nov).
   if (/^\/(about|demo)(\/.*)?$/.test(pathname)) { res.writeHead(302, { location: "/judge/" }); return res.end(); }
+  if (hiddenPath(pathname)) pathname = "/__hidden__"; // the lab's textures: a plain 404 (15 Nov)
   if (pathname === "/" || pathname === "/index.html") pathname = "/live/index.html";
   let p = path.normalize(path.join(DIST, pathname));
   if (p !== DIST && !p.startsWith(DIST + path.sep)) return send(res, 403, "text/plain", "forbidden");
@@ -705,14 +709,14 @@ function serveStatic(req, res, url) {
   res.writeHead(200, { etag: f.etag, "content-type": TYPES[path.extname(p)] || "application/octet-stream", "cache-control": cache, vary: "accept-encoding", ...(gz ? { "content-encoding": "gzip" } : {}), "content-length": (gz ? f.gz : f.raw).length });
   res.end(req.method === "HEAD" ? undefined : gz ? f.gz : f.raw);
 }
-const files = new Map(); // path -> { raw, gz, mtime }
+const files = makeFileCache(); // path -> { raw, gz, mtime, etag }, inside a 32 MB budget (15 Nov)
 function fileOf(p) {
-  const mtime = fs.statSync(p).mtimeMs, hit = files.get(p);
-  if (hit && hit.mtime === mtime) return hit;
+  const mtime = fs.statSync(p).mtimeMs, hit = files.get(p, mtime);
+  if (hit) return hit;
   const raw = fs.readFileSync(p);
   const gz = /\.(js|css|html|svg|json|txt)$/.test(p) && raw.length > 1024 ? zlib.gzipSync(raw, { level: 9 }) : null;
   const f = { raw, gz, mtime, etag: `"${crypto.createHash("sha1").update(raw).digest("base64url").slice(0, 22)}"` };
-  if (raw.length < 20e6) files.set(p, f);
+  files.put(p, f);
   return f;
 }
 
