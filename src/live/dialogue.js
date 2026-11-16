@@ -33,6 +33,11 @@ export function createDialogue() {
   const box = el("div", { className: "dlg", role: "dialog", hidden: true }, portrait, el("div", { className: "dlg-body" }, el("div", { className: "dlg-head" }, who, tag), text, more));
   // (the action row is added under the text when the first line opens: see open())
   document.body.append(box);
+  // Phones (his note 16 Nov): the box and the standings pill share the bottom edge, so while a line
+  // shows, the page carries `dlg-open` and the box's real height (--dlg-h), and the standings lift
+  // above it (live.css). The observer catches every open, close and resize, buttons included.
+  const sync = () => { const on = !box.hidden; document.body.classList.toggle("dlg-open", on); if (on) document.body.style.setProperty("--dlg-h", `${box.offsetHeight}px`); };
+  new ResizeObserver(sync).observe(box);
 
   // The portrait: a small scene of its own (the world's camera is far away; this one is a close-up).
   let renderer = null, scene, camera, kitP = null, current = null, mixer = null, clock = new THREE.Clock(), raf = 0;
@@ -75,6 +80,7 @@ export function createDialogue() {
     onDone?.(); onDone = null;
     if (queue.length) return open(queue.shift());
     box.hidden = true;
+    sync();
   }
   let autoT = 0;
   const acts = el("div", { className: "dlg-acts" });
@@ -92,6 +98,7 @@ export function createDialogue() {
     text.textContent = lines[0];
     more.textContent = lines.length > 1 ? "▸" : "✓";
     box.hidden = false;
+    sync();
     box.classList.remove("in"); void box.offsetWidth; box.classList.add("in");
     onDone = d.onDone || null;
     showFace(d.name, d.role).catch(() => {});

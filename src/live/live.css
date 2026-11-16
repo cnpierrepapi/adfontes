@@ -329,6 +329,9 @@ body.night #panel .warline { color: #ff8aa5; background: rgba(232, 50, 94, 0.16)
   .standings .head { font-size: 0.74rem; }
   .standings ol, .standings .events { max-height: 34vh; overflow-y: auto; }
   body.panel-open .standings { display: none; }
+  /* A citizen's line (src/live/dialogue.js) shares the bottom edge: the standings lift above it while it shows (16 Nov). */
+  .standings { transition: bottom 0.25s ease; }
+  body.dlg-open .standings { bottom: calc(var(--dlg-h, 130px) + 20px); max-height: calc(100dvh - var(--dlg-h, 130px) - 120px); overflow-y: auto; }
   /* A short sheet that leaves the world in view; the grab bar opens it to most of the screen (11 Nov). */
   .godpanel { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 34dvh; overflow-y: auto; border-radius: 22px 22px 0 0; padding-top: 24px; transition: max-height 0.25s ease; }
   .godpanel.full { max-height: 80dvh; }
