@@ -238,6 +238,11 @@ function glowTex() {
 const SPOT = { Scholar: [0.9, 0.4], Smith: [2.1, 0.52], Drafter: [3.2, 0.46], Broker: [4.4, 0.55], Patron: [0, 0.36], Warden: [5.4, 0.62],
   // the five techs sit further out, between the trades
   press: [1.5, 0.72], spectacles: [2.65, 0.74], clock: [3.8, 0.72], bookkeeping: [4.95, 0.74], astrolabe: [5.95, 0.7] };
+// People are small next to the buildings (his call 16 Nov: citizens were as tall as the houses). Every
+// figure, citizen or townsfolk, is drawn at PEOPLE times the town's scale; the buildings, desks and
+// footprints keep the town's scale. Smaller legs take shorter strides, so walking slows by PACE and
+// the feet don't slide. Things a figure holds (the watchman's torch) shrink with it.
+export const PEOPLE = 0.45, PACE = Math.sqrt(PEOPLE);
 // Tech buildings stand clearly taller than a citizen (his rule, SPEC §14b): scaled up, footprint too.
 const BIG = { press: 1.45, spectacles: 1.7, clock: 1.3, bookkeeping: 1.4, astrolabe: 1.6, Smith: 1.3, Broker: 1.3, Warden: 1.4 };
 const FOOT = { Scholar: 2.4, Smith: 2.0 * BIG.Smith, Drafter: 1.3, Broker: 1.7 * BIG.Broker, Patron: 1.6, Warden: 0.6 * BIG.Warden, press: 1.3 * BIG.press, spectacles: 0.8 * BIG.spectacles, clock: 1.0 * BIG.clock, bookkeeping: 1.3 * BIG.bookkeeping, astrolabe: 0.9 * BIG.astrolabe };
@@ -282,7 +287,7 @@ export async function buildTown(ctx) {
     const name = `${clan.name}#${folkN++}`;
     const c = await makeCitizen(kit, null, name, { plain: true, child: kind === "child" });
     const k = kind === "child" ? 0.62 : kind === "teen" ? 0.86 : 1;
-    c.root.scale.setScalar(s * k);
+    c.root.scale.setScalar(s * k * PEOPLE);
     c.root.position.set(x, groundY(r, x, z) + (extra.lift ?? 0) * s, z);
     c.root.rotation.y = face;
     c.mixer.timeScale = 0.85 + R() * 0.3;
@@ -369,9 +374,9 @@ export async function buildTown(ctx) {
   {
     const a0 = R() * 6.28, rad = r * 0.48; // round the plaza: the island's rim is too crowded to walk
     const stops = roundStops(open, blocks, a0, rad, 10, 1, s * 0.3);
-    const w = await person("adult", stops[0][0], stops[0][1], 0, "Walk_Loop", { mode: "rounds", stops, si: 1, speed: r * 0.035, night: true });
+    const w = await person("adult", stops[0][0], stops[0][1], 0, "Walk_Loop", { mode: "rounds", stops, si: 1, speed: r * 0.035 * PACE, night: true });
     const t = torch(); const hand = boneNamed(w.c.root, "hand_r");
-    if (hand) { const ws = hand.getWorldScale(new THREE.Vector3()).x; t.scale.setScalar(ws > 0 ? (s * w.k) / ws : 1); hand.add(t); w.torch = t; }
+    if (hand) { const ws = hand.getWorldScale(new THREE.Vector3()).x; t.scale.setScalar(ws > 0 ? (s * w.k * PEOPLE) / ws : 1); hand.add(t); w.torch = t; }
     w.c.mixer.timeScale = 0.8;
   }
 
@@ -457,7 +462,7 @@ export function stepTown(town, dt, now, { r, s, open, groundY }) {
         c.play(a.hurry ? "Jog_Fwd_Loop" : "Walk_Loop");
       }
       if (a.walking) {
-        const sp = r * (a.hurry ? 0.16 : 0.07) * a.k, there = walkStep(a, dt, sp, blocks, maxR, now);
+        const sp = r * (a.hurry ? 0.16 : 0.07) * a.k * PACE, there = walkStep(a, dt, sp, blocks, maxR, now);
         if (!there) { const g = gait(a, dt, sp); if (g === "wait") c.play("Idle_Loop"); else if (g === "walk") c.play(a.hurry ? "Jog_Fwd_Loop" : "Walk_Loop"); }
         else gaitReset(a);
         if (there) {

@@ -2,6 +2,7 @@
 // floating god's camera. Zoom levels become information levels in later steps.
 import { createStandings } from "./standings.js";
 import { createFeed } from "./feed.js";
+import { openGodCard } from "./godcard.js";
 import { isNorthPole } from "../season.js";
 import { api as netApi } from "../net.js";
 import { endedName } from "../says.js";
@@ -475,7 +476,7 @@ export async function startLive(canvas, hud, opts = {}) {
   // War on screen between rounds: cannon fire, fires and smoke, walls (src/live/war.js).
   let warLayer = { update() {}, tick() {}, atWar: () => false }; // made once the people exist (folk comes later)
   // The season standings, ranked by reverence; an overtake plays in the world (and in the replay).
-  const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
+  const standings = createStandings({ visor: hud.visor, W, flyTo: (id) => flyTo(id), onGod: (a) => openGodCard(a, { flyTo: (id) => flyTo(id), ranks: () => standings.ranks() }), onOvertake: (a, b, rank) => fx.play({ kind: "overtake", clan: a.id, day: W.day, text: `${a.name} passed ${b.name} and is now number ${rank}` }) });
   standings.update(W);
   eventSink = () => {}; // no event list (11 Nov): the feed and dialogue boxes say what matters
   // The personal feed and the citizens' dialogue boxes (11 Nov) hear every record the moment it arrives

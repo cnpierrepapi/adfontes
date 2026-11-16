@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { planWalk, walkStep, turnToward, separate, makeOpen, checkRounds, gait, gaitReset } from "./steer.js";
 import { loadCitizenKit, makeCitizen, ROLES } from "./citizens.js";
 import { isNorthPole } from "../season.js";
-import { buildTown, stepTown } from "./town.js";
+import { buildTown, stepTown, PEOPLE, PACE } from "./town.js";
 
 const h32 = (s) => { let x = 2166136261; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };
 const rnd = (seed) => () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822507) ^ Math.imul(seed ^ (seed >>> 13), 3266489909)) >>> 0) / 4294967296;
@@ -66,7 +66,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
     const isl = islands.get(id);
     if (!isl || !kit) return;
     crowds.get(id)?.group.removeFromParent();
-    const r = isl.userData.r, s = (0.11 + r * 0.03) * 1.5; // a citizen stands about half a house tall: readable from the fly-in
+    const r = isl.userData.r, s = (0.11 + r * 0.03) * 1.5; // the town's scale; citizens stand at PEOPLE times it (src/live/town.js)
     const group = new THREE.Group();
     const people = [];
     const town = isl.children.find((ch) => ch.isGroup && ch.children.length);
@@ -124,7 +124,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
       // North Pole's citizens are small people in red and white (his call 11 Nov).
       const elf = isNorthPole(isl.userData.clan);
       const c = await makeCitizen(kit, a.role, a.name, elf ? { child: true, elf: true } : {});
-      c.root.scale.setScalar(elf ? s * 0.62 : s);
+      c.root.scale.setScalar((elf ? s * 0.62 : s) * PEOPLE);
       const stunted = a.stunted_until > day;
       if (stunted) c.root.traverse((o) => o.isMesh && o.material?.color && (o.material = Object.assign(o.material.clone(), { color: new THREE.Color(0x8a8a96) })));
       const st = STATION[a.role] ?? [R() * 6.28, 0.45];
@@ -270,7 +270,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
         if (p.mode === "struck") { p.c.mixer.update(dt); continue; }
         think(p, now);
         if (p.mode === "walk") {
-          const speed = p.r * 0.09 * (p.stunted ? 0.4 : 1) * (p.a.role === "Trickster" ? 2 : 1);
+          const speed = p.r * 0.09 * PACE * (p.stunted ? 0.4 : 1) * (p.a.role === "Trickster" ? 2 : 1);
           const there = walkStep(p, dt, speed, p.blocks, p.maxR, now);
           if (!there) { // held up at a narrow gap: wait in an idle pose, walk on when it clears
             const g = gait(p, dt, speed);
@@ -429,7 +429,7 @@ export function createFolk({ scene, islands, renderer, camera }) {
       // shot never come. And never more than 8 s of walking: they fire from wherever they got to.
       const rdt = Math.min(0.25, Math.max(0, now - (p.lastT ?? now)));
       p.lastT = now;
-      const there = walkStep(p, rdt, p.r * 0.075, p.blocks, p.maxR, now); // a heavy stagger, round the buildings
+      const there = walkStep(p, rdt, p.r * 0.075 * PACE, p.blocks, p.maxR, now); // a heavy stagger, round the buildings
       if (there || now - (p.walkT0 ?? now) > 8) { p.target = null; p.phase = "aim"; p.t0 = now; c.mixer.timeScale = 1; c.play("Pistol_Aim_Up", 0.3); c.root.rotation.z = 0; return; }
       turnToward(c.root, p.heading, dt, 5);
       c.root.rotation.z = Math.sin(now * 5.5) * 0.09; // swaying under the weight

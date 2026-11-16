@@ -6,6 +6,7 @@ import * as C from "./calls.js";
 import { api } from "../net.js";
 import { godName, isAi } from "../says.js";
 import { entryOptions } from "./emailentry.js";
+import { openGodCard } from "./godcard.js";
 
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const short = (a) => (a.length > 22 ? `${a.slice(0, 10)}…${a.slice(-9)}` : a);
@@ -450,7 +451,9 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       const list = el("div", { className: "revlist" });
       for (const [a, g] of Object.entries(R.gods).sort((x, y) => y[1].r - x[1].r)) {
         const bar = el("i", {}); bar.style.width = `${g.r}%`;
-        list.append(el("div", { className: `revrow${a === account ? " me" : ""}` }, el("span", {}, who(a), ...(isAi(a) ? [" ", el("i", { className: "aitag", textContent: "AI", title: "An AI god: Claude decides what it does" })] : []), g.outsider ? " (outside god)" : ""), el("span", { className: "bar" }, bar), el("b", { textContent: String(g.r) }), g.enemies ? el("small", { textContent: `${g.enemies} enem${g.enemies === 1 ? "y" : "ies"}` }) : null));
+        // An AI god's name opens its card (his ask 16 Nov, src/live/godcard.js): its nations, grace put in, holdings.
+        const name = isAi(a) && a !== account ? Object.assign(el("button", { type: "button", className: "godlink", textContent: who(a), title: `${who(a)}'s card` }), { onclick: () => openGodCard(a, { flyTo: (id) => live.flyTo(id), ranks: () => live.standingsRank?.() ?? {} }) }) : who(a);
+        list.append(el("div", { className: `revrow${a === account ? " me" : ""}` }, el("span", {}, name, ...(isAi(a) ? [" ", el("i", { className: "aitag", textContent: "AI", title: "An AI god: Claude decides what it does" })] : []), g.outsider ? " (outside god)" : ""), el("span", { className: "bar" }, bar), el("b", { textContent: String(g.r) }), g.enemies ? el("small", { textContent: `${g.enemies} enem${g.enemies === 1 ? "y" : "ies"}` }) : null));
       }
       rev.append(list);
       const mine = R.gods[account];

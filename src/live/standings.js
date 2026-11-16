@@ -6,7 +6,7 @@ import { inRanking } from "../season.js";
 // between two looks at the world, the world shows it.
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 
-export function createStandings({ visor, W, flyTo, onOvertake }) {
+export function createStandings({ visor, W, flyTo, onOvertake, onGod }) {
   const box = el("aside", { className: "standings" });
   const head = el("button", { type: "button", className: "head" });
   const list = el("ol");
@@ -31,9 +31,12 @@ export function createStandings({ visor, W, flyTo, onOvertake }) {
     list.replaceChildren(...rows.map((r, i) => {
       const was = seen[r.id];
       const move = was == null ? "" : was > i + 1 ? `▲${was - i - 1}` : was < i + 1 ? `▼${i + 1 - was}` : "";
+      // An AI-led nation carries the AI tag; tapping it opens that god's card (src/live/godcard.js), not the fly-to.
+      const ai = r.follows && isAi(r.follows) ? el("button", { type: "button", className: "aitag", textContent: "AI", title: `Led by ${godName(r.follows)}, an AI god. Tap for its card.` }) : null;
+      ai?.addEventListener("click", (e) => { e.stopPropagation(); onGod?.(r.follows); });
       const li = el("li", { title: r.waiting ? "waiting for its god's first whisper" : `follows ${r.follows ? godName(r.follows) : "no god"}` },
         el("span", { className: "n", textContent: String(i + 1) }),
-        el("span", { className: "name", textContent: r.name }),
+        el("span", { className: "name" }, ai, ai ? " " : null, r.name),
         el("span", { className: `mv ${move.startsWith("▲") ? "up" : move ? "down" : ""}`, textContent: move }),
         el("b", { textContent: r.waiting ? "…" : String(r.standing) }));
       li.addEventListener("click", () => flyTo(r.id));

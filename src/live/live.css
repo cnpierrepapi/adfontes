@@ -174,6 +174,30 @@ body.night .standings { background: rgba(20, 18, 50, 0.78); color: #f1ecff; }
 body.night .standings .mv.up { color: #6fe3a5; }
 body.night .standings .mv.down { color: #ff8fb8; }
 @media (max-width: 700px) { .standings { top: 118px; left: 12px; width: 200px; } }
+/* A long table scrolls past about eight rows so the feed below stays in view (16 Nov). */
+.standings ol:not(.events) { max-height: min(232px, 30vh); overflow-y: auto; overscroll-behavior: contain; }
+.standings button.aitag { border: 0; cursor: pointer; font-size: 0.56rem; padding: 1px 4px; }
+.standings button.aitag:hover { background: var(--gold); color: #1d1430; }
+/* A god's card (src/live/godcard.js). */
+.godpanel .revrow button.godlink { all: unset; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.godcard h3 .aitag { font-size: 0.66rem; vertical-align: 4px; }
+.godcard .row { display: flex; justify-content: flex-end; }
+.godcard .viewbtn { font: inherit; font-family: var(--display); font-weight: 800; font-size: 0.82rem; border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer; background: rgba(29, 20, 48, 0.07); color: var(--ink); }
+.godcard .viewbtn:hover { background: rgba(138, 92, 255, 0.18); }
+.godcard .godsums dd.up { color: #6fe3a5; }
+.godcard .godsums dd.down { color: #ff8fb8; }
+.godcard h4 { margin: 4px 0 0; font-size: 0.82rem; }
+.godcard .godnations { display: grid; gap: 4px; }
+.godcard .gn { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 12px; background: rgba(29, 20, 48, 0.05); }
+.godcard .gn.gone { opacity: 0.55; }
+.godcard .gn > div { display: grid; min-width: 0; }
+.godcard .gn-name { all: unset; font-weight: 700; font-size: 0.86rem; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.godcard .gn-name:disabled { cursor: default; }
+.godcard .gn-name:not(:disabled):hover { color: var(--violet); }
+.godcard .gn small { font-size: 0.68rem; color: #5b5170; }
+.godcard .gn-money { display: grid; justify-items: end; font-family: var(--mono); font-size: 0.74rem; }
+.godcard .gn-money b.up { color: #1a9e5c; }
+.godcard .gn-money b.down { color: #c0245e; }
 /* The event list under the standings (SPEC §14): newest on top, tap a line to fly there. */
 .standings .ev-head { border-top: 1px solid rgba(29, 20, 48, 0.1); margin-top: 2px; }
 .standings .events { list-style: none; margin: 0; padding: 0 2px 4px; max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; }
