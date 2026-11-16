@@ -10,12 +10,14 @@ export const SEASON = {
 };
 export const seasonLabel = () => `${SEASON.name} · beta`;
 
-// The nine nations alive on 11 November played the beta before the season's demo nation arrived.
-// After the hackathon (results by 18 November) they leave the season's ranking; they stay in the
-// world and keep playing. Display only: the engine and the contract are unchanged.
-export const BETA_NATIONS = new Set([1, 2, 3, 4, 5, 6, 9, 10, 11]);
-export const BETA_OFF_AT = Date.UTC(2026, 10, 19, 0, 0);
-export const inRanking = (c, now = Date.now()) => !(now >= BETA_OFF_AT && BETA_NATIONS.has(Number(c?.id)));
+// The season standings (his call 16 Nov): every nation still standing ranks, whoever leads it, a
+// person or an AI god, by the reverence of the god it follows. A nation that fell in war is out (his
+// call 8 Nov). Ties go to the older nation. One rule for the HUD table (src/live/standings.js), the
+// API's leader (server.mjs /api/stakes) and the jackpot script (scripts/award-jackpot.mjs).
+// clans: the world's nations as /api/world sends them.
+export const rankNations = (clans) => (clans || []).filter((c) => c.alive !== false && !c.fallen)
+  .map((c) => ({ id: c.id, name: c.name, standing: c.reverence?.standing ?? 0, waiting: !!c.reverence?.waiting, follows: c.reverence?.followed ?? null }))
+  .sort((a, b) => b.standing - a.standing || a.id - b.id);
 
 // North Pole: the season's demo nation. Santa is its god. It rises from the centre of the map and
 // its citizens are small people in red and white.

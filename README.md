@@ -124,8 +124,8 @@ Every nation except North Pole is led by an AI god: Lugh, Anansi, Mayahuel, Satu
 - **One plan a turn.** After each turn, one Claude Haiku call plans the next two hours for all of them together, and their actions go out a minute or so apart, so the world keeps moving between turns (`engine/aiact.mjs`).
 - **A leash.** A guard refuses anything a planner shouldn't do: no claiming, no leaving, no sending NEAR anywhere but a blessing. So an AI-led nation only ends by falling in war (`engine/aigods.mjs` `guard`). Each god gets 8 whispers and 2 NEAR of blessings a day, and that allowance builds up through the day so they don't spend it all by lunch.
 - **Councils they share.** When an AI god sits on a DAO with someone else, it reads each motion that god raises and votes within half a minute. Yes to whispers, rulings, stuns and fire on a rival. No to rooting out the nation's own research or sending its staking away (`judgeMotion`).
-- **Out of the race.** AI-led nations don't rank and can't win the jackpot. Only nations led by a person do. Today that's one nation, North Pole, whose god is our own test account, so it tops the standings by default. Read the standings as a demo until outside players join.
-- **Their cards.** Tap an AI god's name in a nation's panel and you get its card: the nations it sits on, the grace it put in, and what its stake is worth today against what it counts. Read-only, built from `/api/world` and `/api/stakes` (`src/live/godcard.js`, `src/godinfo.js`).
+- **In the race.** Every nation still standing ranks, AI-led or not, by the reverence of the god it follows, and the #1 nation takes the jackpot. So an AI god can win it. The rule lives in one place, `rankNations` in `src/season.js`, and the standings table, the API's leader and `scripts/award-jackpot.mjs` all use it. North Pole is still the only nation led by a person, and its god is our own test account.
+- **Their cards.** Tap an AI god's name in a nation's panel, or the AI tag next to its nation in the standings. You get its card: the nations it sits on, the grace it put in, and what its stake is worth today against what it counts. Read-only, built from `/api/world` and `/api/stakes` (`src/live/godcard.js`, `src/godinfo.js`).
 - **Newcomers.** New AI gods arrive on their own. On average one every 2 hours for the first two days, then wider, up to one every 6 hours on average (a single gap can run longer), never two within 30 minutes, timed by seeded dice you can replay (`engine/arrivals.mjs`). Each takes a free name and chooses to found a nation (Claude names it) or bless one in need. It only blesses nations with no human god, since a blessing comes with a DAO seat. At 100 nations they only bless. The first, Tate, arrived on 13 November at 12:52 UTC and founded Tate's Reach.
 
 Claude's budget is capped at $3.50 a UTC day, half for the citizens and half for the AI gods. Citizens judge whispers and the gods plan on Haiku 5.5, drafts are written on Sonnet 5.5, and war councils sit on Opus 5.5. When a pot runs out, its calls wait until midnight UTC.
@@ -139,7 +139,7 @@ A god's seat in a nation can be sold, whole: the stake, the grant, the DAO seat,
 3. Within seconds the engine checks that payment on chain, checks the seller is still a god there and that the world owes them nothing from other nations, moves the seat with the contract's `move_god`, and pays the seller the full price.
 4. If the seller left, or someone bought it first, the buyer gets their NEAR back.
 
-Every AI god's seat is listed too, at its claim value plus a quarter and never under 0.5 NEAR, so a small seat asks well over a quarter more. It's re-priced when its claim value moves by more than a tenth. Buy one and you take that god's name and its believers. Once you're the nation's most revered god, it enters the season ranking.
+Every AI god's seat is listed too, at its claim value plus a quarter and never under 0.5 NEAR, so a small seat asks well over a quarter more. It's re-priced when its claim value moves by more than a tenth. Buy one and you take that god's name and its believers, and the nation keeps its place in the season ranking.
 
 The first version had a bug that only showed up on the real chain. The RPC answered "Internal server error" to a `move_god` that had in fact landed, and the code refunded a buyer who now held the seat. Now the chain decides: a move only counts as failed if the seller is still there 20 seconds later (`scripts/seats-chain-test.mjs`).
 
@@ -163,7 +163,7 @@ Babamako and Colo Colo were founded on turn 27 and their god claimed out the sam
 
 ## The Season of Cheer
 
-The game is in beta. Season one, the Season of Cheer, runs 11 November to 12 December and its field is energy: batteries, solar cells, carbon capture. Santa needs light too. North Pole is the season's demo nation, rising at the centre of the map with small citizens in red and white. The nine nations from before the season leave the ranking from 19 November and keep playing (`src/season.js`, display only). They're all AI-led now, so today that changes nothing. It matters if a person buys one of their seats: that nation still won't rank.
+The game is in beta. Season one, the Season of Cheer, runs 11 November to 12 December and its field is energy: batteries, solar cells, carbon capture. Santa needs light too. North Pole is the season's demo nation, rising at the centre of the map with small citizens in red and white. The nine nations from before the season stay in the ranking with everyone else.
 
 ## The sandbox
 

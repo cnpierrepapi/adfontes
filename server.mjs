@@ -19,7 +19,6 @@ import { acceptChoice } from "./engine/choices.mjs";
 import * as SE from "./engine/seats.mjs";
 import * as MS from "./engine/milestones.mjs";
 import { standings } from "./engine/reverence.mjs";
-import { inRanking } from "./src/season.js";
 import { sweepExpired, makeFileCache, hiddenPath } from "./src/server/memo.mjs";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
@@ -570,7 +569,7 @@ function makeApi(NET) {
         }
       }));
       rows.sort((a, b) => (b.pct ?? -1e9) - (a.pct ?? -1e9));
-      const top = standings(s, clans, new Set((await store.aiGods(NET).catch(() => [])).map((g) => g.account))).find((r) => inRanking(r)) ?? null; // AI-led nations don't rank (12 Nov) // the beta's first nine leave the ranking after the hackathon (src/season.js)
+      const top = standings(s, clans)[0] ?? null; // every nation still standing ranks, AI-led ones too (his call 16 Nov; src/season.js rankNations)
       return { day: s.day, net: NET, explorer: EXPLORER, florin_value: near(totals.florin_value), jackpot: near(totals.jackpot), jackpot_share: 14, leader: top ? { id: top.id, name: top.name, standing: Math.round(top.standing * 10) / 10 } : null, stakes: rows };
     });
   },
