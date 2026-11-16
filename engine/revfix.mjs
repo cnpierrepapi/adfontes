@@ -82,3 +82,24 @@ export function floorReverence(s, onchain, seed) {
   }
   return out;
 }
+
+// His call 16 Nov: reverence back to parity. One time only: every god holding a seat in a living, unfallen nation,
+// AI or not, stands at exactly 50, above it or below. Outside gods and fallen nations are untouched. Each nation
+// keeps the god it follows (all its gods are level now, so nothing else would decide it). Returns { [clan]: changes }.
+export const PARITY = 50;
+export function parityReverence(s, onchain) {
+  const out = {};
+  for (const c of [...onchain].sort((a, b) => a.id - b.id)) {
+    const rv = s.rev?.[c.id];
+    if (!c.alive || !rv || s.clans?.[c.id]?.fallen) continue;
+    const changes = [];
+    for (const g of c.gods || []) {
+      const me = rv.gods[g.account];
+      if (!me || me.outsider || me.r === PARITY) continue;
+      changes.push({ god: g.account, d: +(PARITY - me.r).toFixed(2), why: `reverence back to parity (16 Nov): from ${+me.r.toFixed(1)} to ${PARITY}` });
+      me.r = PARITY;
+    }
+    if (changes.length) out[c.id] = changes;
+  }
+  return out;
+}

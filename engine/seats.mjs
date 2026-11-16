@@ -193,6 +193,6 @@ export function aiListings({ clans, ai, open, stakeOf }) {
   }
   return out;
 }
-/** Does the buyer take the seller's name? Only from an AI god, and only a buyer with no seat anywhere else (a name is
- *  per account, so a god who already plays keeps theirs). */
-export const takesName = ({ seller, ai, seatsElsewhere }) => ai.has(seller) && !seatsElsewhere;
+/** Does the buyer take the seller's name? Only a person buying from an AI god, and only a buyer with no seat anywhere
+ *  else (a name is per account, so a god who already plays keeps theirs). An AI god buying (16 Nov) keeps its own. */
+export const takesName = ({ seller, buyer = null, ai, seatsElsewhere }) => ai.has(seller) && !(buyer && ai.has(buyer)) && !seatsElsewhere;

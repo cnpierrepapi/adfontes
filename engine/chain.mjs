@@ -9,7 +9,7 @@ import { NETWORKS } from "./config.mjs";
 import { connectSim } from "./chain-sim.mjs";
 import { gasTopUp } from "./market.mjs";
 import { reserveTopUp } from "./reserve.mjs";
-import { guard as aiGuard, godSeed, sendChecked } from "./aigods.mjs";
+import { guard as aiGuard, guardPay as aiGuardPay, godSeed, sendChecked } from "./aigods.mjs";
 import { returned } from "../src/live/calls.js";
 
 const YOCTO = 10n ** 24n;
@@ -202,8 +202,18 @@ export function connect(net) {
       for (let i = 0; i < 10; i++) { await new Promise((r) => setTimeout(r, 1500)); if (((await this.aiBalance(account).catch(() => 0)) ?? 0) >= min) break; }
       return send;
     },
-    /** Send an AI god's calls (src/live/calls.js shapes), in order. Every call passes the guard first: no
-     *  withdraw, no claim, no leaving, ever. A call with `bind` gets the id the one before it returned. */
+    /** An AI god pays for a listed seat (16 Nov): one plain transfer from its own account, to the escrow only
+     *  (aigods.guardPay). Returns { hash }. */
+    async aiPay(account, yocto) {
+      aiGuardPay(op.accountId, yocto, op.accountId);
+      const acct = new Account(account, provider, godKeyPair(opKey, world, account).toString());
+      const r = await acct.transfer({ receiverId: op.accountId, amount: BigInt(yocto) });
+      const hash = r?.transaction?.hash ?? r?.transaction_outcome?.id ?? null;
+      if (!hash) throw new Error("the payment went out with no transaction id");
+      return { hash };
+    },
+    /** Send an AI god's calls (src/live/calls.js shapes), in order. Every call passes the guard first (aigods.guard):
+     *  bless, withdraw (16 Nov) and one-power council motions only. A call with `bind` gets the id the one before it returned. */
     async aiSend(account, calls) {
       const acct = new Account(account, provider, godKeyPair(opKey, world, account).toString());
       let value = null, proposal = null; const hashes = []; // proposal: the motion's number (add_proposal's answer)

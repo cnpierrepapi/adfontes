@@ -15,6 +15,7 @@ import { clockAt, extendHours } from "./engine/clock.mjs";
 import { SPONSOR, nationsLeft, balanceOf, topUp, createNamed, fundFounding, PUBLIC_KEY } from "./engine/sponsor.mjs";
 import { chainDepth, deepestChain, merkleProof, rootFromLeaf, leafOf, sha256, FIELDS, pitchOf } from "./engine/world.mjs";
 import { canPitch } from "./engine/war.mjs";
+import * as CD from "./engine/cooldown.mjs";
 import { acceptChoice } from "./engine/choices.mjs";
 import * as SE from "./engine/seats.mjs";
 import * as MS from "./engine/milestones.mjs";
@@ -225,6 +226,8 @@ function makeApi(NET) {
               fallen: st.fallen ?? null,
               last_act_at: st.lastActAt ?? null, // when a god last acted here (src/live/status.js: neglected after 24 h)
               war: warInfo(s, c.id, burned),
+              // The cooldown (16 Nov, engine/cooldown.mjs): no war or god's fire on it until turn `until`.
+              cooldown: CD.shield(s, c.id, (s.day || 0) + 1),
               // What the nation holds: florins, and what they're worth in NEAR at today's florin value.
               florins: florins(c.florins), worth: +(florins(c.florins) * near(totals.florin_value)).toFixed(4),
               // What it can spend (11 Nov): less its gods' ring-fenced grant (granted NEAR at today's

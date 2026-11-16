@@ -14,6 +14,8 @@ import * as MK from "./market.mjs";
 import { NAMES } from "./godnames.mjs";
 import { pitchOf } from "./world.mjs";
 import { canPitch } from "./war.mjs";
+import * as CD from "./cooldown.mjs";
+import * as SE from "./seats.mjs";
 
 export const ALLOWANCE = 2; // NEAR an AI god may bless with in a UTC day (testnet NEAR from the sponsor pool)
 const TEMPERAMENTS = ["devout", "stern", "generous", "patient", "fiery", "playful", "watchful", "proud"];
@@ -28,13 +30,22 @@ export function paced({ now, blessed, whispers }) {
   return { allowance: Math.max(0, +(ALLOWANCE * frac - blessed).toFixed(4)), whisperRoom: Math.max(0, Math.ceil(A.WHISPERS_PER_DAY * frac) - whispers) };
 }
 
-/** Each AI god's situation, from the engine's state and the chain's nations. */
-export async function situations({ net, s, onchain, now = Date.now() }) {
+/** Each AI god's situation, from the engine's state and the chain's nations. chain (optional): its wallet balance. */
+export async function situations({ net, s, onchain, now = Date.now(), chain = null }) {
   const gods = await store.aiGods(net);
   const out = [];
+  // Seats for sale (16 Nov: AI gods can buy them too) and the nations under the cooldown (no fire on them).
+  const open = await store.seatsOpen(net).catch(() => []);
+  const day = (s.day || 0) + 1;
+  const shielded = onchain.filter((c) => c.alive && CD.shield(s, c.id, day)).map((c) => c.id);
   for (const g of gods) {
     const clans = onchain.filter((c) => c.alive && (c.gods || []).some((x) => x.account === g.account));
-    if (!clans.length) continue;
+    // A god with no seat left (it sold or withdrew) still plans: it may buy a seat.
+    const listings = open.filter((l) => l.seller !== g.account && !clans.some((c) => c.id === Number(l.clan)) && onchain.some((c) => c.id === Number(l.clan) && c.alive))
+      .map((l) => ({ id: Number(l.id), clan: Number(l.clan), nation: onchain.find((c) => c.id === Number(l.clan))?.name ?? `nation ${l.clan}`, price: SE.nearOf(l.price) }))
+      .sort((a, b) => a.price - b.price).slice(0, 6);
+    const wallet = chain ? await chain.aiBalance(g.account).catch(() => null) : null;
+    if (!clans.length && !listings.length) continue;
     const today = await store.aiActionsSince(net, g.account, dayStart(now));
     const blessed = today.filter((x) => x.action.kind === "bless" && !/^error/.test(x.result || "")).reduce((a, x) => a + (x.action.near || 0), 0);
     const nations = clans.map((c) => {
@@ -60,7 +71,7 @@ export async function situations({ net, s, onchain, now = Date.now() }) {
     const sellable = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] ? MK.sellable(s, c.id, florinRates(net)).slice(0, 4).map((x) => ({ token: x.token_id, title: String(x.title).slice(0, 60), fair: +x.price.toFixed(2) })) : []]));
     const pitch = Object.fromEntries(clans.map((c) => [c.id, s.clans[c.id] && canPitch(s, c.id) ? pitchOf(s.clans[c.id], `${s.day + 1}|${c.id}`) : []]));
     const whispersToday = today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length, pace = paced({ now, blessed, whispers: whispersToday });
-    out.push({ pitch, sellable, god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: pace.allowance, whisperRoom: pace.whisperRoom, locked: MS.progress(s, g.account, onchain, now).locked, clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
+    out.push({ pitch, sellable, listings, wallet, shielded, god: g.account, name: g.name, temperament: g.temperament || temperamentOf(g.name), allowance: pace.allowance, whisperRoom: pace.whisperRoom, locked: MS.progress(s, g.account, onchain, now).locked, clans: clans.map((c) => c.id), nations, reports, gifts, aogToday: today.filter((x) => x.action.kind === "fire").length, whispersToday: today.filter((x) => x.action.kind === "whisper" && !/^error/.test(x.result || "")).length });
   }
   return out;
 }
@@ -84,12 +95,13 @@ export async function discoverAiGods({ net, chain, store: st = store }) {
 }
 
 /** Plan the next span for every AI god and queue it. Quiet (no plan, no error) when the gods' pot is spent. */
-export async function planGods({ net, s, onchain, chain = null, start = Date.now(), span = 2 * 3600e3, seed = String(start) }) {
+export async function planGods({ net, s, onchain, chain = null, start = Date.now(), span = 2 * 3600e3, seed = String(start), log = () => {} }) {
   if (chain) await discoverAiGods({ net, chain });
-  const sits = await situations({ net, s, onchain, now: start });
+  const sits = await situations({ net, s, onchain, now: start, chain });
   if (!sits.length) return { gods: 0, actions: 0, why: "no AI gods" };
-  if (!canSpend("god")) return { gods: sits.length, actions: 0, why: `the AI gods' $${CFG.godsCapUsd} for today is spent` };
-  const plans = await godsPlan(sits, A.fakePlan);
+  // A few gods per call (16 Nov, aigods.planInBatches); a failed call, or a spent pot, gets the stand-in plan.
+  const spent = !canSpend("god");
+  const { plans, failed } = await A.planInBatches(sits, (batch) => (spent || !canSpend("god") ? Promise.reject(new Error(`the AI gods' $${CFG.godsCapUsd} for today is spent`)) : godsPlan(batch, A.fakePlan)), { log });
   const all = [];
   for (const sit of sits) for (const a of A.withPassedGifts(A.validatePlan(plans[sit.god] || [], sit), sit)) {
     // A pitch pick is free and decided now: stored as the god's choice for the next turn, not queued or sent on chain.
@@ -102,13 +114,14 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
   }
   const timed = A.schedule(all, start, span, seed);
   await store.queueAiActions(net, timed);
-  return { gods: sits.length, actions: timed.length };
+  return { gods: sits.length, actions: timed.length, why: failed.length ? `${failed.length} batch${failed.length === 1 ? "" : "es"} on the stand-in plan${spent ? " (pot spent)" : ""}` : "" };
 }
 
 /** The calls one action sends (exactly the god panel's, src/live/calls.js). */
 export async function callsFor(chain, a, clan) {
   const world = chain.world;
   if (a.kind === "bless") return [C.bless(world, a.clan, yocto(a.near))];
+  if (a.kind === "withdraw") return [C.withdraw(world, a.clan)]; // 16 Nov: its whole stake out, as the god panel's Claim
   const policy = await chain.dao(clan.dao, "get_policy");
   const bond = BigInt(policy.proposal_bond);
   const say = { whisper: `AD FONTES: whisper to ${clan.name}: "${a.text}"`, smite: `AD FONTES: ${a.verdict === "Kill" ? "kill" : "stunt"} ${a.agent} of ${clan.name}`, rule: `AD FONTES: reward gift #${a.gift}`, fire: `AD FONTES: an Act of God. ${clan.name}'s gods rain fire on nation ${a.target}` }[a.kind];
@@ -133,6 +146,23 @@ export async function runDue({ net, chain, now = Date.now(), limit = 2, log = ()
     if (!(await store.claimAiAction(row.id))) continue;
     const a = { ...row.action, god: row.god };
     let result;
+    // Buying a listed seat (16 Nov): the god pays the escrow from its own wallet and hands the loop the payment, exactly
+    // as the seats page does for a person (engine/seats.mjs settleBuy moves the seat and pays the seller, or refunds).
+    if (a.kind === "buy") {
+      try {
+        const l = await store.seatGet(net, a.listing);
+        if (!l || l.status !== "open") throw new Error("that seat isn't for sale any more");
+        if (!onchain.some((c) => c.id === Number(l.clan) && c.alive)) throw new Error("that nation has fallen");
+        const need = SE.nearOf(l.price) + A.SEAT_RESERVE, have = await chain.aiBalance(row.god);
+        if (!(have >= need)) throw new Error(`not enough grace in its wallet (${have} of ${need})`);
+        const p = await chain.aiPay(row.god, l.price);
+        if (!(await store.seatBuy(net, { tx: p.hash, listing: Number(l.id), buyer: row.god, amount: l.price }))) throw new Error("that payment was already used");
+        result = `ok ${p.hash}`;
+      } catch (e) { result = `error: ${String(e.message || e).slice(0, 200)}`; }
+      await store.finishAiAction(row.id, result);
+      log(`  AI god ${row.god.split(".")[0]} buy on ${a.clan} (listing ${a.listing}): ${result}`);
+      continue; // the loop settles the buy within seconds and gives that nation its turn
+    }
     try {
       const clan = onchain.find((c) => c.id === a.clan && c.alive);
       if (!clan || !(clan.gods || []).some((g) => g.account === row.god)) throw new Error("no longer its god");

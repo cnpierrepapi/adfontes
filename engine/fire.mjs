@@ -48,11 +48,13 @@ export function damage(florins, target, walls = 0) {
 }
 
 /** Can this god call fire on that nation now? { ok } or { ok: false, why }. */
-export function mayCast({ last = 0, now = Date.now(), caster, target, standing, atWar = [] }) {
+export function mayCast({ last = 0, now = Date.now(), caster, target, standing, atWar = [], shield = null }) {
   if (!AOG.on) return { ok: false, why: "Acts of God are switched off" };
   if (target === caster) return { ok: false, why: "a god can't call fire on their own nation" };
   if (!standing.includes(target)) return { ok: false, why: "that nation isn't standing" };
   if (atWar.includes(target)) return { ok: false, why: "that nation is at war, and the heavens don't strike a nation already fighting" };
+  // The cooldown (his call 16 Nov, engine/cooldown.mjs): shield = cooldown.shield() for the target this turn.
+  if (shield) return { ok: false, why: `that nation ${shield.why} and is protected for ${shield.left} more turn${shield.left === 1 ? "" : "s"} (until turn ${shield.until})` };
   if (now - last < AOG.godEveryMs) return { ok: false, why: "this god already called fire in the last 24 hours" };
   return { ok: true };
 }

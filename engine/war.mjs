@@ -13,6 +13,7 @@
 // - An island down to its root falls: the winner takes 50% of its florins (the rest stays claimable
 //   by its gods), its knowledge, and two refugees.
 import { createHash } from "node:crypto";
+import * as CD from "./cooldown.mjs";
 
 export const WAR = {
   councilEveryMs: 24 * 3600e3, // one council a real day per nation
@@ -108,7 +109,7 @@ export function burnEdge(c, n) {
 }
 
 /** Check a council's choice against the rules. Returns { ok, why } (why = the rule it broke). */
-export function allowed(s, id, move, florins = {}, now = Date.now()) {
+export function allowed(s, id, move, florins = {}, now = Date.now(), day = (s.day || 0) + 1) {
   const w = warOf(s, id);
   if (!eligible(s, id)) return { ok: false, why: "not fair game yet (no passed patent)" };
   if (move.action === "declare") {
@@ -116,6 +117,9 @@ export function allowed(s, id, move, florins = {}, now = Date.now()) {
     if (w) return { ok: false, why: "already at war" };
     if (t === id || !eligible(s, t)) return { ok: false, why: "that nation can't be attacked" };
     if (warOf(s, t)) return { ok: false, why: "that nation is already at war" };
+    // The cooldown (his call 16 Nov, engine/cooldown.mjs): out of a war or under fire in the last 21 turns.
+    const sh = CD.shield(s, t, day);
+    if (sh) return { ok: false, why: CD.refusal("that nation", sh) };
     const last = (s.peace || {})[pairKey(id, t)];
     if (last && now - last < WAR.peaceCooldownMs) return { ok: false, why: "peace with them is still fresh" };
     if (!((florins[id] || 0) > 1)) return { ok: false, why: "no money for a war chest" };

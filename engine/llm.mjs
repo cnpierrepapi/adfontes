@@ -315,7 +315,7 @@ export function warCouncil({ me, rivals, war, temperament }) {
     if (prey && me.hp > prey.hp) return Promise.resolve({ action: "declare", target: prey.id, reason: `${prey.name} is weaker than us.` });
     return Promise.resolve({ action: "hold", target: 0, reason: "Not yet." });
   }
-  const line = (r) => `[${r.id}] ${r.name} (${r.field}): island ${r.hp} points, ${r.techs} techs, ${r.florins} florins, walls ${r.walls}${r.atWar ? ", at war" : ""}${r.fairGame ? "" : ", protected (no patent yet)"}; trades with us: we bought ${r.weBought}, they bought ${r.theyBought}`;
+  const line = (r) => `[${r.id}] ${r.name} (${r.field}): island ${r.hp} points, ${r.techs} techs, ${r.florins} florins, walls ${r.walls}${r.atWar ? ", at war" : ""}${r.fairGame ? "" : ", protected (no patent yet)"}${r.cooldown ? `, protected for ${r.cooldown} more turns (just out of a war or an Act of God)` : ""}; trades with us: we bought ${r.weBought}, they bought ${r.theyBought}`;
   const now = war
     ? `You are at war with nation ${war.enemy} (round ${war.rounds}). Your island: ${me.hp} points; theirs: ${war.enemyHp}. ${war.offerFromThem ? "They have offered peace." : war.offerFromUs ? "You offered peace; they haven't accepted." : ""}`
     : "You are at peace.";
@@ -392,7 +392,7 @@ const GODS_PLAN = {
             items: {
               type: "object", additionalProperties: false, required: ["kind", "clan"],
               properties: {
-                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire", "pitch", "ask", "list"] }, point: { type: "string" },
+                kind: { type: "string", enum: ["whisper", "bless", "smite", "rule", "fire", "pitch", "ask", "list", "buy", "withdraw"] }, point: { type: "string" }, listing: { type: "integer" },
                 tokens: { type: "array", items: { type: "string" } },
                 clan: { type: "integer" }, text: { type: "string" }, near: { type: "number" },
                 report: { type: "string" }, verdict: { type: "string", enum: ["Stunt", "Kill"] }, gift: { type: "integer" }, target: { type: "integer" },
@@ -404,22 +404,25 @@ const GODS_PLAN = {
     },
   },
 };
-/** Plans the next two hours for every AI god at once. sits = [{ god, name, temperament, allowance, clans,
+/** Plans the next two hours for a batch of AI gods (16 Nov: a few per call, aigods.planInBatches). sits = [{ god, name,
+ *  temperament, allowance, wallet, listings, shielded, clans,
  *  nations: [{ id, name, standing, myReverence, tricksters, mood, war, florins }], reports, gifts, aogToday }].
  *  Returns { [god]: actions[] } (checked afterwards by aigods.validatePlan). */
 export async function godsPlan(sits, fake, model = CFG.godModel) {
   if (FAKE) return Object.fromEntries(sits.map((s) => [s.god, fake(s)]));
   const lines = sits.map((s) => [
-    `GOD ${s.god} (${s.name}; temperament ${s.temperament}; may bless up to ${s.allowance.toFixed(2)} today; Acts of God left today: ${s.aogToday ? 0 : 1})`,
+    `GOD ${s.god} (${s.name}; temperament ${s.temperament}; may bless up to ${s.allowance.toFixed(2)} today; ${s.wallet != null ? `${(+s.wallet).toFixed(2)} grace in its own wallet; ` : ""}Acts of God left today: ${s.aogToday ? 0 : 1})${s.nations.length ? "" : "; it holds no seat right now"}`,
     ...s.nations.map((n) => `  nation ${n.id} "${n.name}": standing ${n.standing}/100; your reverence ${n.myReverence}; ${n.mood === "hungry" ? `HUNGRY (needs ${n.need} NEAR a day, got ${n.fed24h} in the last day)` : `fed (${n.mood})`}; ${n.tricksters ? `${n.tricksters} Trickster(s) among them` : "no Tricksters"}; ${n.war ? `AT WAR with ${n.war}` : "at peace"}; ${Math.round(n.florins)} florins; its scholars are working on: ${(n.looking || []).join(", ") || "nothing new"}; next turn they could study (pitch): ${(s.pitch?.[n.id] || []).join(" | ") || "nothing"}`),
     ...Object.entries(s.reports || {}).flatMap(([c, rs]) => rs.map((r) => `  report ${r.id} in nation ${c}: ${r.claim}; ${r.answer ? (r.answer.silent ? "the accused can't answer (dead or stunted)" : `the accused answered: "${r.answer.says}"`) : r.asked ? "asked, waiting for the answer" : "not asked yet"}`)),
     ...Object.entries(s.gifts || {}).flatMap(([c, gs]) => gs.map((g) => `  gift ${g.id} in nation ${c} waits for a ruling (warden ${g.warden_passed ? "passed" : "failed"} it)`)),
     ...Object.entries(s.sellable || {}).filter(([, xs]) => xs.length).map(([c, xs]) => `  nation ${c} could sell: ${xs.map((x) => `${x.token} "${x.title}" (fair ${x.fair})`).join("; ")}`),
+    ...(s.listings || []).map((l) => `  seat for sale: listing ${l.id}, a seat in nation ${l.clan} "${l.nation}" for ${l.price} grace`),
+    ...((s.shielded || []).length ? [`  protected from fire right now (cooldown): nations ${s.shielded.join(", ")}`] : []),
   ].join("\n")).join("\n\n");
   const r = await json(
     model,
     "You play the AI gods of AD FONTES, a world of small nations whose citizens read real research. Each god's job is to win and keep its nations' faith. " +
-      "Return an entry for EVERY god listed, using its account exactly as written after GOD, with 5 to 8 actions for the next two hours, the god's lowest-standing nation first. Mix the kinds. " +
+      "Return an entry for EVERY god listed, using its account exactly as written after GOD, with 2 to 4 actions for the next two hours, the god's lowest-standing nation first. Mix the kinds. Keep it short." +
       "The kinds:\n" +
       "- whisper (at most 2 per god): one or two sentences to one of its nations. The citizens judge the words against that nation's line: they land when they name what is true there right now " +
       "(its hunger only if it says HUNGRY, its Tricksters only if it has some, its war and walls only if AT WAR, and the topics its scholars are working on) and give one concrete next step. " +
@@ -429,13 +432,15 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
       "- rule: reward a waiting gift by its number. Only gifts listed.\n" +
       "- ask: ask the accused of a report that is 'not asked yet' to answer, by the report's id. Always the first step on a report. Free.\n" +
       "- smite: a reported citizen, by the report's id, only once the accused has answered (or can't). Judge their answer: a guilty one may lie. Stunt unless the claim is strong. Only reports listed.\n" +
-      "- fire: at most one a day per god, on another nation that hoards florins or bullies in war. Never its own.\n" +
+      "- fire: at most one a day per god, on another nation that hoards florins or bullies in war. Never its own, never one marked protected.\n" +
       "- list: whisper to a nation's Broker to put 1 to 3 of the things it could sell on the market (tokens, word for word). The Broker listens more the more it reveres you; a sale above fair raises your reverence a little. At most one a nation.\n" +
       "- pitch: pick what a nation's Scholars study next turn, one point from its pitch list, word for word. Free; one per nation.\n" +
+      "- buy: buy a seat listed for sale, by its listing number, paid from the god's own wallet (keep 0.3 grace back). The seat comes whole: its stake, its council vote and its reverence. Only where the god could do good; at most one a turn.\n" +
+      "- withdraw: take the god's whole stake out of one of its nations. The god leaves it for good, and a nation whose last god leaves is gone. Only when that nation is lost to the god (its reverence there under 10) or other gods there can carry it.\n" +
       "Write every whisper in the god's own voice, matching its temperament.",
     `Your gods and their nations now:\n\n${lines}`,
     GODS_PLAN,
-    3000,
+    6000, // room for a batch of gods and the model's thinking (3000 for 40 gods at once kept cutting off, 16 Nov)
     false,
     "god",
   );

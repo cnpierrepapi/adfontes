@@ -2,14 +2,15 @@
 // own key (derived from the operator key, engine/aigods-chain), acting only through the calls a player's god
 // panel sends (src/live/calls.js). Claude (Sonnet, the gods' own $0.25 pot) decides WHAT; this file decides
 // what is ALLOWED, checks the plan, and spreads the actions over the 2 hours to the next turn.
-// His rules: they work to recover the nations that fell away; they can never take their stake out (no
-// withdraw, no claims, no leaving), so a nation under AI gods only ends by falling in war.
-// Tested in engine/test-aigods.mjs.
+// His rules: they work to recover the nations that fell away. Since 16 Nov they can do what a player's god can:
+// take their whole stake out (withdraw: they leave that nation, and a nation whose last god leaves ends) and buy a
+// seat someone has listed (a plain payment to the escrow, nothing else). Anything else still can't be signed.
+// Tested in engine/test-aigods.mjs and engine/test-16nov.mjs.
 import { createHash } from "node:crypto";
 import { NETWORKS } from "./config.mjs";
 
 // ---- the guard: every call an AI god signs passes through here first ----
-const WORLD_METHODS = new Set(["bless"]); // the only world call: putting NEAR IN
+const WORLD_METHODS = new Set(["bless", "withdraw"]); // putting NEAR in, and (16 Nov) taking its whole stake out
 const POWER_METHODS = new Set(["whisper", "smite", "rule", "root_out"]); // council motions it may raise
 const isDao = (acct) => /\.sputnikv2\.testnet$|\.sputnik-dao\.near$/.test(String(acct));
 const b64json = (s) => { try { return JSON.parse(Buffer.from(String(s), "base64").toString()); } catch { return null; } };
@@ -36,6 +37,15 @@ export function guard(call, world = NETWORKS.testnet.world) {
   return true;
 }
 
+/** A plain payment an AI god may make (16 Nov): only to the escrow (buying a listed seat), only a positive amount
+ *  no bigger than the most a seat can ask. Throws otherwise. */
+export function guardPay(to, yocto, escrow) {
+  if (!escrow || to !== escrow) throw new Error(`not allowed for an AI god: a payment to ${to}`);
+  const y = BigInt(yocto ?? 0);
+  if (y <= 0n || y > 10000n * 10n ** 24n) throw new Error("not allowed for an AI god: that amount");
+  return true;
+}
+
 // ---- judging a co-god's motion (his call 13 Nov) ----
 // A nation can hold AI gods and other gods at once (a human bought one AI seat, or blessed in). A motion there needs a
 // majority, so an AI god reads each one a co-god raises and votes yes or no. The rule, plain: it backs anything that
@@ -56,7 +66,8 @@ export function judgeMotion({ motion, world }) {
 export const motionsToJudge = (proposals, me, ai) => proposals.filter((p) => p.status === "InProgress" && !ai.has(p.proposer) && !(p.votes && me in p.votes));
 
 // ---- checking Claude's plan ----
-const KINDS = new Set(["whisper", "bless", "smite", "rule", "fire", "pitch", "ask", "list"]);
+const KINDS = new Set(["whisper", "bless", "smite", "rule", "fire", "pitch", "ask", "list", "withdraw"]); // "buy" is checked on its own (its nation isn't one of the god's)
+export const SEAT_RESERVE = 0.3; // grace an AI god keeps after buying a seat, for its motions' bonds and gas
 export const MAX_ACTIONS = 10; // per god per turn
 export const MIN_BLESS = 0.1; // under 0.1 a blessing moves nobody (reverence rules, 9 Nov)
 // Each whisper costs a Claude call when the citizens judge it: 2 a turn, 8 a UTC day per god (12 Nov).
@@ -69,9 +80,19 @@ export function validatePlan(plan, sit) {
   let whispers = 0, whisperRoom = sit.whisperRoom != null ? Math.max(0, Number(sit.whisperRoom)) : Math.max(0, WHISPERS_PER_DAY - (Number(sit.whispersToday) || 0)); // paced over the day (aiact.paced)
   const locked = new Set(sit.locked || []); // powers its milestones haven't opened (engine/milestones.mjs)
   const POWER = { rule: "rule", smite: "smite", fire: "fire", list: "list" };
+  let wallet = Math.max(0, Number(sit.wallet) || 0);
   for (const a of Array.isArray(plan) ? plan : []) {
     if (out.length >= MAX_ACTIONS) break;
+    // Buying a seat (16 Nov): only a listing it was shown (never in a nation it already sits in), one a turn, paid
+    // from its own wallet with SEAT_RESERVE left over for its motions.
+    if (a?.kind === "buy") {
+      const l = (sit.listings || []).find((x) => Number(x.id) === Number(a.listing));
+      if (l && !sit.clans.includes(Number(l.clan)) && !out.some((x) => x.kind === "buy") && l.price + SEAT_RESERVE <= wallet) { out.push({ kind: "buy", clan: Number(l.clan), listing: Number(l.id), price: l.price }); wallet -= l.price; }
+      continue;
+    }
     if (!a || !KINDS.has(a.kind) || !sit.clans.includes(Number(a.clan))) continue;
+    // Taking its whole stake out of a nation (16 Nov): at most one a turn.
+    if (a.kind === "withdraw") { if (!out.some((x) => x.kind === "withdraw")) out.push({ kind: "withdraw", clan: Number(a.clan) }); continue; }
     if (POWER[a.kind] && locked.has(POWER[a.kind])) continue;
     const clan = Number(a.clan);
     if (a.kind === "whisper") {
@@ -100,10 +121,33 @@ export function validatePlan(plan, sit) {
       if ((sit.pitch?.[clan] || []).includes(a.point) && !out.some((x) => x.kind === "pitch" && x.clan === clan)) out.push({ kind: "pitch", clan, point: a.point });
     } else if (a.kind === "fire") {
       const target = Number(a.target);
-      if (fires < 1 && Number.isInteger(target) && !sit.clans.includes(target)) { out.push({ kind: "fire", clan, target }); fires++; }
+      // Never on a nation under the cooldown (16 Nov, engine/cooldown.mjs): sit.shielded lists them.
+      if (fires < 1 && Number.isInteger(target) && !sit.clans.includes(target) && !(sit.shielded || []).includes(target)) { out.push({ kind: "fire", clan, target }); fires++; }
     }
   }
-  return out;
+  // A god leaving a nation does nothing else there this turn.
+  const gone = out.find((x) => x.kind === "withdraw")?.clan;
+  return gone == null ? out : out.filter((x) => x.clan !== gone || x.kind === "withdraw");
+}
+
+// ---- planning in batches (16 Nov) ----
+// One Claude call for every AI god at once failed as the gods grew past 30: a cut-off answer about one turn in three,
+// and the answers that parsed planned a handful of actions for 40 gods. Now the gods are planned a few at a time;
+// a batch whose call fails gets the stand-in plan (fakePlan) instead, so no god is ever left without a plan.
+export const PLAN_BATCH = 6;
+/** plan(batch) -> { [god]: actions }. Returns { plans, failed: [errors] }; never throws. */
+export async function planInBatches(sits, plan, { size = PLAN_BATCH, fallback = fakePlan, log = () => {} } = {}) {
+  const plans = {}, failed = [];
+  for (let i = 0; i < sits.length; i += size) {
+    const batch = sits.slice(i, i + size);
+    let got = null;
+    try { got = await plan(batch); } catch (e) { failed.push(String(e.message || e).slice(0, 160)); log(`  AI gods: batch ${i / size + 1} failed (${failed.at(-1)}); the stand-in plan covers it`); }
+    for (const sit of batch) {
+      const mine = got?.[sit.god];
+      plans[sit.god] = Array.isArray(mine) && mine.length ? mine : fallback(sit);
+    }
+  }
+  return { plans, failed };
 }
 
 // ---- the trickle: spread over the 2 hours to the next turn ----

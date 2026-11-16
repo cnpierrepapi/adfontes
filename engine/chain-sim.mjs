@@ -80,6 +80,13 @@ export function connectSim(file) {
           const y = BigInt(c.deposit);
           g.put_in = (BigInt(g.put_in) + y).toString(); cl.total_in = (BigInt(cl.total_in || 0) + y).toString();
           S.aiBal ||= {}; S.aiBal[account] = +((S.aiBal[account] ?? 1) - Number(y / 10n ** 18n) / 1e6).toFixed(6);
+        } else if (c.method === "withdraw") {
+          // 16 Nov: an AI god takes its whole stake out, as on chain: it leaves; a nation with no god left ends.
+          const cl = clan(c.args.clan_id), g = cl.gods.find((x) => x.account === account);
+          if (!g) throw new Error("Not a god of this clan");
+          cl.gods = cl.gods.filter((x) => x !== g);
+          if (!cl.gods.length) cl.alive = false;
+          S.aiBal ||= {}; S.aiBal[account] = +((S.aiBal[account] ?? 1) + Number(BigInt(g.put_in) / 10n ** 18n) / 1e6).toFixed(6);
         } else if (c.method === "add_proposal") {
           const list = ((S.daos ||= {})[c.receiver] ||= []);
           last = list.length;
@@ -89,6 +96,8 @@ export function connectSim(file) {
       save();
       return { ...tx(last), proposal: last, signer: account };
     },
+    // 16 Nov: an AI god pays the escrow for a listed seat (the copy has no seat market to settle it; the payment shows).
+    aiPay: async (account, yocto) => { S.aiBal ||= {}; S.aiBal[account] = +((S.aiBal[account] ?? 1) - Number(BigInt(yocto) / 10n ** 18n) / 1e6).toFixed(6); save(); return { hash: tx().hash ?? `simpay${Date.now()}` }; },
     tick: async (day) => { S.config.day = day; save(); return tx(); },
     spawn: async (id, name, role) => { (S.agents[id] ||= []).push({ name, role, clan_id: Number(id), alive: true, stunted_until: 0, born_day: S.config.day }); save(); return tx(); },
     // A god's stake as the copy was taken (scripts/sim-seed.mjs): its granted NEAR keeps the ring-fence.

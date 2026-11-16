@@ -15,7 +15,8 @@ import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhispe
 import * as RV from "./reverence.mjs";
 // Whispers to re-hear once (9 Nov, see the per-nation reverence step): nation id -> DAO proposal id.
 const REHEAR_9NOV = { 2: 17, 3: 4, 6: 4 };
-import { overpaid, floorReverence } from "./revfix.mjs";
+import { overpaid, floorReverence, parityReverence } from "./revfix.mjs";
+import * as CD from "./cooldown.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
 import { newName } from "./names.mjs";
@@ -88,7 +89,7 @@ onSpend((usd, pot) => store.addSpend(pot === "gods" ? `${today}|gods` : today, u
 // the state isn't saved (the loop asks for this when it finds new AI gods, rather than waiting for the turn).
 const PLAN_ONLY = process.argv.includes("--plan-only");
 if (PLAN_ONLY) {
-  try { const p = await planGods({ net, s, onchain: await chain.clans(), chain }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
+  try { const p = await planGods({ net, s, onchain: await chain.clans(), chain, log: (m) => console.log(m) }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
   catch (e) { console.log(`  AI gods: no plan: ${String(e.message || e).slice(0, 200)}`); }
   await store.close();
   process.exit(0);
@@ -184,6 +185,19 @@ for (let n = 0; n < days; n++) {
     for (const [cid, changes] of Object.entries(raised)) log({ kind: "correction", clan: Number(cid), changes, why: "A one-time lift (12 Nov): every god with a seat starts from at least 35, so the nations can be won back." });
     s.fixes = { ...(s.fixes || {}), revFloor12Nov: Date.now() };
   }
+  // Reverence back to parity (his call 16 Nov, engine/revfix.mjs): every seated god, AI or not, stands at 50, once.
+  if (net === "testnet" && !process.env.ADF_SIM_CHAIN && !s.fixes?.revParity16Nov && s.rev) {
+    const reset = parityReverence(s, await chain.clans());
+    for (const [cid, changes] of Object.entries(reset)) log({ kind: "correction", clan: Number(cid), changes, why: "A one-time reset (16 Nov): every god with a seat stands at 50 reverence, level with the rest." });
+    s.fixes = { ...(s.fixes || {}), revParity16Nov: Date.now() };
+  }
+  // The cooldown (his call 16 Nov, engine/cooldown.mjs) counts fire from the turn it lands. The first run with it reads
+  // the last 21 sealed turns once for fire that already fell.
+  if (!(s.fire ||= {}).landed) {
+    const days = [];
+    for (let d = Math.max(1, day - CD.COOLDOWN.turns); d < day; d++) { const got = await store.getDay(net, d).catch(() => null); if (got) days.push({ day: d, records: got.records || [] }); }
+    s.fire.landed = CD.firesFrom(days);
+  }
   // Seat trading (PLAN_13NOV step 4, engine/seats.mjs): sales the loop settled are sealed here, before this turn
   // reads any reverence or decides which nations are AI-led. Everything goes with the seat: the buyer takes the seller's
   // reverence and, buying an AI god's seat (his ask 13 Nov), that god's name and its place in the season rankings.
@@ -198,9 +212,11 @@ for (let n = 0; n < days; n++) {
         if (aiBefore.has(l.seller)) {
           const elsewhere = (await chain.clans()).filter((c) => c.id !== l.clan && (c.gods || []).some((g) => g.account === b.buyer)).length;
           const name = (await store.godNames([l.seller]).catch(() => ({})))[l.seller] ?? null;
-          if (SE.takesName({ seller: l.seller, ai: aiBefore, seatsElsewhere: elsewhere })) { await store.moveGodName(l.seller, b.buyer); r.as = name; }
-          await store.removeAiGod(net, l.seller);
+          // A person who takes the name takes the god's place: that AI is let go. Otherwise (an AI god bought it, 16 Nov,
+          // or the buyer keeps their own name) the seller stays an AI god: it may hold other seats, or buy one back.
+          if (SE.takesName({ seller: l.seller, buyer: b.buyer, ai: aiBefore, seatsElsewhere: elsewhere })) { await store.moveGodName(l.seller, b.buyer); r.as = name; await store.removeAiGod(net, l.seller); }
           r.from_ai = name;
+          if (aiBefore.has(b.buyer)) r.by_ai = (await store.godNames([b.buyer]).catch(() => ({})))[b.buyer] ?? null;
         }
       }
       log(r);
@@ -1058,7 +1074,7 @@ for (let n = 0; n < days; n++) {
     const standing = chainNow.filter((x) => x.alive && s.clans[x.id] && !s.clans[x.id].fallen);
     const seed = s.roots[day - 1] ?? s.roots[Math.max(0, ...Object.keys(s.roots).map(Number))] ?? "genesis";
     const bought = (buyer, seller) => Object.values(s.clans[buyer]?.owned || {}).filter((v) => v.how === `bought from clan ${seller}`).length;
-    const view = (x) => ({ id: x.id, name: x.name, field: s.clans[x.id].field, hp: WR.hp(s.clans[x.id]), techs: s.clans[x.id].techs?.length || 0, florins: +(fl[x.id] || 0).toFixed(1), walls: +(s.clans[x.id].walls || 0).toFixed(1) });
+    const view = (x) => ({ id: x.id, name: x.name, field: s.clans[x.id].field, hp: WR.hp(s.clans[x.id]), techs: s.clans[x.id].techs?.length || 0, florins: +(fl[x.id] || 0).toFixed(1), walls: +(s.clans[x.id].walls || 0).toFixed(1), cooldown: CD.shield(s, x.id, day)?.left || 0 });
 
     // 1. War councils: once a real day for every nation that's fair game.
     for (const x of standing) {
@@ -1072,7 +1088,7 @@ for (let n = 0; n < days; n++) {
         move = await warCouncil({ me: view(x), rivals, temperament: c.mbti, war: w && { enemy, rounds: w.rounds || 0, enemyHp: WR.hp(s.clans[enemy]), offerFromThem: w.offer && w.offer.by !== x.id, offerFromUs: w.offer?.by === x.id } });
       } catch (e) { log({ kind: "error", clan: x.id, error: `war council: ${String(e.message || e).slice(0, 160)}` }); continue; }
       const reason = String(move.reason || "").slice(0, 200);
-      const rule = WR.allowed(s, x.id, move, fl, now);
+      const rule = WR.allowed(s, x.id, move, fl, now, day);
       if (!rule.ok) { log({ kind: "council", clan: x.id, action: move.action, target: move.target || null, reason, refused: rule.why }); continue; }
       if (move.action === "declare") {
         const id = `w${s.nextId++}`, t = Number(move.target);
@@ -1087,6 +1103,7 @@ for (let n = 0; n < days; n++) {
               const r = await chain.burn(x.id, dmg.florins, `act of god: bully, war on ${nameOf(t)}`.slice(0, 200));
               const burned = r?.value != null ? toFlorins(r.value) : dmg.florins;
               fl[x.id] = Math.max(0, (fl[x.id] || 0) - burned);
+              ((s.fire ||= {}).landed ||= {})[x.id] = day; // the cooldown (engine/cooldown.mjs)
               log({ kind: "fire", clan: x.id, cause: "bully", why: `${nameOf(x.id)} declared war on ${nameOf(t)}, a nation with a third of its florins or less`, against: t, ...dmg, florins: +burned.toFixed(4), tx: r?.hash ?? null, signer: "operator" });
             }
           } catch (e) { log({ kind: "error", clan: x.id, error: `act of god (bully): ${String(e.message || e).slice(0, 160)}` }); }
@@ -1230,13 +1247,14 @@ for (let n = 0; n < days; n++) {
       const burned = r?.value != null ? toFlorins(r.value) : dmg.florins;
       fl[target] = Math.max(0, (fl[target] || 0) - burned);
       hit.add(target);
+      (s.fire.landed ||= {})[target] = day; // the cooldown starts (engine/cooldown.mjs)
       return { ...dmg, florins: +burned.toFixed(4), tx: r?.hash ?? null };
     };
     for (const q of queue) {
       // Act of God waits behind Ascendant (PLAN_13NOV §6): the council may pass it, the heavens don't answer.
       if (!MS.has(s, q.god, "fire")) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: "its god hasn't reached Ascendant yet (70 reverence held a full day, in a nation with 2 techs)" }); continue; }
       const last = (s.fire.last ||= {})[q.god] || 0;
-      const ok = FIRE.mayCast({ last, caster: q.caster, target: q.target, standing: standing.map((x) => x.id), atWar });
+      const ok = FIRE.mayCast({ last, caster: q.caster, target: q.target, standing: standing.map((x) => x.id), atWar, shield: CD.shield(s, q.target, day) });
       if (!ok.ok || hit.has(q.target)) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: ok.ok ? "that nation is already burning this turn" : ok.why }); continue; }
       const f = await burnFire(q.target, `act of god: fire called by the gods of ${nameOf(q.caster)}`);
       if (!f) { log({ kind: "fire-refused", clan: q.caster, by: q.god, target: q.target, why: "that nation has nothing left to burn" }); continue; }
@@ -1305,7 +1323,7 @@ for (let n = 0; n < days; n++) {
 // AI gods (12 Nov, engine/aiact.mjs): after a scheduled turn is sealed, plan their next two hours. A failed
 // plan is logged and the gods sit quiet until the next turn; it never touches the sealed turn.
 if (!INSTANT) {
-  try { const p = await planGods({ net, s, onchain: await chain.clans(), chain }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
+  try { const p = await planGods({ net, s, onchain: await chain.clans(), chain, log: (m) => console.log(m) }); console.log(`  AI gods: ${p.actions} actions planned for ${p.gods} gods${p.why ? ` (${p.why})` : ""}`); }
   catch (e) { console.log(`  AI gods: no plan this turn: ${String(e.message || e).slice(0, 200)}`); }
 }
 

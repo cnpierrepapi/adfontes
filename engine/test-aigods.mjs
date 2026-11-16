@@ -12,8 +12,10 @@ const W = "w6.adf-pool1-hf0w8.testnet", DAO = "adf-helios-1.sputnikv2.testnet";
 const power = (m, a) => C.daoPower(W, DAO, 10n ** 22n, m, a, "AD FONTES: test");
 ok(!throws(() => A.guard(C.bless(W, 1, 10n ** 23n))), "bless passes the guard");
 ok(["whisper", "smite", "rule", "root_out"].every((m) => power(m, { clan_id: 1 }).every((c) => !throws(() => A.guard(c.bind ? c.bind(7) : c)))), "whisper, smite, rule and root_out motions (and their yes votes) pass");
-for (const [label, call] of [["withdraw", C.withdraw(W, 1)], ["claim_owed", C.claimOwed(W)], ["found_clan", C.found(W, "X", 6n * 10n ** 24n)], ["join_dao", C.joinDao(W, 1, 10n ** 22n)]])
-  ok(throws(() => A.guard(call), /not allowed/i), `${label} is refused: an AI god can't take money out or leave`);
+// 16 Nov (his call): an AI god may take its whole stake out, as a player's god can (engine/test-16nov.mjs).
+ok(!throws(() => A.guard(C.withdraw(W, 1))), "withdraw passes the guard (16 Nov: AI gods can take their stake out)");
+for (const [label, call] of [["claim_owed", C.claimOwed(W)], ["found_clan", C.found(W, "X", 6n * 10n ** 24n)], ["join_dao", C.joinDao(W, 1, 10n ** 22n)]])
+  ok(throws(() => A.guard(call), /not allowed/i), `${label} is refused: nothing else on the world`);
 ok(throws(() => A.guard(power("release_staking", { clan_id: 1 })[0]), /not allowed/i), "a motion to release the staking fund is refused");
 ok(throws(() => A.guard({ receiver: W, method: "transfer", args: {}, deposit: 1n }), /not allowed/i) && throws(() => A.guard({ receiver: "someone.testnet", method: "bless", args: {}, deposit: 1n }), /not allowed/i), "anything else, or the right method sent elsewhere, is refused");
 
@@ -27,12 +29,12 @@ const plan = [
   { kind: "bless", clan: 2, near: 0.6 }, { kind: "bless", clan: 2, near: 0.7 },
   { kind: "smite", clan: 1, report: "r51-1", verdict: "Stunt" }, { kind: "smite", clan: 1, report: "r99-9", verdict: "Kill" },
   { kind: "rule", clan: 2, gift: 19, reward: true }, { kind: "rule", clan: 2, gift: 77, reward: true },
-  { kind: "whisper", clan: 5, text: "not mine" }, { kind: "withdraw", clan: 1 },
+  { kind: "whisper", clan: 5, text: "not mine" }, { kind: "withdraw", clan: 5 }, { kind: "teleport", clan: 1 },
   { kind: "fire", clan: 1, target: 6 }, { kind: "fire", clan: 1, target: 7 }, { kind: "fire", clan: 1, target: 1 },
 ];
 const v = A.validatePlan(plan, sit);
 ok(v.every((a) => sit.clans.includes(a.clan)), "only nations this god holds");
-ok(!v.some((a) => a.kind === "withdraw"), "an action outside the list never gets through");
+ok(!v.some((a) => a.kind === "withdraw" || a.kind === "teleport"), "an action outside the list never gets through, nor a withdrawal from a nation it doesn't sit in");
 ok(v.filter((a) => a.kind === "smite").length === 1 && v.find((a) => a.kind === "smite").agent === "Mira Oyama", "smite only an accused from an open report (named from the report, not the plan)");
 ok(v.filter((a) => a.kind === "rule").length === 1, "rule only gifts that are open");
 ok(v.filter((a) => a.kind === "bless").reduce((s, a) => s + a.near, 0) <= sit.allowance + 1e-9, "blessings stay within the day's allowance");

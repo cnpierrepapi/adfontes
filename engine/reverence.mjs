@@ -167,7 +167,8 @@ export function fade(rv, day, livingNames, changes, mul = 1) {
 /** Who the citizens follow: the most revered god above zero; if none, an outside god may claim them. */
 export function follow(s, id, changes, ai = new Set()) {
   const rv = s.rev[id];
-  const ranked = Object.entries(rv.gods).filter(([, g]) => g.r > 0).sort((a, b) => b[1].r - a[1].r);
+  // A tie keeps the god it already follows (16 Nov: the parity reset leaves every god level at 50).
+  const ranked = Object.entries(rv.gods).filter(([, g]) => g.r > 0).sort((a, b) => b[1].r - a[1].r || (b[0] === rv.followed) - (a[0] === rv.followed));
   if (ranked.length) {
     rv.followed = ranked[0][0];
     if (rv.claimedBy && rv.followed !== rv.claimedBy && !rv.gods[rv.claimedBy]?.outsider) rv.claimedBy = null;
