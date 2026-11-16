@@ -22,6 +22,7 @@ import * as MS from "./engine/milestones.mjs";
 import { standings } from "./engine/reverence.mjs";
 import { inRanking } from "./src/season.js";
 import { sweepExpired, makeFileCache, hiddenPath } from "./src/server/memo.mjs";
+import { readGodLog } from "./src/server/godlog.mjs";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
 // each network has its own chain connection, world contract and cache. SITE_NET is the default.
@@ -364,6 +365,13 @@ function makeApi(NET) {
       return { ok: true, status: "waiting" };
     },
     // Milestones (PLAN_13NOV §6, engine/milestones.mjs): a god's ladder, what's next and how far. ?account=
+    // Everything one god has done, newest first (his ask 16 Nov, the god's card): what the engine sent as that god and
+    // how it went, plus its free signed picks. ?account= (src/server/godlog.mjs).
+    async godlog(q) {
+      const who = String(q.get("account") || "").slice(0, 64);
+      if (!/^[a-z0-9._-]{2,64}$/.test(who)) return { error: "Name an account." };
+      return cachedN(`godlog:${who}`, 20_000, async () => ({ account: who, actions: await readGodLog(NET, who) }));
+    },
     async milestones(q) {
       const who = String(q.get("account") || "").slice(0, 64);
       if (!who) return { error: "Name an account." };

@@ -198,6 +198,13 @@ body.night .standings .mv.down { color: #ff8fb8; }
 .godcard .gn-money { display: grid; justify-items: end; font-family: var(--mono); font-size: 0.74rem; }
 .godcard .gn-money b.up { color: #1a9e5c; }
 .godcard .gn-money b.down { color: #c0245e; }
+/* Everything the god has done (16 Nov): its own scrolling box, newest first. */
+.godcard .godlog { list-style: none; margin: 0; padding: 6px 8px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 6px; border-radius: 12px; background: rgba(29, 20, 48, 0.05); }
+.godcard .godlog li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 0.76rem; line-height: 1.35; }
+.godcard .godlog time { font-family: var(--mono); font-size: 0.66rem; color: #7a7090; white-space: nowrap; }
+.godcard .godlog span { overflow-wrap: anywhere; }
+.godcard .godlog a { font-size: 0.66rem; white-space: nowrap; }
+.godcard .godlog li.failed span { color: #9a3a5c; }
 /* The event list under the standings (SPEC §14): newest on top, tap a line to fly there. */
 .standings .ev-head { border-top: 1px solid rgba(29, 20, 48, 0.1); margin-top: 2px; }
 .standings .events { list-style: none; margin: 0; padding: 0 2px 4px; max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; }

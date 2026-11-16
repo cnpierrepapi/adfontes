@@ -5,6 +5,26 @@
 
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
 
+/** One line of a god's log (/api/godlog, src/server/godlog.mjs) in plain words. nameOf(id) -> a nation's name. */
+export function actionWords(e, nameOf = (id) => `nation ${id}`) {
+  const n = e.clan != null ? nameOf(e.clan) : "a nation";
+  const say = {
+    whisper: () => `Whispered to ${n}${e.text ? `: "${e.text}"` : ""}`,
+    bless: () => `Blessed ${n} with ${e.near} grace`,
+    rule: () => `Rewarded gift #${e.gift} in ${n}`,
+    smite: () => `${e.verdict === "Kill" ? "Killed" : "Stunned"} ${e.agent || "a citizen"} in ${n}`,
+    fire: () => `Called an Act of God on ${e.target != null ? nameOf(e.target) : "a nation"}`,
+    withdraw: () => `Took its whole stake out of ${n} and left`,
+    buy: () => `Bought a seat in ${n}`,
+    pitch: () => `Picked what ${n}'s Scholars study next${e.point ? `: ${e.point}` : ""}`,
+    ask: () => `Asked the accused in ${n} to answer`,
+    list: () => `Told ${n}'s Broker to sell ${e.tokens || "some"} thing${e.tokens === 1 ? "" : "s"}`,
+    dismiss: () => `Ignored a report in ${n}`,
+  }[e.kind];
+  const line = say ? say() : `${e.kind} in ${n}`;
+  return e.ok ? line : `${line} (didn't go through: ${e.why || "refused"})`;
+}
+
 /** world: /api/world. stakes: /api/stakes (or null when it didn't load). account: the god.
  *  ranks: { nationId: place } as the season standings table shows them right now (src/live/standings.js),
  *  so the card and the table never disagree; a nation the table doesn't rank has no place. */

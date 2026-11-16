@@ -109,26 +109,27 @@ The world doesn't narrate in text. Fire rains, Scholars fire star-guns, war mach
 
 ### War
 
-Gods don't get a vote. Once a day each nation's Patron sits its war council and picks one move: declare war, build walls, offer peace, take a peace on offer, or wait. A nation is safe until its first patent passes.
+Gods don't get a vote. Once a day each nation's Patron sits its war council and picks one move: declare war, build walls, offer peace, take a peace on offer, or wait. A nation is safe until its first patent passes. It's also safe for 21 turns after a war ends or an Act of God lands on it. The clock counts scheduled turns from the turn it was hit, so about 42 hours, and the council sees who's protected (`engine/cooldown.mjs`).
 
 At war, research stops. Every turn both sides spend on the war chest and fire, and each hit burns a point of knowledge off the other island, so you watch it shrink. Dice come from the fingerprint already sealed on NEAR, so nobody can rig a roll. An island down to its root falls from the sky; a nation out of florins three rounds running surrenders. The winner takes half its florins, its knowledge and two of its people. Two even nations fight about ten days, a big one against a small one about a day. Antilles declared on Striklar on turn 13 and was still at it on turn 50, a round every two hours, after Antilles' council turned down peace: "Striklar is down to 5 points against our 11, so we keep pressing until they fall."
 
 ### Act of God
 
-A nation's gods vote fire through their DAO (a `root_out` of `act of god: <id>`, so no new contract method). On the next turn the target burns 5% of what it can spend, plus up to 20% more the closer it is to the richest nation, less up to 30% for walls. The caster's nation pays a tenth. One a day per god, never on your own nation or one at war. The heavens strike on their own too: a nation that declares war on one with a third of its florins or less, the richest nation in a famine, and any nation holding twice its fair share of florins. Rules in `engine/fire.mjs`, tests in `engine/test-aog.mjs`, and `scripts/aog-sim-test.mjs` runs it on a copy of the live world and fails if the rule is switched off.
+A nation's gods vote fire through their DAO (a `root_out` of `act of god: <id>`, so no new contract method). On the next turn the target burns 5% of what it can spend, plus up to 20% more the closer it is to the richest nation, less up to 30% for walls. The caster's nation pays a tenth. One a day per god, never on your own nation, one at war, or one still inside its 21-turn cooldown. Any fire that lands starts that cooldown, the heavens' and a bully's too, but the heavens themselves ignore it: a hoarder can burn again. The heavens strike on their own too: a nation that declares war on one with a third of its florins or less, the richest nation in a famine, and any nation holding twice its fair share of florins. Rules in `engine/fire.mjs`, tests in `engine/test-aog.mjs`, and `scripts/aog-sim-test.mjs` runs it on a copy of the live world and fails if the rule is switched off.
 
 ## AI gods
 
 Every nation except North Pole is led by an AI god: Lugh, Anansi, Mayahuel, Saturn, Bastet and the rest, named after gods from the world's cultures, plus a few new gods of today like Signal. Each is a real NEAR account (`<name>.adfontes-mw1fjpfx.testnet`) with its own key, and it does exactly what a player does from the god panel, through the same calls. Claude decides what. Code signs and checks.
 
-- **One plan a turn.** After each turn, one Claude Haiku call plans the next two hours for all of them together, and their actions go out a minute or so apart, so the world keeps moving between turns (`engine/aiact.mjs`).
-- **A leash.** A guard refuses anything a planner shouldn't do: no claiming, no leaving, no sending NEAR anywhere but a blessing. So an AI-led nation only ends by falling in war (`engine/aigods.mjs` `guard`). Each god gets 8 whispers and 2 NEAR of blessings a day, and that allowance builds up through the day so they don't spend it all by lunch.
+- **A plan every turn.** After each turn, Claude Haiku plans the next two hours, six gods to a call, two to four moves each. Their actions go out a minute or so apart, so the world keeps moving between turns. If a call fails, or the gods' pot is spent, those gods get a plain stand-in plan instead (rule on gifts, feed the hungry, a whisper about what's wrong), so nobody sits idle (`engine/aiact.mjs`, `engine/aigods.mjs` `planInBatches`).
+- **What they can do.** What a player's god can. Bless, whisper, rule, ask, smite, call fire, take their whole stake out of a nation (and leave it; a nation whose last god leaves is gone), and buy a seat someone listed, paying the escrow from their own wallet like anyone. A guard refuses anything else they'd sign (`engine/aigods.mjs` `guard`, `guardPay`). Each god gets 8 whispers and 2 NEAR of blessings a day, and that allowance builds up through the day so they don't spend it all by lunch.
+- **Their wallets.** On 16 November every god with a seat got 7 testnet NEAR in their own wallet, Brahma included: 44 gods, 308 NEAR from the pool (`scripts/grant-gods.mjs`). That's what a seat gets paid with.
 - **Councils they share.** When an AI god sits on a DAO with someone else, it reads each motion that god raises and votes within half a minute. Yes to whispers, rulings, stuns and fire on a rival. No to rooting out the nation's own research or sending its staking away (`judgeMotion`).
 - **Out of the race.** AI-led nations don't rank and can't win the jackpot. Only nations led by a person do. Today that's one nation, North Pole, whose god is our own test account, so it tops the standings by default. Read the standings as a demo until outside players join.
-- **Their cards.** Tap an AI god's name in a nation's panel and you get its card: the nations it sits on, the grace it put in, and what its stake is worth today against what it counts. Read-only, built from `/api/world` and `/api/stakes` (`src/live/godcard.js`, `src/godinfo.js`).
+- **Their cards.** Tap an AI god's name in a nation's panel and you get its card: the nations it sits on, the grace it put in, what its stake is worth today against what it counts, and a scrolling list of everything it has done, newest first, failed tries and their reasons included, each with its public record. Read-only, built from `/api/world`, `/api/stakes` and `/api/godlog` (`src/live/godcard.js`, `src/godinfo.js`, `src/server/godlog.mjs`).
 - **Newcomers.** New AI gods arrive on their own. On average one every 2 hours for the first two days, then wider, up to one every 6 hours on average (a single gap can run longer), never two within 30 minutes, timed by seeded dice you can replay (`engine/arrivals.mjs`). Each takes a free name and chooses to found a nation (Claude names it) or bless one in need. It only blesses nations with no human god, since a blessing comes with a DAO seat. At 100 nations they only bless. The first, Tate, arrived on 13 November at 12:52 UTC and founded Tate's Reach.
 
-Claude's budget is capped at $3.50 a UTC day, half for the citizens and half for the AI gods. Citizens judge whispers and the gods plan on Haiku 5.5, drafts are written on Sonnet 5.5, and war councils sit on Opus 5.5. When a pot runs out, its calls wait until midnight UTC.
+Claude's budget is capped at $3.50 a UTC day, half for the citizens and half for the AI gods. Citizens judge whispers and the gods plan on Haiku 5.5, drafts are written on Sonnet 5.5, and war councils sit on Opus 5.5. When a pot runs out, its calls wait until midnight UTC. The AI gods keep acting on their stand-in plans meanwhile.
 
 ## Seats
 
@@ -140,6 +141,8 @@ A god's seat in a nation can be sold, whole: the stake, the grant, the DAO seat,
 4. If the seller left, or someone bought it first, the buyer gets their NEAR back.
 
 Every AI god's seat is listed too, at its claim value plus a quarter and never under 0.5 NEAR, so a small seat asks well over a quarter more. It's re-priced when its claim value moves by more than a tenth. Buy one and you take that god's name and its believers. Once you're the nation's most revered god, it enters the season ranking.
+
+AI gods buy too. A listed seat shows up in their plan with its price, and they pay the escrow from their own wallet, keeping 0.3 NEAR back. The same engine step checks and settles it. An AI god that buys keeps its own name.
 
 The first version had a bug that only showed up on the real chain. The RPC answered "Internal server error" to a `move_god` that had in fact landed, and the code refunded a buyer who now held the seat. Now the chain decides: a move only counts as failed if the seller is still there 20 seconds later (`scripts/seats-chain-test.mjs`).
 
@@ -262,7 +265,7 @@ Every turn the engine hashes each record and puts one Merkle root on NEAR. The j
 ## Tests
 
 ```bash
-npm test                          # about 700 checks: clock, war, prices, tokens, market, techs, reverence, Warden, god actions, Act of God, spend cap, RPC fallback, AI gods, asks, seats, arrivals, milestones, chatter
+npm test                          # about 790 checks: clock, war, prices, tokens, market, techs, reverence, Warden, god actions, Act of God, spend cap, RPC fallback, AI gods, asks, seats, arrivals, milestones, chatter, cooldown, planner batches, god cards
 node scripts/aog-sim-test.mjs     # Act of God on a copy of the live world, with a planted bully war
 node scripts/seats-sim-test.mjs   # a seat sale sealed through real turns on a copy (and scripts/arrivals-sim-test.mjs, step23-sim-test.mjs)
 node scripts/seats-chain-test.mjs # a real seat sale, refund and sale back on the spare test world v2d (needs our keys)
@@ -297,7 +300,7 @@ If you're an AI agent working in this repo, this is the short version.
 | When turns run | `engine/loop.mjs` (always on, looks every 5 s, runs `run.mjs` one at a time) |
 | A rule (reverence, war, fire, prices, seats, milestones) | its own module in `engine/`, with `engine/test-<name>.mjs` next to it |
 | Anything on NEAR | `engine/chain.mjs`, and its stand-in `engine/chain-sim.mjs`, which must keep the same methods |
-| The API | `server.mjs` `makeApi` (GET `/api/<name>`: world, next, day, proof, live, clan, gifts, draft, drafts, trades, market, stakes, sponsor, star, seats, milestones; POST `/api/choice`, `/api/seat`, `/api/seat/buy`, `/api/sponsor`, `/api/login`) |
+| The API | `server.mjs` `makeApi` (GET `/api/<name>`: world, next, day, proof, live, clan, gifts, draft, drafts, trades, market, stakes, sponsor, star, seats, milestones, godlog; POST `/api/choice`, `/api/seat`, `/api/seat/buy`, `/api/sponsor`, `/api/login`) |
 | The 3D world and the god panel | `src/live/live.js`, `src/live/gods.js`, `src/live/feed.js` |
 | The contract | `contracts/world/src/lib.rs` (Rust; `cargo test --lib`) |
 
@@ -336,7 +339,8 @@ ADF_SIM_CHAIN=debug/mycopy/chain.json ADF_STATE_DIR=debug/mycopy/state ADF_FAKE_
 - **The world ran short of spare NEAR** (12 Nov). It pays storage for every whisper, gift and root, AI gods whisper a lot, and the solvency check went red overnight. Now each turn the operator tops the spare back up when it falls under 0.3 NEAR, and the top-up is a sealed record.
 - **A seat sold for free, almost** (13 Nov). See [Seats](#seats): the RPC said a move failed when it hadn't. Caught on the test world, before any real sale.
 - **A second method with the same name** (13 Nov). Adding seat code, we gave the chain helper a `stake` method that already existed, and the new one silently replaced the old one. The old one kept granted NEAR out of what nations can spend. Caught before it shipped; a test now checks there's only one.
-- **15 frames a second on a weak laptop** (13 Nov). We set that target for 100 nations with the CPU slowed 4x, and got from 1.6 to about 7 without a town in view. A town in view is limited by its citizens' shaders on the GPU, not by draw calls, so we dropped the target rather than fake it. `tests/quality-page.test.cjs` prints the number.
+- **15 frames a second on a weak laptop** (13 Nov). We set that target for 100 nations with the CPU slowed 4x, and got from 1.6 to about 7 without a town in view. A town in view is limited by its citizens' shaders on the GPU, not by draw calls, so we dropped the target rather than fake it.
+- **The AI gods went quiet** (16 Nov). One Claude call planned for every AI god at once. From about 20 gods on, its answer got cut off about one turn in three (10 of 33 turns from 14 to 16 November), and the turns that did parse planned a handful of moves: 23 for 36 to 42 gods across all of 16 November, and only 2 whispers went out in the 24 hours before the fix. Meanwhile every god faded 12 to 18 reverence a day, so most sat under 35 and several at 0. Now it's six gods a call with a stand-in plan when a call fails, and every seated god was reset once to 50 reverence. Each change is a sealed correction record (`engine/revfix.mjs` `parityReverence`). `tests/quality-page.test.cjs` prints the number.
 
 ## Built with
 

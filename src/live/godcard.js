@@ -3,8 +3,8 @@
 // put into them and how its holdings stand today. Read-only: two public reads, nothing signed.
 // The numbers come from src/godinfo.js (tests/god-card.test.mjs).
 import { api } from "../net.js";
-import { godName, isAi } from "../says.js";
-import { godInfo } from "../godinfo.js";
+import { godName, isAi, endedName } from "../says.js";
+import { godInfo, actionWords } from "../godinfo.js";
 
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null && k !== false)); return e; };
 const g2 = (x) => `${(+x).toFixed(2)} grace`;
@@ -31,7 +31,7 @@ export async function openGodCard(account, { flyTo, ranks } = {}) {
   box.append(head, el("p", { className: "fine", textContent: "Reading the world…" }));
   document.body.append(shade);
 
-  const [world, stakes] = await Promise.all([api("world").catch(() => null), api("stakes").catch(() => null)]);
+  const [world, stakes, log] = await Promise.all([api("world").catch(() => null), api("stakes").catch(() => null), api(`godlog?account=${encodeURIComponent(account)}`).catch(() => null)]);
   if (open !== shade) return; // closed (or another card opened) while it loaded
   if (!world?.clans) { box.replaceChildren(head, el("p", { className: "fine warn", textContent: "The world didn't answer. Try again in a minute." }), el("div", { className: "row" }, shut)); return; }
   const G = godInfo(account, world, stakes?.stakes ? stakes : null, ranks?.() ?? {});
@@ -65,7 +65,19 @@ export async function openGodCard(account, { flyTo, ranks } = {}) {
         : el("span", { className: "gn-money" }, `${g2(n.worth)} `, el("b", { className: tone(n.gain), textContent: signed(n.gain, n.pct) }), el("small", { textContent: `of ${g2(n.counts)} it counts` })));
   }));
 
+  // Everything it has done (his ask 16 Nov), newest first, in its own scrolling box (/api/godlog).
+  const nameOf = (id) => world.clans.find((c) => c.id === Number(id))?.name ?? endedName(id) ?? `nation ${id}`;
+  const when = (ms) => new Date(ms).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const acts = Array.isArray(log?.actions) ? log.actions : null;
+  const history = acts == null ? el("p", { className: "fine", textContent: "Its history didn't load just now." })
+    : !acts.length ? el("p", { className: "fine", textContent: "Nothing yet." })
+    : el("ol", { className: "godlog" }, ...acts.map((e) => el("li", { className: e.ok ? "" : "failed" },
+      el("time", { textContent: when(e.at) }),
+      el("span", { textContent: actionWords(e, nameOf) }),
+      e.tx && world.explorer ? el("a", { href: `${world.explorer}/txns/${e.tx}`, target: "_blank", rel: "noopener", textContent: "record ↗", title: "Its public record" }) : null)));
+
   box.replaceChildren(head, who, money, G.nations.length ? el("h4", { textContent: "Its nations" }) : null, G.nations.length ? rows : null,
+    el("h4", { textContent: `Everything it has done${acts?.length ? ` (${acts.length}${acts.length >= 400 ? ", the latest" : ""})` : ""}` }), history,
     el("p", { className: "fine", textContent: `Worth today is what its florins would pay if it claimed now. The stake counts what it put in plus anything the world gave it.${G.nations.some((n) => n.rank) ? " Places are the season standings." : ""}` }),
     el("div", { className: "row" }, shut));
 }
