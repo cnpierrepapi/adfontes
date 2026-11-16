@@ -2,7 +2,7 @@
 // tables hold it: ai_actions (what the engine sent as that god, and how it went) and choices (its free, signed
 // picks: the Scholars' pitch, asking the accused, a word to the Broker, ignoring a report). Read-only, its own
 // small pool, so the web service never touches the engine's code. Pure merge in godLog(); tested in
-// tests/god-card.test.mjs.
+// tests/god-card.test.mjs. Failed tries are left out (his call 17 Nov).
 import pg from "pg";
 
 const LIMIT = 400;
@@ -16,12 +16,13 @@ export function godLog(rows = [], choices = [], limit = LIMIT) {
     const a = typeof r.action === "string" ? JSON.parse(r.action) : r.action || {};
     const res = String(r.result || "");
     const ok = /^ok/.test(res);
+    if (!ok) continue; // his call 17 Nov: the card shows what the god did, not the tries that failed
     out.push({
       at: Number(r.at), kind: a.kind, clan: a.clan ?? null, ok,
       ...(a.text ? { text: String(a.text).slice(0, 280) } : {}), ...(a.near != null ? { near: a.near } : {}),
       ...(a.target != null ? { target: a.target } : {}), ...(a.gift != null ? { gift: a.gift } : {}), ...(a.agent ? { agent: a.agent, verdict: a.verdict } : {}),
       ...(a.listing != null ? { listing: a.listing } : {}),
-      tx: ok ? res.split(/\s+/)[1] || null : null, ...(ok ? {} : { why: res.replace(/^error:\s*/, "").slice(0, 160) || "not sent" }),
+      tx: res.split(/\s+/)[1] || null,
     });
   }
   for (const c of choices) {

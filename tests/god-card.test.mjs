@@ -71,15 +71,14 @@ ok(down.nations.length === 2 && down.totals === null && down.missing === 2, "sta
   ];
   const choices = [{ day: 110, clan: 1, kind: "pitch", payload: { point: "nickel" }, at: new Date(2500) }, { day: 110, clan: 1, kind: "list", payload: { tokens: ["r:a", "r:b"] }, at: "1970-01-01T00:00:05.000Z" }];
   const log = godLog(rows, choices);
-  ok(log.map((e) => e.kind).join(",") === "list,buy,bless,pitch,fire,whisper", `both tables, newest first (${log.map((e) => e.kind).join(",")})`);
+  ok(log.map((e) => e.kind).join(",") === "list,buy,bless,pitch,whisper", `both tables, newest first, a refused try left out (${log.map((e) => e.kind).join(",")})`);
   ok(log.find((e) => e.kind === "bless").tx === "HASH2" && log.find((e) => e.kind === "bless").near === 0.5, "a sent action keeps its public record and amount");
-  const fire = log.find((e) => e.kind === "fire");
-  ok(!fire.ok && fire.tx === null && /protected for 4 more turns/.test(fire.why), "a refused one says why, with no record");
+  ok(!log.some((e) => e.kind === "fire" || !e.ok || e.why), "no failed try on the card (his call 17 Nov)");
   ok(godLog(rows, choices, 2).length === 2, "capped at the limit");
   const nameOf = (id) => ({ 1: "Helios", 3: "Antilles", 16: "Vaelmoor", 20: "Sunmarrow" })[id];
   ok(actionWords(log.find((e) => e.kind === "whisper"), nameOf) === 'Whispered to Helios: "Feed them first."', "a whisper reads as what it said");
   ok(actionWords(log.find((e) => e.kind === "bless"), nameOf) === "Blessed Vaelmoor with 0.5 grace", "a blessing in grace");
-  ok(actionWords(fire, nameOf) === "Called an Act of God on Antilles (didn't go through: that nation is protected for 4 more turns)", "a failed one says so");
+  ok(actionWords({ kind: "fire", target: 3, ok: true }, nameOf) === "Called an Act of God on Antilles", "an Act of God names its target");
   ok(actionWords(log.find((e) => e.kind === "list"), nameOf) === "Told Helios's Broker to sell 2 things" && actionWords(log.find((e) => e.kind === "buy"), nameOf) === "Bought a seat in Sunmarrow", "Broker words and seat buys");
   ok(actionWords({ kind: "withdraw", clan: 1, ok: true }, nameOf) === "Took its whole stake out of Helios and left", "taking its stake out");
 }
