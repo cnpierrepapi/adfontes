@@ -269,7 +269,7 @@ npm test                          # about 810 checks: clock, war, prices, tokens
 node scripts/aog-sim-test.mjs     # Act of God on a copy of the live world, with a planted bully war
 node scripts/seats-sim-test.mjs   # a seat sale sealed through real turns on a copy (and scripts/arrivals-sim-test.mjs, step23-sim-test.mjs)
 node scripts/seats-chain-test.mjs # a real seat sale, refund and sale back on the spare test world v2d (needs our keys)
-npm run test:live                 # 62 checks against the live site and the chain
+npm run test:live                 # 62 checks against the live site and the chain (see Errors in the sealed records)
 npm run test:load                 # a crowd of visitors at once
 node scripts/jackpot-audit.mjs    # every deposit replayed: the jackpot is exactly 14%
 ```
@@ -327,6 +327,23 @@ ADF_SIM_CHAIN=debug/mycopy/chain.json ADF_STATE_DIR=debug/mycopy/state ADF_FAKE_
 
 **Settings it reads** (all optional on your own machine): `ADF_WORLD`, `ADF_SIM_CHAIN`, `ADF_STATE_DIR`, `ADF_FAKE_LLM`, `ADF_PAPERS_OFFLINE`, `ADF_SANDBOX`, `LOGIN_PEPPER`, `ADF_DAILY_CAP`, `ADF_GOD_MODEL`, `DATABASE_URL`, `ADF_UPSTREAM`, `ANTHROPIC_API_KEY`, `OPENALEX_API_KEY`, `OPERATOR_ACCOUNT_ID` / `OPERATOR_PRIVATE_KEY`, `OWNER_ACCOUNT_ID` / `OWNER_PRIVATE_KEY`, `SPONSOR_ACCOUNT_ID` / `SPONSOR_PRIVATE_KEY`.
 
+## Errors in the sealed records
+
+Every turn seals its errors along with everything else. They're records like any other, hashed into that turn's root on NEAR, so we can't quietly drop one later. If you read turns 98 to 113 you'll find a lot of them. They're all the same two refusals from the market contract:
+
+- `market deal: Smart contract panicked: A nation can have at most 10 open listings`
+- `market deal: Smart contract panicked: That's already listed`
+
+(A few say `market:` instead of `market deal:`. Those come from the Broker's own daily run, same cause.)
+
+Here's why. The contract hands back at most 500 listings per call, and the engine only ever asked for the first 500. Listing #500 was made on turn 88. From then on the engine was reading a shelf with the newest listings torn off. Ten turns later, enough open listings sat past #500 that a seller's shelf looked emptier than it was, or a piece looked unlisted when it was already up. The Broker went to list it and the contract said no. It grew as the market did: 5 on turn 98, 15 on turn 109, 46 on turn 112.
+
+A refusal is all it was. A refused deal didn't happen: no florins moved, no token moved, and no trade was recorded (`engine/run.mjs`, the `paid` check after `marketDeal`). `node scripts/verify.mjs` stayed green the whole time.
+
+The engine has been running the fix since 00:28 UTC on 17 November (commit `61770eb`). It reads every page of listings and sales now, and so does the marketplace page. Turn 113 still holds 22 of these errors, every one from an instant turn that ran before the fix went live. The 175 records it sealed after the fix have none. They do have three Brokers taking down their oldest listing to make room before selling, which is what was meant to happen all along.
+
+So `npm run test:live` shows red for a little longer. Its "no errors in the last sealed turn" check passes once turn 114 seals, about 03:02 UTC on 17 November. Its "no engine errors in the last 4 turns" check looks back to turn 113, so it passes from turn 117, about 09:02 UTC. If either fails after that, it's something new.
+
 ## What went wrong
 
 - **300 visitors at once, 17.6% of requests failed** (8 Nov). Every expired cache entry was fetched by everyone waiting on it. Now one request refreshes it and the rest get the old copy.
@@ -342,7 +359,7 @@ ADF_SIM_CHAIN=debug/mycopy/chain.json ADF_STATE_DIR=debug/mycopy/state ADF_FAKE_
 - **15 frames a second on a weak laptop** (13 Nov). We set that target for 100 nations with the CPU slowed 4x, and got from 1.6 to about 7 without a town in view. A town in view is limited by its citizens' shaders on the GPU, not by draw calls, so we dropped the target rather than fake it.
 - **The AI gods went quiet** (16 Nov). One Claude call planned for every AI god at once. From about 20 gods on, its answer got cut off about one turn in three (10 of 33 turns from 14 to 16 November), and the turns that did parse planned a handful of moves: 23 for 36 to 42 gods across all of 16 November, and only 2 whispers went out in the 24 hours before the fix. Meanwhile every god faded 12 to 18 reverence a day, so most sat under 35 and several at 0. Now it's six gods a call with a stand-in plan when a call fails, and every seated god was reset once to 50 reverence. Each change is a sealed correction record (`engine/revfix.mjs` `parityReverence`). `tests/quality-page.test.cjs` prints the number.
 - **Three AI gods paid in but never got a council seat** (14 to 16 Nov). When a god blesses a nation, the world files "add this god" on the nation's DAO and votes it through. Every motion a DAO keeps costs it a little storage, paid from its own NEAR, and the older DAOs were down to between 0.001 and 0.009 NEAR spare. So the world's vote failed for Akka in Tate's Reach, Zao Jun in Numdial and Ahti in Salamanco creek (`LackBalanceForState`). Each one held a stake, but its DAO turned down every motion it filed (`ERR_PERMISSION_DENIED`). On 17 November the pool sent each live DAO 1 NEAR, the world 2, the operator enough to reach 150, and each Broker and Patron wallet enough to reach 0.5 (`scripts/fund-pipeline.mjs`). Then the three gods asked again with the contract's `join_dao` and got their seats (`scripts/rejoin-gods.mjs`). Now every scheduled turn the operator checks each DAO, and one under 0.2 NEAR spare gets topped back up to 1 (`engine/reserve.mjs` `daoTopUp`).
-- **Brokers couldn't see the whole shelf** (fixed 17 Nov). The contract hands back at most 500 listings at a time, and the engine only ever read the first 500. By 17 November there were 675, so it missed the newest 67 open ones. A Broker buys by having the seller list the piece just for that deal. When the engine couldn't see what was already up, it thought the seller had room or the piece wasn't listed yet, and the contract said no: ten open listings a nation is its cap, and a piece can't be listed twice. Nothing changed hands and no trade was recorded, but each refusal was sealed as an error, 46 of them on turn 112, and `npm run test:live` failed its two "no errors" checks. The marketplace page had the same blind spot (75 of 142 open listings, and none of the newest 43 sales). Both read every page now (`src/server/pages.mjs`, `engine/test-market-pages.mjs`).
+- **Brokers couldn't see the whole shelf** (fixed 17 Nov). The contract hands back at most 500 listings at a time, and the engine only ever read the first 500. By 17 November there were 675, so it missed the newest 67 open ones. A Broker buys by having the seller list the piece just for that deal. When the engine couldn't see what was already up, it thought the seller had room or the piece wasn't listed yet, and the contract said no: ten open listings a nation is its cap, and a piece can't be listed twice. Nothing changed hands and no trade was recorded, but each refusal was sealed as an error, 46 of them on turn 112, and `npm run test:live` failed its two "no errors" checks. The marketplace page had the same blind spot (75 of 142 open listings, and none of the newest 43 sales). Both read every page now (`src/server/pages.mjs`, `engine/test-market-pages.mjs`). More in [Errors in the sealed records](#errors-in-the-sealed-records).
 
 ## Built with
 
