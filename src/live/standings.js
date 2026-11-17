@@ -1,5 +1,5 @@
 import { godName, isAi } from "../says.js";
-import { inRanking } from "../season.js";
+import { rankNations } from "../season.js";
 // The season standings (SPEC §12k step 3, ranked by reverence per §12m): a small table in the HUD.
 // Nations ranked by the reverence of the god they follow; an arrow for how each moved since you
 // last looked (remembered on this device); tap a row to fly there. When one nation passes another
@@ -19,10 +19,8 @@ export function createStandings({ visor, W, flyTo, onOvertake, onGod }) {
   const seen = JSON.parse(localStorage.getItem(key) || "{}"); // nation id -> rank when you last looked
   let last = null, prevOrder = null;
 
-  // AI-led nations (their followed god is an AI god) don't rank (his call 12 Nov); nor do the beta's first nine after the hackathon.
-  const rank = (clans) => clans.filter((c) => c.alive !== false && inRanking(c) && !isAi(c.reverence?.followed))
-    .map((c) => ({ id: c.id, name: c.name, standing: c.reverence?.standing ?? 0, waiting: c.reverence?.waiting, follows: c.reverence?.followed }))
-    .sort((a, b) => b.standing - a.standing || a.id - b.id);
+  // Every nation still standing ranks, AI-led ones too (his call 16 Nov; src/season.js rankNations).
+  const rank = rankNations;
 
   function draw(rows) {
     if (!rows) return;

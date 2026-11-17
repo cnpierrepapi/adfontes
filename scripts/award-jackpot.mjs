@@ -5,18 +5,16 @@
 //   --send signs award_jackpot as the world's owner (key in .keys/<owner>.json). Mainnet needs his go.
 import { Account, JsonRpcProvider } from "near-api-js";
 import fs from "node:fs";
+import { rankNations } from "../src/season.js";
 
 const NET = process.argv.includes("mainnet") ? "mainnet" : "testnet";
 const SEND = process.argv.includes("--send");
 const API = process.env.ADF_UPSTREAM || "https://adfontes.fun";
 const W = await (await fetch(`${API}/api/world?net=${NET}`)).json();
 
-// Same order as the site's table (src/live/standings.js) and engine/reverence.mjs standings().
-// Nations led by an AI god (their followed god is in W.ai) don't rank (12 Nov).
-const aiGods = new Set(W.ai || []);
-const ranked = W.clans.filter((c) => c.alive !== false && !c.fallen && !aiGods.has(c.reverence?.followed))
-  .map((c) => ({ id: c.id, name: c.name, standing: c.reverence?.standing ?? 0 }))
-  .sort((a, b) => b.standing - a.standing || a.id - b.id);
+// The site's own rule (src/season.js rankNations, used by its standings table): every nation still
+// standing ranks, AI-led ones too (his call 16 Nov), by the reverence of the god it follows.
+const ranked = rankNations(W.clans);
 const fallen = W.clans.filter((c) => c.fallen).map((c) => c.name);
 console.log(`${NET} world ${W.world} | jackpot ${W.jackpot?.near ?? "?"} NEAR${W.jackpot?.paid ? " (ALREADY PAID)" : ""}`);
 console.log(ranked.map((r, i) => `  ${i + 1}. ${r.name} (nation ${r.id}) ${r.standing}`).join("\n"));
