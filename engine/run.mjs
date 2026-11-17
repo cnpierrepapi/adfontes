@@ -610,6 +610,12 @@ for (let n = 0; n < days; n++) {
           catch (e) { log({ kind: "error", clan: oc.id, error: `gas for the ${role}: ${String(e.message || e).slice(0, 120)}` }); }
         }
       }
+      // Its DAO's storage NEAR (17 Nov, engine/reserve.mjs daoTopUp): scheduled turns only. Every motion it keeps costs
+      // storage from its own NEAR; when that ran dry the world's vote to seat three AI gods failed (14-16 Nov).
+      if (!INSTANT && chain.keepDao && oc.dao) {
+        try { const sent = await chain.keepDao(oc.dao); if (sent) log({ kind: "gas", clan: oc.id, role: "DAO", near: sent }); }
+        catch (e) { log({ kind: "error", clan: oc.id, error: `DAO storage: ${String(e.message || e).slice(0, 120)}` }); }
+      }
       // Its named account (<name>.<world>, his call 9 Nov), once; then each scheduled turn anything
       // sent there goes on to the nation's DAO.
       if (!c.alias) {

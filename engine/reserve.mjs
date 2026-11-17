@@ -14,3 +14,16 @@ export function reserveTopUp(t) {
   const send = Number(BigInt(RESERVE.topTo * 1e6) - spare) / 1e6;
   return Math.min(RESERVE.max, +send.toFixed(6));
 }
+
+// Each nation's DAO (17 Nov). Every motion a DAO keeps (whispers, stuns, seats) costs it storage, paid from its own
+// NEAR, and nothing paid it back: by 16 Nov the older DAOs had 0.001-0.009 spare, and the world's vote to seat three
+// AI gods failed (LackBalanceForState), so their motions were refused. Each scheduled turn the operator tops a DAO
+// whose spare (balance - what its storage locks) is under DAO_RESERVE.min back up to DAO_RESERVE.topTo. A DAO's
+// NEAR is no game number (florins live in the world contract), so this changes no score.
+export const DAO_RESERVE = { min: 0.2, topTo: 1.0 };
+
+/** NEAR to send a DAO with `spare` NEAR over its storage, or 0. */
+export function daoTopUp(spare) {
+  if (spare == null || !Number.isFinite(spare) || spare >= DAO_RESERVE.min) return 0;
+  return +(DAO_RESERVE.topTo - Math.max(0, spare)).toFixed(6);
+}

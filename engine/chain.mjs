@@ -8,7 +8,7 @@ import path from "node:path";
 import { NETWORKS } from "./config.mjs";
 import { connectSim } from "./chain-sim.mjs";
 import { gasTopUp } from "./market.mjs";
-import { reserveTopUp } from "./reserve.mjs";
+import { reserveTopUp, daoTopUp } from "./reserve.mjs";
 import { guard as aiGuard, guardPay as aiGuardPay, godSeed, sendChecked } from "./aigods.mjs";
 import { returned } from "../src/live/calls.js";
 
@@ -342,6 +342,17 @@ export function connect(net) {
       const send = gasTopUp(spendable);
       if (!send) return 0;
       await op.transfer({ receiverId: id, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
+      return send;
+    },
+    /** Keep a nation's DAO in storage NEAR (engine/reserve.mjs daoTopUp, 17 Nov): the operator tops its spare
+     *  (balance less what its storage locks) back up to 1 when it's under 0.2. Returns the NEAR sent, or 0. */
+    async keepDao(dao) {
+      const a = await provider.query({ request_type: "view_account", finality: "final", account_id: dao }).catch(() => null);
+      if (!a) return 0;
+      const spare = Number((BigInt(a.amount) - BigInt(a.storage_usage) * 10n ** 19n) / 10n ** 18n) / 1e6;
+      const send = daoTopUp(spare);
+      if (!send) return 0;
+      await op.transfer({ receiverId: dao, amount: BigInt(Math.round(send * 1e6)) * 10n ** 18n });
       return send;
     },
     /** Keep the world contract's spare NEAR (engine/reserve.mjs): reads get_totals, the operator sends

@@ -156,6 +156,7 @@ export function connectSim(file) {
       const sale = { id: S.market.sales.length, listing: l.id, buyer: id, seller: l.seller, token_id: l.token_id, price: l.price, day: S.config.day, reason };
       S.market.sales.push(sale); save(); return { ...tx(sale.id), signer: `trader${id}.sim-operator` };
     },
+    keepDao: async () => 0, // the stand-in chain's DAOs never run out
     ensureGas: async (id, role) => {
       const account = `${role === "Broker" ? "trader" : "patron"}${id}.sim-operator`;
       S.gas ||= {};
