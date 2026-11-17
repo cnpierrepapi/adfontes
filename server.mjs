@@ -23,6 +23,7 @@ import { standings } from "./engine/reverence.mjs";
 import { inRanking } from "./src/season.js";
 import { sweepExpired, makeFileCache, hiddenPath } from "./src/server/memo.mjs";
 import { readGodLog } from "./src/server/godlog.mjs";
+import { readAll } from "./src/server/pages.mjs";
 
 // Two worlds, one site (SPEC §12m B): every API call says which network it wants (?net=), and
 // each network has its own chain connection, world contract and cache. SITE_NET is the default.
@@ -137,6 +138,8 @@ function makeApi(NET) {
       return call(rpcs[1]);
     }
   };
+  // Every page of a list view (src/server/pages.mjs): the market passed 500 listings and 500 sales (17 Nov).
+  const viewAll = (method) => readAll((from, limit) => view(method, { from_index: from, limit }));
   const EXPLORER = NET === "mainnet" ? "https://nearblocks.io" : "https://testnet.nearblocks.io";
   const cachedN = (key, ms, fn) => cached(`${NET}:${key}`, ms, fn);
   // Is this public key on this account? (signed choices and seat listings)
@@ -412,7 +415,7 @@ function makeApi(NET) {
       const id = whole(q, "clan", 1), point = String(q.get("point") || "").slice(0, 160);
       if (!point) return { error: "Name a point." };
       return cachedN(`star:${id}:${point}`, 10_000, async () => {
-        const [clans, s, listings] = await Promise.all([view("list_clans", { limit: 100 }), stateNow(), cachedN("listings", 20_000, () => view("market_listings", { from_index: 0, limit: 500 }).catch(() => []))]);
+        const [clans, s, listings] = await Promise.all([view("list_clans", { limit: 100 }), stateNow(), cachedN("listings", 20_000, () => viewAll("market_listings").catch(() => []))]);
         const c = s.clans[id];
         if (!c) return { error: "No such nation." };
         const name = (k) => clans.find((x) => x.id === Number(k))?.name ?? `nation ${k}`;
@@ -524,7 +527,7 @@ function makeApi(NET) {
   // transaction from the engine's records; every passed patent with its holder and royalties.
   async market() {
     return cachedN("market", 20_000, async () => {
-      const [s, listings, sales] = await Promise.all([stateNow(), view("market_listings", { from_index: 0, limit: 500 }).catch(() => []), view("market_sales", { from_index: 0, limit: 500 }).catch(() => [])]);
+      const [s, listings, sales] = await Promise.all([stateNow(), viewAll("market_listings").catch(() => []), viewAll("market_sales").catch(() => [])]);
       const FL = florinRates(NET);
       // Transactions: from the records of the turns the open listings and recent sales happened on
       // (the contract's day can be a turn behind the record's), and what's happened since.
