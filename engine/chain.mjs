@@ -11,6 +11,7 @@ import { gasTopUp } from "./market.mjs";
 import { reserveTopUp, daoTopUp } from "./reserve.mjs";
 import { guard as aiGuard, guardPay as aiGuardPay, godSeed, sendChecked } from "./aigods.mjs";
 import { returned } from "../src/live/calls.js";
+import { readAll } from "../src/server/pages.mjs";
 
 const YOCTO = 10n ** 24n;
 export const toYocto = (near) => (BigInt(Math.round(near * 1e6)) * YOCTO) / 1_000_000n;
@@ -409,8 +410,9 @@ export function connect(net) {
     marketDelist: (clanId, listingId) => agentCall(clanId, "Broker", "market_delist", { listing_id: listingId }),
     marketBuy: (clanId, listingId, reason) => agentCall(clanId, "Broker", "market_buy", { listing_id: listingId, reason: String(reason).slice(0, 200) }),
     /** Every listing / sale from index `from` (prices in florins). null: a world without the market. */
-    marketListings: (from = 0) => view("market_listings", { from_index: from, limit: 500 }).then((l) => l.map((x) => ({ ...x, price: toFlorins(x.price) })), () => null),
-    marketSales: (from = 0) => view("market_sales", { from_index: from, limit: 500 }).then((l) => l.map((x) => ({ ...x, price: toFlorins(x.price) })), () => null),
+    // Every page (17 Nov): the contract hands back 500 a call, and the market passed 500 listings and sales.
+    marketListings: (from = 0) => readAll((f, limit) => view("market_listings", { from_index: from + f, limit })).then((l) => l.map((x) => ({ ...x, price: toFlorins(x.price) })), () => null),
+    marketSales: (from = 0) => readAll((f, limit) => view("market_sales", { from_index: from + f, limit })).then((l) => l.map((x) => ({ ...x, price: toFlorins(x.price) })), () => null),
     /** The nation's Broker buys from another nation, signing from its own wallet. */
     agentBuy: (clanId, seller, florins, memo) => agentCall(clanId, "Broker", "agent_buy", { seller, amount: toUnits(florins), memo }),
     /** The nation's Patron spends florins (war chest, walls), signing from its own wallet. */

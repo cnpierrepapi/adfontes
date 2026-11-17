@@ -1,5 +1,6 @@
-// His call 12 Nov: nations led by AI gods are out of the season standings and can't win the jackpot. Only
-// nations whose followed god is a human rank. Written before the change. Exits 1 on failure.
+// His call 12 Nov: nations led by AI gods were out of the season standings. His call 16 Nov reversed it: every nation
+// still standing ranks, AI-led ones too (src/season.js rankNations). reverence.standings keeps its optional AI list
+// (the first three checks); the site, the API and the award script must no longer pass one. Exits 1 on failure.
 import fs from "node:fs";
 import { standings, jackpotWinner } from "./reverence.mjs";
 const ok = (c, m) => { console.log(`${c ? "PASS" : "FAIL"} ${m}`); if (!c) process.exitCode = 1; };
@@ -14,8 +15,8 @@ ok(standings(s, clans, ai).map((r) => r.id).join() === "12,2", "a nation led by 
 ok(jackpotWinner(s, clans, ai).id === 12, "the jackpot goes to the top nation led by a human");
 ok(standings(s, clans).length === 3, "without the AI list, everything ranks as before (old callers unchanged)");
 const site = fs.readFileSync(new URL("../src/live/standings.js", import.meta.url), "utf8");
-ok(/isAi\(c\.reverence\?\.followed\)/.test(site), "the site's standings table leaves out AI-led nations");
+ok(/rankNations/.test(site) && !/isAi\(c\.reverence\?\.followed\)/.test(site), "the site's standings table ranks every nation still standing, AI-led too (rankNations)");
 const server = fs.readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
-ok(/standings\(s, clans, new Set\(/.test(server), "the API's jackpot leader skips AI-led nations");
+ok(/standings\(s, clans\)\[0\]/.test(server) && !/standings\(s, clans, new Set\(/.test(server), "the API's jackpot leader counts AI-led nations too");
 const award = fs.readFileSync(new URL("../scripts/award-jackpot.mjs", import.meta.url), "utf8");
-ok(/\.ai\b/.test(award) && /followed/.test(award), "the jackpot award script skips AI-led nations");
+ok(/rankNations\(W\.clans\)/.test(award) && !/\.ai\b/.test(award), "the jackpot award script uses the site's own rule, AI-led nations included");
