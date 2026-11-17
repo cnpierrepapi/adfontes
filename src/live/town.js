@@ -9,7 +9,8 @@
 //   post     (Warden)   a lamp; at night a watchman with a torch walks the island's edge
 // Neglected nations: the class is empty and townsfolk hurry. Rich, lazy nations: someone dances.
 // Ruins: empty benches, a cold anvil, a fallen table.
-// Props are built in citizen metres inside a group scaled by the citizen scale `s`, front (+Z)
+// Props are built in citizen metres inside a group scaled to the people (or, for the monuments, the
+// town's scale times their size), front (+Z)
 // facing the middle of the island.
 import * as THREE from "three";
 import { mesh, mergeStatic } from "../scene.js";
@@ -239,13 +240,19 @@ const SPOT = { Scholar: [0.9, 0.4], Smith: [2.1, 0.52], Drafter: [3.2, 0.46], Br
   // the five techs sit further out, between the trades
   press: [1.5, 0.72], spectacles: [2.65, 0.74], clock: [3.8, 0.72], bookkeeping: [4.95, 0.74], astrolabe: [5.95, 0.7] };
 // People are small next to the buildings (his call 16 Nov: citizens were as tall as the houses). Every
-// figure, citizen or townsfolk, is drawn at PEOPLE times the town's scale; the buildings, desks and
-// footprints keep the town's scale. Smaller legs take shorter strides, so walking slows by PACE and
+// figure, citizen or townsfolk, is drawn at PEOPLE times the town's scale; the houses keep the town's
+// scale. Smaller legs take shorter strides, so walking slows by PACE and
 // the feet don't slide. Things a figure holds (the watchman's torch) shrink with it.
 export const PEOPLE = 0.45, PACE = Math.sqrt(PEOPLE);
-// Tech buildings stand clearly taller than a citizen (his rule, SPEC §14b): scaled up, footprint too.
-const BIG = { press: 1.45, spectacles: 1.7, clock: 1.3, bookkeeping: 1.4, astrolabe: 1.6, Smith: 1.3, Broker: 1.3, Warden: 1.4 };
-const FOOT = { Scholar: 2.4, Smith: 2.0 * BIG.Smith, Drafter: 1.3, Broker: 1.7 * BIG.Broker, Patron: 1.6, Warden: 0.6 * BIG.Warden, press: 1.3 * BIG.press, spectacles: 0.8 * BIG.spectacles, clock: 1.0 * BIG.clock, bookkeeping: 1.3 * BIG.bookkeeping, astrolabe: 0.9 * BIG.astrolabe };
+// Anything a person works at (the school, forge, Patron's table, desk, stall, post, the press and the
+// ledger desk) is drawn at the people's size, so a seat fits the one sitting on it and a counter
+// comes to the Broker's waist (his call 17 Nov: the trade scenes were giant next to the people).
+const HUMAN = new Set(["Scholar", "Smith", "Drafter", "Broker", "Patron", "Warden", "press", "bookkeeping"]);
+// The other techs are monuments and stand clearly taller than a citizen (his rule, SPEC §14b).
+const BIG = { spectacles: 1.7, clock: 1.3, astrolabe: 1.6 };
+const size = (role) => (HUMAN.has(role) ? PEOPLE : BIG[role] ?? 1);
+// Footprint radius in the scene's own metres; on the island it scales with the scene.
+const FOOT = { Scholar: 2.4, Smith: 2.0, Drafter: 1.3, Broker: 1.7, Patron: 1.6, Warden: 0.6, press: 1.3, spectacles: 0.8, clock: 1.0, bookkeeping: 1.3, astrolabe: 0.9 };
 
 /**
  * Build a nation's scenes and townsfolk. Returns { group, actors, stations } where stations maps a
@@ -262,18 +269,18 @@ export async function buildTown(ctx) {
   const scenes = {};
   function put(role, obj) {
     const [a, f] = SPOT[role];
-    const [x, z] = place(Math.cos(home + a) * r * f, Math.sin(home + a) * r * f, FOOT[role] * s);
+    const k = s * size(role); // local metres -> town space, with the scene's size
+    const [x, z] = place(Math.cos(home + a) * r * f, Math.sin(home + a) * r * f, FOOT[role] * k);
     const rot = Math.atan2(-x, -z); // front faces the middle of the island
     const g = new THREE.Group();
     g.position.set(x, groundY(r, x, z), z);
     g.rotation.y = rot;
-    obj.scale.setScalar(s * (BIG[role] ?? 1));
+    obj.scale.setScalar(k);
     mergeStatic(obj); // graphics step 3 (13 Nov): a workplace's still pieces draw as one shape; spinning parts stay apart
     g.add(obj);
     shadows(obj);
     group.add(g);
-    const k = s * (BIG[role] ?? 1); // local metres -> town space, with the building's size
-    const frame = { x, z, rot, obj, at: (lx, lz) => [x + (lx * Math.cos(rot) + lz * Math.sin(rot)) * k, z + (-lx * Math.sin(rot) + lz * Math.cos(rot)) * k], face: (a) => a + rot };
+    const frame = { x, z, rot, obj, k, at: (lx, lz) => [x + (lx * Math.cos(rot) + lz * Math.sin(rot)) * k, z + (-lx * Math.sin(rot) + lz * Math.cos(rot)) * k], face: (a) => a + rot };
     // Where a citizen stands to see whoever works here (errands, SPEC §14b): beside it, facing it.
     { const [vx, vz] = frame.at(1.5, 0.2); frame.visit = { x: vx, z: vz, face: Math.atan2(x - vx, z - vz) }; }
     scenes[role] = frame;
@@ -336,6 +343,7 @@ export async function buildTown(ctx) {
     const [x, z] = sc.at(0.85, -0.15);
     await person("teen", x, z, sc.face(Math.PI), "PickUp_Table");
     sc.sparks = ws.userData.sparks; sc.forge = ws.userData.forge;
+    if (sc.sparks) sc.sparks.material.size = 0.13 * sc.k; // point size is in town units, not the scene's: keep sparks spark-sized
   }
 
   // ---- counting table by the temple: the Patron counts the nation's NEAR ----
