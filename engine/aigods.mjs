@@ -164,6 +164,44 @@ export async function planInBatches(sits, plan, { size = PLAN_BATCH, fallback = 
   return { plans, failed };
 }
 
+// ---- one god per call (19 Nov) ----
+// In batches of 6, Claude left gods out of its answer (never the first of a batch; ~5 a plan: debug/plan-cost). One
+// call per god leaves nobody out, at about twice the planner's cost (his call: worth it). A god whose answer is
+// missing, empty or failed is asked once more before it gets the stand-in.
+export const PLAN_CONC = 5; // calls in flight at once
+/** plan([sit]) -> { [god]: actions }. Returns { plans, outcomes: { god: planned|retried|stand-in }, failed }; never throws. */
+export async function planEach(sits, plan, { conc = PLAN_CONC, fallback = fakePlan, log = () => {} } = {}) {
+  const plans = {}, outcomes = {}, failed = [];
+  const ask = async (sit) => {
+    try {
+      const got = (await plan([sit])) || {};
+      const keys = Object.keys(got);
+      // One god asked, one entry back: it is that god's, whatever name Claude wrote on it.
+      const mine = got[sit.god] ?? (keys.length === 1 ? got[keys[0]] : undefined);
+      return Array.isArray(mine) && mine.length ? mine : null;
+    } catch (e) { failed.push(String(e.message || e).slice(0, 160)); return null; }
+  };
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(conc, sits.length) }, async () => {
+    while (next < sits.length) {
+      const sit = sits[next++];
+      let mine = await ask(sit), how = "planned";
+      if (!mine) { mine = await ask(sit); how = "retried"; }
+      if (!mine) { mine = fallback(sit); how = "stand-in"; log(`  AI gods: ${sit.god.split(".")[0]} got no plan twice; the stand-in plan covers it`); }
+      plans[sit.god] = mine;
+      outcomes[sit.god] = how;
+    }
+  }));
+  return { plans, outcomes, failed };
+}
+/** The plan's one log line: who was planned, re-asked or stood in, actions kept and dropped, and Claude's cost. */
+export function planSummary(outcomes, { actions = 0, dropped = 0, usd = 0 } = {}) {
+  const by = (k) => Object.entries(outcomes).filter(([, v]) => v === k).map(([g]) => g.split(".")[0]);
+  const re = by("retried"), st = by("stand-in");
+  return `  AI gods: ${by("planned").length} planned, ${re.length} re-asked, ${st.length} stand-in; ${actions} actions kept, ${dropped} dropped by the checks; Claude $${usd.toFixed(4)}` +
+    (re.length ? `; re-asked: ${re.join(", ")}` : "") + (st.length ? `; stand-in: ${st.join(", ")}` : "");
+}
+
 // ---- the trickle: spread over the 2 hours to the next turn ----
 function rng(seed) {
   let h = 2166136261; for (const ch of String(seed)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }

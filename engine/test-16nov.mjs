@@ -114,7 +114,7 @@ const WORLD = "w6.adf-pool1-hf0w8.testnet", ESCROW = "adfontes-mw1fjpfx.testnet"
   const all = await A.planInBatches(sits, async () => { throw new Error("pot spent"); });
   ok(all.failed.length === 3 && Object.values(all.plans).every((p) => p.length), "a spent pot: everyone on the stand-in, nobody idle");
   const llm = fs.readFileSync(new URL("./llm.mjs", import.meta.url), "utf8");
-  ok(/GODS_PLAN,\s*6000,/.test(llm) && /2 to 4 actions/.test(llm) && /"buy", "withdraw"\]/.test(llm), "each call has more room, asks for fewer actions, and knows buy and withdraw");
+  ok(/maxTokens = 6000/.test(llm) && /GODS_PLAN,\s*maxTokens,/.test(llm) && /2 to 4 actions/.test(llm) && /"buy", "withdraw"\]/.test(llm), "each call has more room, asks for fewer actions, and knows buy and withdraw");
 }
 
 console.log(fails ? `\n${fails} FAILED` : "\nall passed");

@@ -6,7 +6,7 @@
 import * as A from "./aigods.mjs";
 import * as C from "../src/live/calls.js";
 import * as store from "./store.mjs";
-import { godsPlan, canSpend, arrivalChoice } from "./llm.mjs";
+import { godsPlan, canSpend, arrivalChoice, meter } from "./llm.mjs";
 import * as AR from "./arrivals.mjs";
 import * as MS from "./milestones.mjs";
 import { CFG, florinRates } from "./config.mjs";
@@ -100,11 +100,15 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
   if (chain) await discoverAiGods({ net, chain });
   const sits = await situations({ net, s, onchain, now: start, chain });
   if (!sits.length) return { gods: 0, actions: 0, why: "no AI gods" };
-  // A few gods per call (16 Nov, aigods.planInBatches); a failed call, or a spent pot, gets the stand-in plan.
-  const spent = !canSpend("god");
-  const { plans, failed } = await A.planInBatches(sits, (batch) => (spent || !canSpend("god") ? Promise.reject(new Error(`the AI gods' $${CFG.godsCapUsd} for today is spent`)) : godsPlan(batch, A.fakePlan)), { log });
+  // One god per call (19 Nov, aigods.planEach): in batches Claude left gods out. A god with no plan is asked once more,
+  // then gets the stand-in; a spent pot puts everyone on the stand-in. Each call has room to think (no tight cap).
+  const spent = !canSpend("god"), usd0 = meter.gods;
+  const { plans, outcomes } = await A.planEach(sits, (one) => (spent || !canSpend("god") ? Promise.reject(new Error(`the AI gods' $${CFG.godsCapUsd} for today is spent`)) : godsPlan(one, A.fakePlan, undefined, { maxTokens: 16000 })), { log });
   const all = [];
+  let free = 0, raw = 0;
+  for (const sit of sits) raw += (plans[sit.god] || []).length;
   for (const sit of sits) for (const a of A.withPassedGifts(A.validatePlan(plans[sit.god] || [], sit), sit)) {
+    if (a.kind === "pitch" || a.kind === "ask" || a.kind === "list") free++;
     // A pitch pick is free and decided now: stored as the god's choice for the next turn, not queued or sent on chain.
     if (a.kind === "pitch") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "pitch", account: sit.god, payload: { point: a.point } }); continue; }
     // Asking the accused (PLAN_13NOV step 2) is free too: stored as the god's choice; the loop answers it in seconds.
@@ -115,7 +119,9 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
   }
   const timed = A.schedule(A.oneSmitePerReport(all, sits), start, span, seed);
   await store.queueAiActions(net, timed);
-  return { gods: sits.length, actions: timed.length, why: failed.length ? `${failed.length} batch${failed.length === 1 ? "" : "es"} on the stand-in plan${spent ? " (pot spent)" : ""}` : "" };
+  log(A.planSummary(outcomes, { actions: timed.length + free, dropped: Math.max(0, raw - timed.length - free), usd: meter.gods - usd0 }));
+  const stood = Object.values(outcomes).filter((v) => v === "stand-in").length;
+  return { gods: sits.length, actions: timed.length, why: stood ? `${stood} on the stand-in plan${spent ? " (pot spent)" : ""}` : "" };
 }
 
 /** The calls one action sends (exactly the god panel's, src/live/calls.js). */

@@ -67,13 +67,16 @@ function fakeDraft({ chain }) {
 async function json(model, system, user, schema, maxTokens, retried = false, as = null) {
   const kind = as || (model === CFG.draftModel ? "draft" : model === CFG.councilModel ? "council" : "agent"); // as: "god" for the AI gods' pot
   if (!canSpend(kind)) throw new BudgetError(`daily cap $${CFG.dailyCapUsd} reached ($${spentToday().toFixed(4)} spent today)`);
-  const msg = await client.messages.create({
+  const req = {
     model,
     max_tokens: maxTokens,
     output_config: { effort: "low", format: { type: "json_schema", schema } },
     system,
     messages: [{ role: "user", content: user }],
-  });
+  };
+  // Over 16000 the SDK refuses a plain call ("Streaming is required", 19 Nov: a cut-off batch of 6 gods asked again at
+  // 24000 failed outright and all 6 got the stand-in). Big asks stream; the answer is the same message.
+  const msg = maxTokens > 16000 ? await client.messages.stream(req).finalMessage() : await client.messages.create(req);
   const [pin, pout] = PRICE[model];
   meter.calls++;
   const usd = (msg.usage.input_tokens * pin + msg.usage.output_tokens * pout) / 1e6;
@@ -442,7 +445,7 @@ export function godsPrompt(sits) {
       "Write every whisper in the god's own voice, matching its temperament.";
   return { system, user: `Your gods and their nations now:\n\n${lines}` };
 }
-export async function godsPlan(sits, fake, model = CFG.godModel) {
+export async function godsPlan(sits, fake, model = CFG.godModel, { maxTokens = 6000 } = {}) {
   if (FAKE) return Object.fromEntries(sits.map((s) => [s.god, fake(s)]));
   const { system, user } = godsPrompt(sits);
   const r = await json(
@@ -450,7 +453,7 @@ export async function godsPlan(sits, fake, model = CFG.godModel) {
     system,
     user,
     GODS_PLAN,
-    6000, // room for a batch of gods and the model's thinking (3000 for 40 gods at once kept cutting off, 16 Nov)
+    maxTokens, // 6000 by default: room for a batch of gods and the model's thinking (3000 for 40 gods at once kept cutting off, 16 Nov)
     false,
     "god",
   );
