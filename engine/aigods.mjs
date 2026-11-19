@@ -274,6 +274,41 @@ export async function sendChecked({ send, landed, sleep = (ms) => new Promise((r
   throw lastErr;
 }
 
+// ---- votes that don't wait on the motion (19 Nov) ----
+// The yes vote that passes a motion also runs it; waiting for every receipt (EXECUTED_OPTIMISTIC) kept the RPC call
+// open ~90 s after all of them had executed (within 3 s: debug/receipt-times.mjs). A vote now returns once it's in a
+// final block; then only the DAO's own receipt is read, to catch a refusal.
+/** send() -> { hash } (sent with INCLUDED_FINAL). status(hash) -> the tx outcome with receipts_outcome, or null when the
+ *  node doesn't know yet. Returns { hash } or { hash, unconfirmed: true } after `tries` looks; throws on a refusal. */
+export async function confirmVote({ send, status, dao, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 12 }) {
+  const { hash } = await send();
+  for (let i = 0; i < tries; i++) {
+    await sleep(1000);
+    const o = await status(hash).catch(() => null);
+    const mine = o?.receipts_outcome?.find((x) => x.outcome?.executor_id === dao);
+    if (!mine) continue;
+    const st = mine.outcome.status || {};
+    if (st.Failure) throw new Error(`act_proposal refused: ${JSON.stringify(st.Failure).slice(0, 200)}`);
+    if ("SuccessValue" in st || "SuccessReceiptId" in st) return { hash };
+  }
+  return { hash, unconfirmed: true };
+}
+/** The AI co-gods who should vote yes on `proposer`'s motion: only as many as it still needs (Sputnik RoleWeight 1/2:
+ *  floor(n/2)+1 of the council's n), none once it's passed. A vote after that is refused (ERR_PROPOSAL_NOT_READY_FOR_VOTE). */
+export function coVoters(clan, proposer, ai, proposal) {
+  if (proposal?.status !== "InProgress") return [];
+  // The proposer has just voted yes (aiSend's second call); a lagging read may not show it yet, so it counts anyway.
+  const n = (clan.gods || []).length, votes = { ...(proposal.votes || {}), [proposer]: "Approve" };
+  let need = Math.max(0, Math.floor(n / 2) + 1 - Object.keys(votes).length);
+  const out = [];
+  for (const g of clan.gods || []) {
+    if (need <= 0) break;
+    if (g.account === proposer || !ai.has(g.account) || g.account in votes) continue;
+    out.push(g.account); need--;
+  }
+  return out;
+}
+
 /** Gifts the Warden passed are always rewarded (13 Nov): the plan gets a ruling for every one it forgot. The god
  *  still signs it like any motion; a gift the Warden failed is left to the god's judgement. */
 export function withPassedGifts(actions, sit) {

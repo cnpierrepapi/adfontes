@@ -180,11 +180,9 @@ export async function runDue({ net, chain, now = Date.now(), limit = 2, log = ()
       // Fellow AI gods vote the motion through (a council needs a majority).
       if (a.kind !== "bless" && r.proposal != null) {
         const proposal = await chain.dao(clan.dao, "get_proposal", { id: Number(r.proposal) }).catch(() => null);
-        if (proposal?.status === "InProgress") {
-          for (const g of clan.gods) {
-            if (g.account === row.god || !ai.has(g.account)) continue;
-            await chain.aiSend(g.account, [C.vote(clan.dao, proposal, "VoteApprove")]).catch((e) => log(`  vote by ${g.account}: ${String(e.message || e).slice(0, 100)}`));
-          }
+        // Only as many co-votes as it still needs (19 Nov: a vote after it passed was refused on nearly every motion).
+        for (const g of A.coVoters(clan, row.god, ai, proposal)) {
+          await chain.aiSend(g, [C.vote(clan.dao, proposal, "VoteApprove")]).catch((e) => log(`  vote by ${g}: ${String(e.message || e).slice(0, 100)}`));
         }
       }
       result = `ok ${r.hash}`;

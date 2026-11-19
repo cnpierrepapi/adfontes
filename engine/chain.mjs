@@ -9,7 +9,7 @@ import { NETWORKS } from "./config.mjs";
 import { connectSim } from "./chain-sim.mjs";
 import { gasTopUp } from "./market.mjs";
 import { reserveTopUp, daoTopUp } from "./reserve.mjs";
-import { guard as aiGuard, guardPay as aiGuardPay, godSeed, sendChecked } from "./aigods.mjs";
+import { guard as aiGuard, guardPay as aiGuardPay, godSeed, sendChecked, confirmVote } from "./aigods.mjs";
 import { returned } from "../src/live/calls.js";
 import { readAll } from "../src/server/pages.mjs";
 
@@ -236,6 +236,22 @@ export function connect(net) {
         };
         const r = await sendChecked({
           send: async () => {
+            // A yes vote returns once it's in a final block (19 Nov: waiting for every receipt of the vote that passes a
+            // motion held each motion ~90 s); then only the DAO's own receipt is read, for a refusal (aigods.confirmVote).
+            if (c.method === "act_proposal") {
+              const v = await confirmVote({
+                // Signed here so the hash is known before sending (INCLUDED_FINAL answers with no transaction outcome).
+                send: async () => {
+                  const tx = await acct.createTransaction({ receiverId: c.receiver, actions: [actions.functionCall(c.method, c.args, BigInt(c.gas), BigInt(c.deposit || 0))], publicKey: await acct.signer.getPublicKey() });
+                  const { txHash, signedTransaction } = await acct.signer.signTransaction(tx);
+                  await provider.sendTransactionUntil(signedTransaction, "INCLUDED_FINAL");
+                  return { hash: baseEncode(txHash) };
+                },
+                status: (hash) => provider.viewTransactionStatusWithReceipts({ txHash: hash, accountId: account, waitUntil: "NONE" }),
+                dao: c.receiver,
+              });
+              return { value: null, hash: v.hash };
+            }
             const o = await acct.callFunctionRaw({ contractId: c.receiver, methodName: c.method, args: c.args, deposit: BigInt(c.deposit || 0), gas: BigInt(c.gas) });
             const fail = o.receipts_outcome.find((x) => x.outcome.status.Failure);
             if (fail) throw new Error(`${c.method} refused: ${JSON.stringify(fail.outcome.status.Failure).slice(0, 200)}`);
