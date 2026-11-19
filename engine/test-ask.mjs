@@ -84,7 +84,7 @@ ok(AG.validatePlan([{ kind: "smite", clan: 12, report: "r64-12" }], sit).length 
 const sit2 = { ...sit, reports: { 12: [{ id: "r64-12", accused: "Dagny Ulloa", asked: true, answer: { says: "no" } }] } };
 ok(AG.validatePlan([{ kind: "smite", clan: 12, report: "r64-12" }], sit2)[0]?.kind === "smite" && AG.validatePlan([{ kind: "ask", clan: 12, report: "r64-12" }], sit2).length === 0, "after the answer it may stunt, and can't ask again");
 ok(/kind === "ask"[\s\S]{0,200}putChoice/.test(src("engine/aiact.mjs")), "an AI god's ask is stored as its choice");
-ok(/ask/.test(src("engine/llm.mjs").slice(src("engine/llm.mjs").indexOf("export async function godsPlan"))), "the AI gods' prompt explains asking");
+ok(/ask/.test(src("engine/llm.mjs").slice(src("engine/llm.mjs").indexOf("export function godsPrompt"))), "the AI gods' prompt explains asking");
 
 // 9. The wiring.
 const run = src("engine/run.mjs");

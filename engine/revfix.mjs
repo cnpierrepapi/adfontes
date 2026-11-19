@@ -83,6 +83,58 @@ export function floorReverence(s, onchain, seed) {
   return out;
 }
 
+// His call 19 Nov: every god sharing a nation raised its own smite on the same report, and each motion that passed
+// took the stunt's 8 reverence from its god (121 stunts sealed 217 penalties on days 120-143). The engine now charges
+// only the smite that settles the report (reverence.godActions). Once: give back every duplicate already sealed.
+// A duplicate = a "stunted X" change in a nation that isn't matched by a report-settled record (same day, same god,
+// same citizen) while a report on X in that nation was settled by a stunt within a real day before it. Pure.
+/** days: [{ day, records }] in order. Returns { refunds: { [clan]: { [god]: reverence } }, count, detail }. */
+export function dupStunts(days) {
+  const refunds = {}, detail = [], lastSettled = {};
+  for (const { day, records } of [...days].sort((a, b) => a.day - b.day)) {
+    const settles = {};
+    for (const r of records || []) if (r.kind === "report-settled" && r.outcome === "stunted") {
+      const k = `${r.clan}|${r.accused}`;
+      lastSettled[k] = day;
+      settles[`${k}|${r.by}`] = (settles[`${k}|${r.by}`] || 0) + 1;
+    }
+    for (const r of records || []) {
+      // The 16 Nov parity reset set every seated god in that nation to 50: what it lost before is already made good.
+      if (r.kind === "correction" && (r.changes || []).some((c) => /^reverence back to parity/.test(c.why || ""))) { delete refunds[r.clan]; for (let i = detail.length - 1; i >= 0; i--) if (detail[i].clan === r.clan) detail.splice(i, 1); continue; }
+      if (r.kind !== "reverence") continue;
+      for (const c of r.changes || []) {
+        const m = /^stunted (.+)$/.exec(c.why || "");
+        if (!m || !(c.d < 0)) continue;
+        const k = `${r.clan}|${m[1]}`, mine = `${k}|${c.god}`;
+        if (settles[mine] > 0) { settles[mine]--; continue; } // this stunt settled the report: a real one
+        if (lastSettled[k] == null || day - lastSettled[k] > REV.reportDays) continue; // no report behind it: as before
+        ((refunds[r.clan] ||= {})[c.god] = +(((refunds[r.clan][c.god]) || 0) - c.d).toFixed(2));
+        detail.push({ day, clan: r.clan, god: c.god, agent: m[1], d: -c.d });
+      }
+    }
+  }
+  return { refunds, count: detail.length, detail };
+}
+/** Apply the refunds to gods still seated in living, unfallen nations, capped at 100. Returns { [clan]: changes }. */
+export function refundStunts(s, onchain, refunds) {
+  const out = {};
+  for (const c of [...onchain].sort((a, b) => a.id - b.id)) {
+    const rv = s.rev?.[c.id], due = refunds[c.id];
+    if (!c.alive || !rv || !due || s.clans?.[c.id]?.fallen) continue;
+    const seated = new Set((c.gods || []).map((g) => g.account)), changes = [];
+    for (const [god, amt] of Object.entries(due)) {
+      const me = rv.gods[god];
+      if (!me || !seated.has(god) || !(amt > 0)) continue;
+      const to = Math.min(100, me.r + amt), d = +(to - me.r).toFixed(2);
+      if (!(d > 0)) continue;
+      changes.push({ god, d, why: `refund (19 Nov): ${+amt.toFixed(1)} reverence taken for stunts another god's smite had already done` });
+      me.r = to;
+    }
+    if (changes.length) out[c.id] = changes;
+  }
+  return out;
+}
+
 // His call 16 Nov: reverence back to parity. One time only: every god holding a seat in a living, unfallen nation,
 // AI or not, stands at exactly 50, above it or below. Outside gods and fallen nations are untouched. Each nation
 // keeps the god it follows (all its gods are level now, so nothing else would decide it). Returns { [clan]: changes }.

@@ -130,6 +130,20 @@ export function validatePlan(plan, sit) {
   return gone == null ? out : out.filter((x) => x.clan !== gone || x.kind === "withdraw");
 }
 
+/** One smite per report per plan (his call 19 Nov): gods sharing a nation each smote the same report and each paid
+ *  the stunt. all = [{ god, kind, clan, report, ... }] across every god; sits gives each god's reverence per nation.
+ *  The smite kept is the one from the god with the most reverence in that nation (it can best afford the stunt). */
+export function oneSmitePerReport(all, sits) {
+  const rev = (god, clan) => Number(sits.find((x) => x.god === god)?.nations?.find((n) => n.id === clan)?.myReverence) || 0;
+  const best = new Map();
+  for (const a of all) {
+    if (a.kind !== "smite") continue;
+    const k = `${a.clan}|${a.report}`, cur = best.get(k);
+    if (!cur || rev(a.god, a.clan) > rev(cur.god, cur.clan)) best.set(k, a);
+  }
+  return all.filter((a) => a.kind !== "smite" || best.get(`${a.clan}|${a.report}`) === a);
+}
+
 // ---- planning in batches (16 Nov) ----
 // One Claude call for every AI god at once failed as the gods grew past 30: a cut-off answer about one turn in three,
 // and the answers that parsed planned a handful of actions for 40 gods. Now the gods are planned a few at a time;

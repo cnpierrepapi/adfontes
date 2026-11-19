@@ -53,6 +53,7 @@ export async function situations({ net, s, onchain, now = Date.now(), chain = nu
       const war = Object.values(s.wars || {}).find((w) => w.status === "on" && (w.a === c.id || w.b === c.id));
       return {
         id: c.id, name: c.name, standing: Math.round((rv.followed ? rv.gods?.[rv.followed]?.r : 0) || 0), myReverence: Math.round(rv.gods?.[g.account]?.r || 0),
+        enemies: (rv.gods?.[g.account]?.enemies || []).length, // innocents it stunted, still alive: each speeds its fade (19 Nov)
         tricksters: st.tricksters || 0, mood: st.mood || "content", florins: Number(BigInt(c.florins || 0) / 10n ** 16n) / 1e6,
         war: war ? onchain.find((x) => x.id === (war.a === c.id ? war.b : war.a))?.name ?? null : null,
         openGifts: Object.values(s.gifts || {}).filter((x) => x.clan === c.id && !x.applied).length,
@@ -112,7 +113,7 @@ export async function planGods({ net, s, onchain, chain = null, start = Date.now
     if (a.kind === "list") { await store.putChoice(net, { day: s.day + 1, clan: a.clan, kind: "list", account: sit.god, payload: { tokens: a.tokens } }); continue; }
     all.push({ ...a, god: sit.god });
   }
-  const timed = A.schedule(all, start, span, seed);
+  const timed = A.schedule(A.oneSmitePerReport(all, sits), start, span, seed);
   await store.queueAiActions(net, timed);
   return { gods: sits.length, actions: timed.length, why: failed.length ? `${failed.length} batch${failed.length === 1 ? "" : "es"} on the stand-in plan${spent ? " (pot spent)" : ""}` : "" };
 }

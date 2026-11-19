@@ -272,6 +272,13 @@ export function brokerReward(rv, god, day, changes) {
   return move(rv, god, 1, "your Broker sold what you asked, above fair", changes, { cap: 60 });
 }
 
+/** The report on `accused` in nation `id` a stunt settled within the last real day (REV.reportDays game days), if
+ *  any. Reports settled before 19 Nov have no settledDay: their report day stands in. */
+export function settledLately(s, id, accused, day) {
+  return Object.values(s.reports || {}).filter((x) => x.clan === id && x.accused === accused && x.settled && x.outcome === "stunted" && day - (x.settledDay ?? x.day) <= REV.reportDays)
+    .sort((a, b) => (b.settledDay ?? b.day) - (a.settledDay ?? a.day))[0] ?? null;
+}
+
 /** A god stunted (or killed) the accused of an open report. */
 export function answerReport(s, rv, id, god, accused, day, changes) {
   const rep = Object.values(s.reports || {}).find((x) => x.clan === id && !x.settled && x.accused === accused);
@@ -279,6 +286,8 @@ export function answerReport(s, rv, id, god, accused, day, changes) {
   if (!rep || !rep.answer) return null;
   rep.settled = true;
   rep.outcome = "stunted";
+  rep.settledDay = day;
+  rep.by = god;
   const g = rv.gods[god];
   if (g) {
     if (rep.truth) { g.justiceUntil = day + REV.effectDays; changes.push({ god, d: 0, why: `justice: ${accused} really was guilty, fade slowed for a day` }); }
@@ -385,8 +394,12 @@ export async function godActions({ chain, s, oc, rv, day, changes, hear = null }
     }
     else if (method === "release_staking") act(rv, god, "staking", day, changes);
     else if (method === "smite") {
-      act(rv, god, args.verdict === "Kill" ? "kill" : "stunt", day, changes, { agent: args.agent });
+      // One stunt per report (his call 19 Nov): when several gods raised a smite on the same report, only the one
+      // that settles it costs its god. The rest find the report already answered and cost nothing.
+      const done = settledLately(s, oc.id, args.agent, day);
       const settled = answerReport(s, rv, oc.id, god, args.agent, day, changes);
+      if (!settled && done) changes.push({ god, d: 0, why: `stunted ${args.agent} again: ${done.by ? `${String(done.by).split(".")[0]} had` : "another god had"} already settled that report, no extra cost` });
+      else act(rv, god, args.verdict === "Kill" ? "kill" : "stunt", day, changes, { agent: args.agent });
       if (settled) out.push(settled);
     } else if (method === "rule") {
       if (args.reward) act(rv, god, "reward", day, changes);

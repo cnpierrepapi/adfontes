@@ -15,7 +15,7 @@ import { scholarTurn, draftTurn, brokerPick, brokerMarket, sellerAsk, hearWhispe
 import * as RV from "./reverence.mjs";
 // Whispers to re-hear once (9 Nov, see the per-nation reverence step): nation id -> DAO proposal id.
 const REHEAR_9NOV = { 2: 17, 3: 4, 6: 4 };
-import { overpaid, floorReverence, parityReverence } from "./revfix.mjs";
+import { overpaid, floorReverence, parityReverence, dupStunts, refundStunts } from "./revfix.mjs";
 import * as CD from "./cooldown.mjs";
 import * as WR from "./war.mjs";
 import { warCouncil } from "./llm.mjs";
@@ -190,6 +190,18 @@ for (let n = 0; n < days; n++) {
     const reset = parityReverence(s, await chain.clans());
     for (const [cid, changes] of Object.entries(reset)) log({ kind: "correction", clan: Number(cid), changes, why: "A one-time reset (16 Nov): every god with a seat stands at 50 reverence, level with the rest." });
     s.fixes = { ...(s.fixes || {}), revParity16Nov: Date.now() };
+  }
+  // Refund the duplicate stunts (his call 19 Nov, engine/revfix.mjs): gods sharing a nation each paid 8 for the same
+  // report's stunt. Every sealed day plus this day's records so far are read once; each duplicate is given back.
+  if (net === "testnet" && !process.env.ADF_SIM_CHAIN && !s.fixes?.revDupStunts19Nov && s.rev) {
+    const days = [];
+    for (let d = 1; d <= s.day; d++) { const got = await store.getDay(net, d).catch(() => null); if (got) days.push({ day: d, records: got.records || [] }); }
+    days.push({ day, records: [...rec] });
+    const { refunds, count } = dupStunts(days);
+    const back = refundStunts(s, await chain.clans(), refunds);
+    for (const [cid, changes] of Object.entries(back)) log({ kind: "correction", clan: Number(cid), changes, why: "A one-time refund (19 Nov): when several gods smote the same report, each paid the stunt. Only the smite that settled it should have. Given back." });
+    console.log(`  refund (19 Nov): ${count} duplicate stunt penalties found, ${Object.values(back).flat().length} gods refunded`);
+    s.fixes = { ...(s.fixes || {}), revDupStunts19Nov: Date.now() };
   }
   // The cooldown (his call 16 Nov, engine/cooldown.mjs) counts fire from the turn it lands. The first run with it reads
   // the last 21 sealed turns once for fire that already fell.
