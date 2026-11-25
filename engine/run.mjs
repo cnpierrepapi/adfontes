@@ -216,7 +216,10 @@ for (let n = 0; n < days; n++) {
   const seatsSealed = [];
   {
     const aiBefore = new Set((await store.aiGods(net).catch(() => [])).map((g) => g.account));
+    // A resumed day already logged (and carried) the sales its first run sealed into its records: don't again.
+    const logged = new Set(rec.filter((r) => r.kind === "seat-sold" || r.kind === "seat-refund").map((r) => r.paid_with));
     for (const b of await store.seatBuysUnsealed(net).catch(() => [])) {
+      if (logged.has(b.tx)) { seatsSealed.push(b.tx); continue; }
       const l = await store.seatGet(net, b.listing);
       const r = SE.recordOf(b, l);
       if (b.status === "filled" && l) {
@@ -241,7 +244,12 @@ for (let n = 0; n < days; n++) {
   // Signed choices for this turn (PLAN_13NOV step 0, engine/choices.mjs). Read by every run of the turn; sealed as
   // records once, by the scheduled run. Silence = today's behaviour.
   const CHOICES = await store.choicesFor(net, day).catch(() => []);
-  if (!INSTANT) for (const ch of CHOICES) log(CH.recordOf(ch));
+  // A resumed day already holds the choices its first run logged (24 Nov: 780 retries logged the same 2 choices 1,562 times).
+  if (!INSTANT) {
+    const key = (r) => JSON.stringify([r.clan, r.choice, r.god, r.payload]);
+    const had = new Set(rec.filter((r) => r.kind === "choice").map(key));
+    for (const ch of CHOICES) { const r = CH.recordOf(ch); if (!had.has(key(r))) log(r); }
+  }
   const pitchPick = (id) => CHOICES.find((x) => x.clan === id && x.kind === "pitch")?.payload?.point ?? null;
   if (AI_SET.size) for (const [cid, gods] of Object.entries(RV.dropOutsiders(s, await chain.clans(), AI_SET))) log({ kind: "outsiders-gone", clan: Number(cid), gods, why: "its AI gods have full control: the outside gods let go" });
   const checkpoint = async () => { s.spend.usd = spendBase + meter.usd; if (!INSTANT) await store.saveDay(net, day, rec, null, null); await store.saveState(net, s); };
@@ -1080,8 +1088,13 @@ for (let n = 0; n < days; n++) {
   }
 
   // War (the finale, his call 8 Nov): councils, then one round of every war. Scheduled turns only.
-  if (!INSTANT) {
+  // Once a day, even when the day is retried (24 Nov: every retry of a turn stuck at set_root fought another round,
+  // up to 353 in one day, and six nations fell). Marked done whether it worked or not, then saved at once, so a
+  // retry or a restart never fights the round (or pays its plunder) twice.
+  if (!INSTANT && !s.inProgress?.once?.war) {
     try { await warPhase(); } catch (e) { log({ kind: "error", error: `war: ${String(e.message || e).slice(0, 200)}` }); }
+    (s.inProgress.once ||= {}).war = true;
+    await checkpoint();
   }
   async function warPhase() {
     s.wars ||= {}; s.peace ||= {};
@@ -1247,7 +1260,11 @@ for (let n = 0; n < days; n++) {
 
   // Act of God (engine/fire.mjs): fire the gods called this turn, then (scheduled turns only) the
   // heavens' own. Any failure is logged and skipped; it never stops the turn.
-  try { await firePhase(); } catch (e) { log({ kind: "error", error: `act of god: ${String(e.message || e).slice(0, 200)}` }); }
+  // Once a day too: a retried day used to roll the heavens' fire again on every retry.
+  if (!s.inProgress?.once?.fire) {
+    try { await firePhase(); } catch (e) { log({ kind: "error", error: `act of god: ${String(e.message || e).slice(0, 200)}` }); }
+    if (!INSTANT) { (s.inProgress.once ||= {}).fire = true; await checkpoint(); }
+  }
   async function firePhase() {
     const queue = (s.fire ||= {}).queue || [];
     s.fire.queue = [];

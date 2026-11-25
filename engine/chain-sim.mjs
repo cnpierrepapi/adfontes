@@ -168,7 +168,12 @@ export function connectSim(file) {
     marketSales: async (from = 0) => (S.market?.sales || []).slice(from),
     agentBuy: async function (buyer, seller, florins, memo) { sign(traderOf(buyer)); save(); const r = await this.trade(buyer, seller, florins, memo); return { ...r, signer: `trader${buyer}.sim-operator` }; },
     agentSpend: async function (id, florins, memo) { sign(`patron${id}.sim-operator`); save(); const r = await this.burn(id, florins, memo); return { ...r, signer: `patron${id}.sim-operator` }; },
-    setRoot: async (day, root) => { S.roots[day] = root; save(); return tx(); },
+    setRoot: async (day, root) => {
+      // Tests only (ADF_SIM_FAIL_ROOT=n): refuse the first n set_root calls, as NEAR did on 24 Nov with the operator empty.
+      const failFor = Number(process.env.ADF_SIM_FAIL_ROOT || 0);
+      if ((S.rootFails || 0) < failFor) { S.rootFails = (S.rootFails || 0) + 1; save(); throw new Error(`Not enough balance for operator (stand-in chain: set_root refused ${S.rootFails} of ${failFor})`); }
+      S.roots[day] = root; save(); return tx();
+    },
     getRoot: async (day) => S.roots[day] ?? null,
   };
 }
