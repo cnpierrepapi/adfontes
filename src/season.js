@@ -18,7 +18,3 @@ export const seasonLabel = () => `${SEASON.name} · beta`;
 export const rankNations = (clans) => (clans || []).filter((c) => c.alive !== false && !c.fallen)
   .map((c) => ({ id: c.id, name: c.name, standing: c.reverence?.standing ?? 0, waiting: !!c.reverence?.waiting, follows: c.reverence?.followed ?? null }))
   .sort((a, b) => b.standing - a.standing || a.id - b.id);
-
-// North Pole: the season's demo nation. Santa is its god. It rises from the centre of the map and
-// its citizens are small people in red and white.
-export const isNorthPole = (c) => /^\s*north\s*pole\s*$/i.test(c?.name || "");

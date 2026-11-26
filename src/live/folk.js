@@ -6,7 +6,6 @@
 import * as THREE from "three";
 import { planWalk, walkStep, turnToward, separate, makeOpen, checkRounds, gait, gaitReset } from "./steer.js";
 import { loadCitizenKit, makeCitizen, ROLES } from "./citizens.js";
-import { isNorthPole } from "../season.js";
 import { buildTown, stepTown, PEOPLE, PACE } from "./town.js";
 
 const h32 = (s) => { let x = 2166136261; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };
@@ -121,10 +120,8 @@ export function createFolk({ scene, islands, renderer, camera }) {
     for (const a of agents || []) {
       const seed = h32(a.name), R = rnd(seed);
       if (!a.alive || isl.userData.status === "dead") { group.add(gravestone(r, s, R)); continue; }
-      // North Pole's citizens are small people in red and white (his call 11 Nov).
-      const elf = isNorthPole(isl.userData.clan);
-      const c = await makeCitizen(kit, a.role, a.name, elf ? { child: true, elf: true } : {});
-      c.root.scale.setScalar((elf ? s * 0.62 : s) * PEOPLE);
+      const c = await makeCitizen(kit, a.role, a.name, {});
+      c.root.scale.setScalar(s * PEOPLE);
       const stunted = a.stunted_until > day;
       if (stunted) c.root.traverse((o) => o.isMesh && o.material?.color && (o.material = Object.assign(o.material.clone(), { color: new THREE.Color(0x8a8a96) })));
       const st = STATION[a.role] ?? [R() * 6.28, 0.45];

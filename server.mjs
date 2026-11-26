@@ -160,10 +160,13 @@ function makeApi(NET) {
     // The world now: day, weather, clans (money from the chain, mind from the engine).
     // Nations whose last god claimed out (his call 10 Nov): gone from the game. A fallen nation (lost a
     // war) isn't here: its ruins are part of the war's story. Not an endpoint (no letters-only name).
+    // Except North Pole (his call 26 Nov): it fell to Numdial on day 146 and comes off the map for good,
+    // ruins and all, like a nation that ended. Its sealed records stay as written.
     async _ended() {
       return cachedN("ended", 30_000, async () => {
         const [clans, s] = await Promise.all([view("list_clans", { limit: 100 }), stateNow()]);
-        return clans.filter((c) => !c.alive && !s.clans?.[c.id]?.fallen && !(c.gods?.length > 0)).map((c) => ({ id: c.id, name: c.name }));
+        const removed = (c) => c.id === 12 && /^\s*north\s*pole\s*$/i.test(c.name || "") && !c.alive;
+        return clans.filter((c) => removed(c) || (!c.alive && !s.clans?.[c.id]?.fallen && !(c.gods?.length > 0))).map((c) => ({ id: c.id, name: c.name }));
       });
     },
     async world() {

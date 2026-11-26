@@ -3,7 +3,6 @@
 import { createStandings } from "./standings.js";
 import { createFeed } from "./feed.js";
 import { openGodCard } from "./godcard.js";
-import { isNorthPole } from "../season.js";
 import { api as netApi } from "../net.js";
 import { endedName } from "../says.js";
 import * as THREE from "three";
@@ -163,8 +162,7 @@ export async function startLive(canvas, hud, opts = {}) {
     const cell = cellOf(c);
     const r = 1.8 + Math.min(2.6, Math.sqrt(c.points || 1) * 0.24);
     // A little drift inside the cell so the grid doesn't read as a grid.
-    // North Pole (the Season of Cheer's demo nation) takes the empty centre of the map (HEX skips it).
-    const pos = isNorthPole(c) ? new THREE.Vector3(0, 0.5, 0) : new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
+    const pos = new THREE.Vector3(cell.x + (hash(c.id + 3) - 0.5) * 2.4, -1.5 + hash(c.id) * 4, cell.z + (hash(c.id + 5) - 0.5) * 2.4);
     // From the game (SPEC §14): a Trickster moved in or the citizens are hungry = neglected;
     // sated (more NEAR than they need) = rich and a bit lazy.
     const status = statusOf(c); // src/live/status.js: neglected = no god acted for 24 h (13 Nov)
@@ -1054,35 +1052,14 @@ export async function startLive(canvas, hud, opts = {}) {
 }
 
 // A clan's island: size from its mindmap, town from its state.
-// The pole at the North Pole: red and white stripes wound round it, a gold ball on top.
-function northPole(r) {
-  const cv = document.createElement("canvas"); cv.width = 64; cv.height = 256;
-  const g = cv.getContext("2d");
-  g.fillStyle = "#ffffff"; g.fillRect(0, 0, 64, 256);
-  g.fillStyle = "#d8202a";
-  for (let y = -64; y < 320; y += 48) { g.beginPath(); g.moveTo(0, y); g.lineTo(64, y - 32); g.lineTo(64, y - 8); g.lineTo(0, y + 24); g.fill(); }
-  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, 2);
-  const h = r * 1.5;
-  const grp = new THREE.Group();
-  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, h, 20), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35 }));
-  stick.position.y = h / 2;
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.32, 20, 14), new THREE.MeshStandardMaterial({ color: 0xffc83a, metalness: 0.6, roughness: 0.25, emissive: 0x6a3a00, emissiveIntensity: 0.35 }));
-  ball.position.y = h + 0.2;
-  grp.add(stick, ball);
-  grp.position.set(-r * 0.78, 0, -r * 0.42); // near the rim, clear of the plaza's buildings
-  return grp;
-}
 function buildClanIsland(c, r, status, sprays) {
   const sprayFrom = sprays.length; // this island's own spray animations (tagged below: Low skips them far off)
   const dead = status === "dead";
-  const pole = isNorthPole(c);
-  // North Pole: snow on top, ice below, red roofs, and the pole itself.
-  const isl = island(r, dead ? { grass: 0xb9b1a6, rock: 0x8f857c } : pole ? { grass: 0xf4f8ff, rock: 0x9fb6cc } : { grass: status === "neglected" ? 0xc8b46a : pick(PAL.grass), rock: pick(PAL.rock) });
+  const isl = island(r, dead ? { grass: 0xb9b1a6, rock: 0x8f857c } : { grass: status === "neglected" ? 0xc8b46a : pick(PAL.grass), rock: pick(PAL.rock) });
   const town = new THREE.Group();
   town.userData.noMerge = true; // its buildings merge one by one (the townsfolk read each one), see mergeIsland
   isl.add(town);
-  const accent = pole ? 0xd8202a : FIELD_COLOR[c.field] ?? pick(PAL.dome);
-  if (pole && !dead) { const np = northPole(r); np.userData.noMerge = true; isl.add(np); } // on the island itself: the plaza's close-up town replaces `town`
+  const accent = FIELD_COLOR[c.field] ?? pick(PAL.dome);
   if (dead) {
     // Broken pillars: what's left of the temple.
     for (let i = 0; i < 6; i++) {
@@ -1145,7 +1122,7 @@ function freezeStatic(isl, town) {
   for (const c of isl.children) if (c === town || (!c.userData.noMerge && !c.isPoints && (c.isMesh || c.isGroup))) freeze(c);
 }
 // Fewer draw calls (12 Nov): each building merges inside itself (same group, place, tags and footprint), then
-// the island's own rocks merge; anything marked noMerge (water, mist, the pole) is left as it was.
+// the island's own rocks merge; anything marked noMerge (water, mist) is left as it was.
 function mergeIsland(isl, town) {
   for (const o of town.children) if (!o.userData.noMerge) mergeStatic(o);
   mergeStatic(isl);
