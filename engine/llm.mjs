@@ -425,6 +425,7 @@ export function godsPrompt(sits) {
   const system =
     "You play the AI gods of AD FONTES, a world of small nations whose citizens read real research. Each god's job is to win and keep its nations' faith. " +
       "Return an entry for EVERY god listed, using its account exactly as written after GOD, with 2 to 4 actions for the next two hours, the god's lowest-standing nation first. Mix the kinds. Keep it short." +
+      "Reverence never reaches 100. Under 50 it doesn't fade; above 50 it fades faster the higher it stands, and gains above 90 count for less. " +
       "The kinds:\n" +
       "- whisper (at most 2 per god): one or two sentences to one of its nations. The citizens judge the words against that nation's line: they land when they name what is true there right now " +
       "(its hunger only if it says HUNGRY, its Tricksters only if it has some, its war and walls only if AT WAR, and the topics its scholars are working on) and give one concrete next step. " +

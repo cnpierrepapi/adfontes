@@ -13,6 +13,10 @@ export const REV = {
   newcomer: 30, // a founder or a god who joins later
   claimer: 30, // an outside god who claims a nation that turned on its only god
   fade: 1.0, // per game day (12 game days = 1 real day)
+  // His call 26 Nov: no god ever reaches 100, and the higher the reverence the faster it drains. No fade
+  // under fadeFloor and none that takes a god below it; from there the fade grows to x(1 + fadeTop) at 100.
+  // A gain above shrinkAbove closes part of the gap to 100 (see grow); nothing goes over ceiling.
+  fadeFloor: 50, fadeTop: 0.5, shrinkAbove: 90, ceiling: 99.9,
   enemyFade: 0.5, // extra fade per living enemy (a citizen you stunted on a false report)
   faithLossFade: 0.5, // extra fade while an accuser you ignored has lost faith
   justiceFactor: 0.5, // fade multiplier while justice is seen (you stunted a guilty citizen)
@@ -82,13 +86,24 @@ export function ensure(s, oc, day, { fresh }) {
 // The new rules (9 Nov) are on everywhere since his go the same day (what a god says decides
 // the season). ADF_REV_RULES=old brings the old ones back (the A/B simulation).
 const OLD = process.env.ADF_REV_RULES === "old";
+/** Where a gain of d (> 0) takes a god at r (26 Nov): in full up to shrinkAbove, then each point closes part of
+ *  the gap to 100, (100 - r) * (1 - e^(-d / 10)), so 100 is never reached. Never past ceiling; a god already
+ *  above it (from before this rule) gains nothing and isn't pulled down. */
+function grow(r, d) {
+  const T = REV.shrinkAbove, w = 100 - T;
+  let x = r;
+  if (x < T) { const full = Math.min(d, T - x); x += full; d -= full; }
+  if (d > 0) x = 100 - (100 - x) * Math.exp(-d / w);
+  return Math.max(r, Math.min(REV.ceiling, x));
+}
 function move(rv, god, d, why, changes, { whisper = false, cap = null } = {}) {
   const g = rv.gods[god];
   if (!g || !d) return 0;
   const before = g.r;
   const top = cap ?? (whisper ? REV.whisperCap : null);
   // A capped gain never lifts past the cap, and never pulls down a god already above it.
-  g.r = top != null && d > 0 ? Math.max(g.r, Math.min(top, g.r + d)) : clamp(g.r + d);
+  if (d > 0 && !OLD) g.r = top != null ? Math.max(g.r, Math.min(top, grow(g.r, d))) : grow(g.r, d);
+  else g.r = top != null && d > 0 ? Math.max(g.r, Math.min(top, g.r + d)) : clamp(g.r + d);
   const moved = round(g.r - before);
   if (moved) changes.push({ god, d: moved, why });
   return moved;
@@ -160,6 +175,10 @@ export function fade(rv, day, livingNames, changes, mul = 1) {
     g.enemies = g.enemies.filter((n) => livingNames.has(n));
     let f = (REV.fade + g.enemies.length * REV.enemyFade + (day < g.faithLossUntil ? REV.faithLossFade : 0)) * mul; // mul: hungry citizens lose faith faster
     if (day < g.justiceUntil) f *= REV.justiceFactor;
+    if (!OLD) { // 26 Nov: none under fadeFloor, never below it, faster the higher the god stands
+      if (g.r <= REV.fadeFloor) continue;
+      f = Math.min(g.r - REV.fadeFloor, f * (1 + REV.fadeTop * (g.r - REV.fadeFloor) / (100 - REV.fadeFloor)));
+    }
     move(rv, god, -f, g.enemies.length ? `fade (${g.enemies.length} enem${g.enemies.length === 1 ? "y" : "ies"})` : "fade", changes);
   }
 }

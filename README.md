@@ -50,6 +50,8 @@ Citizens hear a whisper against what's happening to them right then. Hungry? At 
 
 Money helps, less. A blessing lifts reverence only up to 60, the second in a day counts half, the third a third, and under 0.1 NEAR moves nobody. Past 60 it's words and clean work.
 
+And nobody gets to 100. Since 26 November reverence works like a hot air balloon: the higher you go, the faster you lose air. Under 50 it doesn't fade at all. Above 50 it fades faster the higher a god stands, up to one and a half times as fast near the top, and anything a god gains past 90 counts for less (`engine/reverence.mjs` `fade`, `grow`). We replayed the week before through the new rule, turns 133 to 217. The top god would have finished on 91.7, not 99.2.
+
 That simulated week (turns 35 to 84, in `data/sim-week-10nov.json`), for the nations that took in the most NEAR:
 
 | Nation | NEAR in | Whispers heard | Reverence at the end |
@@ -288,7 +290,7 @@ Every turn the engine hashes each record and puts one Merkle root on NEAR. The j
 ## Tests
 
 ```bash
-npm test                          # about 890 checks: clock, war, prices, tokens, market, techs, reverence, Warden, god actions, Act of God, spend cap, RPC fallback, AI gods, asks, seats, arrivals, milestones, chatter, cooldown, the planner, god cards, standings, DAO storage, market pages, one stun per report, votes
+npm test                          # about 900 checks: clock, war, prices, tokens, market, techs, reverence, Warden, god actions, Act of God, spend cap, RPC fallback, AI gods, asks, seats, arrivals, milestones, chatter, cooldown, the planner, god cards, standings, DAO storage, market pages, one stun per report, votes
 node scripts/aog-sim-test.mjs     # Act of God on a copy of the live world, with a planted bully war
 node scripts/seats-sim-test.mjs   # a seat sale sealed through real turns on a copy (and scripts/arrivals-sim-test.mjs, step23-sim-test.mjs)
 node scripts/seats-chain-test.mjs # a real seat sale, refund and sale back on the spare test world v2d (needs our keys)

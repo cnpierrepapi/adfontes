@@ -36,11 +36,17 @@ flourish(rc, 3);
 act(rc, "dee", "whisper", 30, ch, {});
 check("whisper after the nation did well: 15 + 6 bonus (40 -> 60, capped)", rc.gods.dee.r === 60);
 
-// Fade, and what it does at low reverence.
-ra.gods.ann.r = 31;
+// Fade, and what it does at low reverence. Since 26 Nov there's no fade at or under 50 and it grows with
+// the level above (engine/test-drain-26nov.mjs): lv(r) is that factor, so these checks keep testing what
+// justice, enemies and lost faith do to it.
+const lv = (r) => 1 + REV.fadeTop * (r - REV.fadeFloor) / (100 - REV.fadeFloor);
+ra.gods.ann.r = 70;
 fade(ra, 2, new Set(), ch);
-check("plain fade is 1 a game day", ra.gods.ann.r === 30);
+check("plain fade is 1 a game day, times the level (70 -> 68.8)", near(ra.gods.ann.r, 70 - lv(70)));
+ra.gods.ann.r = 40;
 fade(ra, 3, new Set(), ch);
+check("no fade under 50 (40 stays 40)", ra.gods.ann.r === 40);
+ra.gods.ann.r = 29; // under 30 now only by a loss (a stun, a misread whisper), not by fading
 follow(s, 1, ch);
 check("under 30 the whisper is ignored and citizens go their own way", effects(ra).ignored && effects(ra).whisper === "" && effects(ra).mistakeAdd > 0);
 
@@ -67,29 +73,29 @@ check(`a report appears without its truth in the record: "${rep.claim}"`, !!rep 
 r1.answer = { says: "I didn't", silent: false }; // asked and answered first (PLAN_13NOV step 2, engine/test-ask.mjs)
 const out = answerReport(s, rd, 4, "eve", r1.accused, r1.day + 1, ch);
 if (r1.truth) {
-  const before = rd.gods.eve.r; fade(rd, r1.day + 2, new Set(["Wren", "Otto", "Nora"]), ch);
-  check(`stunting the guilty ${r1.accused}: justice, fade halved (${before} -> ${rd.gods.eve.r})`, near(before - rd.gods.eve.r, 0.5) && out.truth === true);
+  rd.gods.eve.r = 80; const before = rd.gods.eve.r; fade(rd, r1.day + 2, new Set(["Wren", "Otto", "Nora"]), ch);
+  check(`stunting the guilty ${r1.accused}: justice, fade halved (${before} -> ${rd.gods.eve.r})`, near(before - rd.gods.eve.r, 0.5 * lv(before)) && out.truth === true);
 } else {
-  const before = rd.gods.eve.r; fade(rd, r1.day + 2, new Set(["Wren", "Otto", "Nora"]), ch);
-  check(`stunting the innocent ${r1.accused}: an enemy, fade 1.5 (${before} -> ${rd.gods.eve.r})`, near(before - rd.gods.eve.r, 1.5) && rd.gods.eve.enemies.includes(r1.accused));
+  rd.gods.eve.r = 80; const before = rd.gods.eve.r; fade(rd, r1.day + 2, new Set(["Wren", "Otto", "Nora"]), ch);
+  check(`stunting the innocent ${r1.accused}: an enemy, fade 1.5 (${before} -> ${rd.gods.eve.r})`, near(before - rd.gods.eve.r, 1.5 * lv(before)) && rd.gods.eve.enemies.includes(r1.accused));
 }
 // Force the other two branches deterministically.
 s.reports.x = { id: "x", clan: 4, day: 50, accuser: "Nora", accused: "Otto", kind: "sold", truth: false, settled: false, answer: { says: "Not me", silent: false } };
 rd.gods.eve.enemies = []; rd.gods.eve.justiceUntil = 0;
 answerReport(s, rd, 4, "eve", "Otto", 51, ch);
-let before = rd.gods.eve.r; fade(rd, 52, new Set(["Wren", "Otto", "Nora"]), ch);
-check("stunting an innocent makes an enemy: fade 1.5 a day while they live", near(before - rd.gods.eve.r, 1.5));
+rd.gods.eve.r = 80; let before = rd.gods.eve.r; fade(rd, 52, new Set(["Wren", "Otto", "Nora"]), ch);
+check("stunting an innocent makes an enemy: fade 1.5 a day while they live", near(before - rd.gods.eve.r, 1.5 * lv(before)));
 before = rd.gods.eve.r; fade(rd, 53, new Set(["Wren", "Nora"]), ch);
-check("the enemy dies: back to the plain fade of 1", near(before - rd.gods.eve.r, 1));
+check("the enemy dies: back to the plain fade of 1", near(before - rd.gods.eve.r, lv(before)));
 s.reports.y = { id: "y", clan: 4, day: 60, accuser: "Nora", accused: "Wren", kind: "fake", truth: true, settled: false };
 const lapsed = lapseReports(s, rd, 4, 60 + REV.reportDays, ch);
-before = rd.gods.eve.r; fade(rd, 61 + REV.reportDays, new Set(["Wren", "Otto", "Nora"]), ch);
-check("ignoring a true report: the accuser loses faith, fade 1.5 for a day", lapsed[0]?.outcome === "lapsed" && lapsed[0].truth && near(before - rd.gods.eve.r, 1.5));
+rd.gods.eve.r = 80; before = rd.gods.eve.r; fade(rd, 61 + REV.reportDays, new Set(["Wren", "Otto", "Nora"]), ch);
+check("ignoring a true report: the accuser loses faith, fade 1.5 for a day", lapsed[0]?.outcome === "lapsed" && lapsed[0].truth && near(before - rd.gods.eve.r, 1.5 * lv(before)));
 s.reports.z = { id: "z", clan: 4, day: 70, accuser: "Nora", accused: "Wren", kind: "rushed", truth: false, settled: false };
 rd.gods.eve.faithLossUntil = 0;
 lapseReports(s, rd, 4, 70 + REV.reportDays, ch);
-before = rd.gods.eve.r; fade(rd, 71 + REV.reportDays, new Set(["Wren", "Otto", "Nora"]), ch);
-check("ignoring a false report costs nothing extra", near(before - rd.gods.eve.r, 1));
+rd.gods.eve.r = 80; before = rd.gods.eve.r; fade(rd, 71 + REV.reportDays, new Set(["Wren", "Otto", "Nora"]), ch);
+check("ignoring a false report costs nothing extra", near(before - rd.gods.eve.r, lv(before)));
 
 // Every action moves reverence.
 const E = { id: 5, gods: [{ account: "fin", put_in: "0" }] };
@@ -99,3 +105,4 @@ for (const k of ["bless", "reward", "punish", "claim", "staking", "stunt", "kill
 check(`every action moves it: ${JSON.stringify(moves)}`, moves.bless > 0 && moves.reward > 0 && moves.claim > 0 && moves.staking > 0 && moves.punish < 0 && moves.stunt < 0 && moves.kill < moves.stunt);
 
 console.log(bad ? `${bad} FAILED` : "ALL PASS");
+process.exit(bad ? 1 : 0); // 26 Nov: it printed FAIL but exited 0, so npm test never stopped on it
