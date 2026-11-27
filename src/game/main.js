@@ -2,6 +2,7 @@
 // now, 7 turns, your god's reverence gained is your score. The server side is timelapse/game.mjs; the 3D world is
 // the live world's own code reading the game's copy. Nothing here touches NEAR: the purse is play NEAR.
 import { me, headers, logIn, signUp, logOut } from "./login.js";
+import { mountMoves, moveText } from "./moves.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids.filter((k) => k != null)); return e; };
@@ -13,6 +14,7 @@ const call = (p, method = "GET", body = null) => fetch(`/sbx/game${p}`, { method
   .then(async (r) => { const j = await r.json().catch(() => ({})); if (r.status === 401) { logOut(); throw Object.assign(new Error(j.error || "Log in to play."), { login: true }); } if (!r.ok) throw Object.assign(new Error(j.error || `error ${r.status}`), { status: r.status }); return j; });
 
 let g = null, live = null, names = {}, lastK = -1, tickT = null;
+const moves = mountMoves($("moves"), { call: (p, method, body) => call(p, method, body), getGame: () => g, onChange: (x) => { g = x; bar(); }, nameOf: (id) => names[id] ?? `nation ${id}` });
 
 // ---- the card: log in, the draw, founding, the result ----
 function card(text, ...body) {
@@ -102,28 +104,30 @@ function bar() {
 }
 $("end").addEventListener("click", async () => {
   $("end").disabled = true;
-  try { g = await call(`/${g.id}/end-turn`, "POST"); $("panel").hidden = true; bar(); } catch (e) { $("run").textContent = e.message; $("end").disabled = false; }
+  try { g = await call(`/${g.id}/end-turn`, "POST"); $("panel").hidden = true; $("moves").classList.remove("under"); bar(); moves.refresh(); } catch (e) { $("run").textContent = e.message; $("end").disabled = false; }
   clearTimeout(tickT); tickT = setTimeout(tick, 800);
 });
-$("report").addEventListener("click", () => { if ($("panel").hidden) showReport(); else $("panel").hidden = true; });
+$("report").addEventListener("click", () => { if ($("panel").hidden) showReport(); else { $("panel").hidden = true; $("moves").classList.remove("under"); } });
 $("home").addEventListener("click", () => live?.home());
 $("out").addEventListener("click", () => { logOut(); location.reload(); });
 
 function showReport() {
   const r = g.report; if (!r) return;
   const p = $("panel");
-  p.hidden = false;
+  p.hidden = false; $("moves").classList.add("under");
   const row = (n) => el("tr", { className: n.mine ? "me" : "" },
     el("td", { textContent: n.name }),
     el("td", { textContent: n.after?.fallen ? "fell" : `${r0(n.before?.florins ?? 0)} → ${r0(n.after?.florins ?? 0)}` }),
     el("td", { textContent: `${n.before?.points ?? "–"} → ${n.after?.points ?? "–"}` }),
     el("td", { textContent: n.after?.rev == null ? "–" : `${r1(n.before?.rev ?? 0)} → ${r1(n.after.rev)}` }));
   p.replaceChildren(
-    el("button", { type: "button", className: "gm-x", textContent: "×", onclick: () => { p.hidden = true; } }),
+    el("button", { type: "button", className: "gm-x", textContent: "×", onclick: () => { p.hidden = true; $("moves").classList.remove("under"); } }),
     el("h2", { textContent: `Turn ${r.turn} report` }),
     el("table", { className: "gm-t" }, el("tr", {}, el("th", { textContent: "" }), el("th", { textContent: "florins" }), el("th", { textContent: "points" }), el("th", { textContent: "reverence" })), ...r.nations.map(row)),
     el("h3", { textContent: "What happened" }),
     r.events.length ? el("ul", {}, ...r.events.map((e) => el("li", { textContent: e }))) : el("p", { className: "line", textContent: "A quiet day: research, trade, upkeep." }),
+    el("h3", { textContent: "Your moves" }),
+    (r.orders || []).length || (r.yours || []).length ? el("ul", {}, ...(r.orders || []).map((x) => el("li", { textContent: moveText(x, (id) => names[id] ?? `nation ${id}`) })), ...(r.yours || []).map((x) => el("li", { textContent: x }))) : el("p", { className: "line", textContent: "You made none." }),
     el("h3", { textContent: "Your god's reverence" }),
     r.reverence.length ? el("ul", {}, ...r.reverence.map((x) => el("li", { textContent: `${signed(x.d)}: ${x.why}` }))) : el("p", { className: "line", textContent: "Unchanged." }));
 }
@@ -149,6 +153,7 @@ async function show(before = null) {
   if (g.status === "founding") { if (before?.status !== "founding") foundCard(); return; }
   await open3D();
   bar();
+  if (!before || before.running !== g.running || before.turn !== g.turn || !$("moves").childElementCount) moves.refresh();
   const k = (g.turn * g.per_turn) + (g.running?.done ?? 0);
   if (k !== lastK) { lastK = k; live.fx.clear(); await live.poll(); }
   if (before?.reports != null && g.reports > before.reports) showReport(); // a turn just ended

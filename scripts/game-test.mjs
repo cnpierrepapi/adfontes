@@ -67,6 +67,18 @@ const mine = C.clans.find((c) => c.name === "Testoria");
 ok(!!mine && Math.abs(FL(mine.florins) - founding.purse.florins) < 0.01, `Testoria holds the purse as florins (${mine ? FL(mine.florins) : "-"})`);
 ok(Math.abs(fv(C) - fv0) / fv0 < 1e-6, `the florin's price didn't move (${fv0} -> ${fv(C)})`);
 
+// ---- step 3: your moves ----
+let menu = (await call(`/sbx/game/${id}/menu`, "a@x.io")).body;
+ok(menu.rivals?.length === 3 && Array.isArray(menu.frontier) && menu.war, `the menu: 3 rivals, ${menu.frontier?.length} points your Scholars can reach, war ${JSON.stringify(menu.war)}`);
+for (const text of ["Build walls before anything else.", "Trust the Scholars.", "Watch your neighbours."]) await call(`/sbx/game/${id}/queue`, "a@x.io", "POST", { kind: "whisper", text });
+ok((await call(`/sbx/game/${id}/queue`, "a@x.io", "POST", { kind: "whisper", text: "one too many" })).status === 400, "a 4th whisper in one turn: refused");
+if (menu.frontier.length) ok((await call(`/sbx/game/${id}/queue`, "a@x.io", "POST", { kind: "pitch", point: menu.frontier[0] })).status === 200, `Scholars pointed at ${menu.frontier[0]}`);
+const foe = menu.rivals[0];
+ok((await call(`/sbx/game/${id}/queue`, "a@x.io", "POST", { kind: "war", action: "declare", target: foe.id })).status === 200, `war order: declare on ${foe.name}`);
+ok((await call(`/sbx/game/${id}/queue`, "a@x.io", "POST", { kind: "war", action: "fortify", florins: 10 })).status === 400, "a second war order in one turn: refused");
+ok((await call(`/sbx/game/${id}/queue`, "b@x.io", "POST", { kind: "whisper", text: "not mine" })).status === 404, "another log-in can't plan your moves");
+const q1 = (await call(`/sbx/game/${id}/state`, "a@x.io")).body.queue;
+ok(q1.length === (menu.frontier.length ? 5 : 4), `${q1.length} moves planned for turn 1`);
 const k0 = JSON.parse(fs.readFileSync(path.join(ROOT, "games", `${id}.json`), "utf8")).k;
 r = await call(`/sbx/game/${id}/end-turn`, "a@x.io", "POST");
 ok(r.status === 200 && r.body.running, "End turn: the day starts playing");
@@ -83,17 +95,41 @@ ok(s?.report?.nations?.length === 4 && Array.isArray(s.report.events), `turn rep
 const rev1 = s?.nations?.find((x) => x.mine)?.rev;
 ok(typeof rev1 === "number" && rev1 >= 40 && rev1 <= 60, `your god's reverence after turn 1: ${rev1} (started at 50)`);
 
+// What turn 1 did with your moves.
+const dayRecs = (from, to) => { const o = []; for (let d = from + 1; d <= to; d++) { const f = path.join(gd, "state", "testnet", `day-${d}.json`); if (fs.existsSync(f)) o.push(...JSON.parse(fs.readFileSync(f, "utf8"))); } return o; };
+const G1 = JSON.parse(fs.readFileSync(path.join(ROOT, "games", `${id}.json`), "utf8"));
+const recs1 = dayRecs(G1.day0, S1.day);
+const heard = recs1.filter((r) => r.kind === "heard" && r.god === G1.god);
+ok(heard.length === 3, `your 3 whispers were heard (${heard.length}: ${heard.map((h) => h.verdict).join(", ")})`);
+ok(s.whispers?.length === heard.length, `the whisper list holds them (${s.whispers?.length})`);
+const myCouncil = recs1.filter((r) => (r.kind === "council" && r.clan === mine.id) || (r.kind === "war" && r.attacker === mine.id));
+ok(myCouncil.length === 1, `your war order reached your council once (${myCouncil.map((r) => r.kind + (r.refused ? " refused: " + r.refused : "")).join("; ")})`);
+ok(s.report.orders?.length === q1.length, `the report lists the ${q1.length} moves you made`);
+const ch = JSON.parse(fs.readFileSync(path.join(gd, "state", "choices.json"), "utf8"));
+if (menu.frontier.length) ok(Object.values(ch).filter((c) => c.kind === "pitch" && c.clan === mine.id).length === 12, "the Scholars' direction holds for all 12 engine turns");
+
 // The service restarts (a crash, not a deploy: /tmp survives a crash): a fresh process reads the game back.
 const back = spawnSync(process.execPath, ["--input-type=module", "-e", `const G = await import(${JSON.stringify(new URL("../timelapse/game.mjs", import.meta.url).href)}); const http = await import("node:http"); const s = http.createServer((q, r) => G.handleGame(q, r, new URL(q.url, "http://x"), { verify: async () => "A" })).listen(4591, async () => { const x = await (await fetch("http://127.0.0.1:4591/sbx/game/${id}/state")).json(); console.log(JSON.stringify({ turn: x.turn, status: x.status })); s.close(); process.exit(0); });`], { env: process.env, encoding: "utf8", timeout: 60e3 });
 ok(/"turn":1/.test(back.stdout) && /"status":"playing"/.test(back.stdout), `a restarted service finds the game at turn 1 (${back.stdout.trim() || back.stderr.slice(-200)})`);
 
+let ruled = 0, dayBefore2 = JSON.parse(fs.readFileSync(path.join(gd, "state", "testnet.json"), "utf8")).day, quietCouncil = null;
 for (let t = 2; t <= 7; t++) {
+  // Rule on every gift waiting: a ruled gift never costs your god the unruled penalty.
+  const mm = (await call(`/sbx/game/${id}/menu`, "a@x.io")).body;
+  const toRule = [];
+  for (const gf of mm.gifts || []) if ((await call(`/sbx/game/${id}/queue`, "a@x.io", "POST", { kind: "rule", gift: gf.id, reward: true })).status === 200) { ruled++; toRule.push(gf.id); }
   r = await call(`/sbx/game/${id}/end-turn`, "a@x.io", "POST");
+  if (toRule.length) { const Cg = JSON.parse(fs.readFileSync(path.join(gd, "chain.json"), "utf8")); ok(toRule.every((x) => Cg.gifts[x]?.status === "Rewarded"), `turn ${t}: the gift(s) you ruled on are settled on the copy's chain (${toRule.map((x) => Cg.gifts[x]?.status).join(", ")})`); }
   if (r.status !== 200) { ok(false, `End turn ${t}: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`); break; }
   s = await until(async () => { const v = await call(`/sbx/game/${id}/state`, "a@x.io"); return v.status === 404 ? { gone: true } : v.body.status && v.body.running === null ? v.body : null; }, 10 * 60e3);
   if (s?.gone) break;
   if (s?.error) { ok(false, `turn ${t}: ${s.error}`); break; }
+  if (t === 2 && fs.existsSync(gd)) { // turn 2 had no war order: no AI council sat for you
+    const d2 = JSON.parse(fs.readFileSync(path.join(gd, "state", "testnet.json"), "utf8")).day;
+    quietCouncil = dayRecs(dayBefore2, d2).filter((r) => r.kind === "council" && r.clan === mine.id).length;
+  }
 }
+if (quietCouncil != null) ok(quietCouncil === 0, `no AI council sat for your nation on a turn you gave no war order (${quietCouncil})`);
 const m = (await call("/sbx/game/mine", "a@x.io")).body;
 ok(m.game === null && m.last?.id === id && m.last.result?.turns >= 1, `game over: result kept (gain ${m.last?.result?.gain}, reverence ${m.last?.result?.reverence}, ${m.last?.result?.turns} turns${m.last?.result?.fell ? ", your island fell" : ""})`);
 ok(m.last?.result?.fell || m.last?.result?.turns === 7, "it ended after 7 turns (or when your island fell)");
@@ -102,6 +138,10 @@ ok(m.last?.result?.fell || m.last?.result?.turns === 7, "it ended after 7 turns 
   ok(Math.abs(said - (m.last?.result?.gain ?? NaN)) < 0.25, `the reports explain your whole gain (${said.toFixed(1)} of ${m.last?.result?.gain})`);
 }
 ok(!fs.existsSync(gd) && !fs.existsSync(path.join(ROOT, "games", `${id}.json`)), "the free game's copy and record are deleted");
+{ // From turn 2 every waiting gift was ruled at the start of the turn: no unruled penalty after turn 2.
+  const late = (m.last?.reports || []).filter((r) => r.turn >= 3).flatMap((r) => r.reverence).filter((x) => /unruled/.test(x.why));
+  ok(late.length === 0, `ruled ${ruled} gift(s); unruled penalties from turn 3 on: ${late.length}`);
+}
 ok((await call(`/sbx/game/${id}/end-turn`, "a@x.io", "POST")).status === 404, "End turn on the finished game: it's gone");
 
 r = await call("/sbx/game/new", "c@x.io", "POST");

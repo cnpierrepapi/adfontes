@@ -21,8 +21,9 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import { DIR, SITE, PAPERS, PORT0, cleanEnv, run, readJ, writeJ, turn, stateOf, waitPort, dumpPapers, FL } from "./service.mjs";
 import { initClan, FIELDS } from "../engine/world.mjs";
+import { execute } from "../engine/chain-sim.mjs";
 
-export const GAME = { turns: 7, perTurn: 12, ai: 3, purseOver: 1.1, startRev: 50, maxGames: Number(process.env.GAME_MAX || 40), childIdleMs: 10 * 60e3, jobs: Number(process.env.GAME_JOBS || 2) };
+export const GAME = { turns: 7, perTurn: 12, ai: 3, purseOver: 1.1, startRev: 50, whispersPerTurn: 3, actionsPerTurn: 8, maxGames: Number(process.env.GAME_MAX || 40), childIdleMs: 10 * 60e3, jobs: Number(process.env.GAME_JOBS || 2) };
 const GAMES = path.resolve(process.env.GAME_DIR || path.join(DIR, "games"));
 const TALLY = path.join(GAMES, "rotation.json"), OWNERS = path.join(GAMES, "owners.json");
 fs.mkdirSync(GAMES, { recursive: true });
@@ -204,8 +205,11 @@ function found(g, body) {
   const c = initClan(S, { id, name });
   c.field = field; c.owned = { [field]: { depth: 0, parent: null, corpus: null, how: "root" } };
   c.lastTotalIn = yocto.toString(); c.player = true;
+  // Your god's reverence, set up now (50, the engine's start for a god already there; the purse isn't a blessing),
+  // reading your nation's DAO from its first motion, so what you do on turn 1 counts.
+  (S.rev ||= {})[id] = { gods: { [god]: { r: GAME.startRev, whispers: [], flourish: 0, enemies: [], justiceUntil: 0, faithLossUntil: 0, text: "" } }, followed: god, claimedBy: null, waiting: false, since: S.day, lastProposal: 0, open: [], putIn: { [god]: yocto.toString() } };
   writeJ(path.join(dir, "state", "testnet.json"), S);
-  Object.assign(g, { status: "playing", mine: id, god, name, field, day0: S.day, start: null });
+  Object.assign(g, { status: "playing", mine: id, god, name, field, day0: S.day, start: null, queue: [], whispers: [] });
   save(g);
   g.start = snap(g); save(g);
   return g;
@@ -215,7 +219,7 @@ function endTurn(g) {
   if (g.status !== "playing") throw Object.assign(new Error(g.status === "finished" ? "This game is over." : "Found your nation first."), { code: 409 });
   if (running.has(g.id)) throw Object.assign(new Error("Your turn is already playing out."), { code: 409 });
   // A turn cut short (the service restarted mid-turn) picks up where it stopped.
-  if (g.turnFrom == null) { g.turnFrom = g.k; g.before = snap(g); g.dayFrom = stateOf(gdir(g.id)).day; save(g); }
+  if (g.turnFrom == null) { g.before = snap(g); g.dayFrom = stateOf(gdir(g.id)).day; g.applied = apply(g); g.queue = []; g.turnFrom = g.k; save(g); }
   const target = g.turnFrom + GAME.perTurn;
   const st = { target: GAME.perTurn, done: g.k - g.turnFrom, what: "the day plays out" };
   running.set(g.id, st);
@@ -227,13 +231,137 @@ function endTurn(g) {
         if (stateOf(gdir(g.id)).clans[g.mine]?.fallen) break; // your island fell: the game ends here
       }
       const after = snap(g), n = g.turn + 1;
-      g.reports.push(report(g, g.before, after, recordsBetween(g, g.dayFrom, stateOf(gdir(g.id)).day), n));
-      g.turn = n; g.turnFrom = null; g.before = null; g.dayFrom = null;
+      const recs = recordsBetween(g, g.dayFrom, stateOf(gdir(g.id)).day);
+      const rep = report(g, g.before, after, recs, n);
+      rep.orders = g.applied || [];
+      rep.yours = yourRecords(g, recs);
+      for (const h of recs) if (h.kind === "heard" && h.god === g.god) (g.whispers ||= []).push({ turn: n, text: h.text, citizen: h.citizen, verdict: h.verdict, d: h.delta, says: h.says });
+      g.reports.push(rep);
+      g.turn = n; g.turnFrom = null; g.before = null; g.dayFrom = null; g.applied = null;
       if (g.turn >= GAME.turns || after[g.mine]?.fallen) finish(g, after);
       else save(g);
     } catch (e) { g.error = String(e.message || e).slice(0, 300); save(g); }
     finally { running.delete(g.id); }
   });
+}
+
+// ---- your moves (step 3, 27 Nov): what a live god can do, written into the copy the way it lands live ----
+// DAO motions (whisper, root out, smite, rule, Act of God) go into your nation's DAO already passed, and the world
+// does what they say (engine/chain-sim.mjs execute); signed choices (the Scholars' pitch, ask the accused, ignore a
+// report) go into the copy's choices; a war order goes to engine/run.mjs, where you are your nation's war council.
+// Nothing costs florins but walls (you say how many) and a war (its chest, each round, as for every nation).
+function menu(g) {
+  if (g.status !== "playing") throw Object.assign(new Error("Found your nation first."), { code: 409 });
+  const dir = gdir(g.id), C = chainOf(g), S = stateOf(dir), me = S.clans[g.mine] || {};
+  const name = (id) => C.clans.find((c) => c.id === id)?.name ?? `nation ${id}`;
+  const w = Object.values(S.wars || {}).find((x) => x.status === "on" && (x.a === g.mine || x.b === g.mine));
+  const enemy = w ? (w.a === g.mine ? w.b : w.a) : null;
+  const passed = (id) => (C.clans.find((c) => c.id === id)?.clean_gifts || 0) > 0;
+  const ascendant = !!S.milestones?.[g.god]?.reached?.ascendant;
+  return {
+    frontier: Object.keys(me.frontier || {}).slice(0, 24),
+    owned: Object.entries(me.owned || {}).filter(([, v]) => v.parent).map(([k, v]) => ({ point: k, doubt: v.stir === "doubt" })).slice(0, 40),
+    gifts: Object.values(C.gifts || {}).filter((x) => x.clan === g.mine && x.status === "Pending").map((x) => ({ id: x.id, passed: !!x.warden_passed, day: x.day })),
+    citizens: (C.agents?.[g.mine] || []).filter((a) => a.alive).map((a) => ({ name: a.name, role: a.role, stunned: (a.stunted_until || 0) > (C.config?.day ?? 0) })),
+    reports: Object.values(S.reports || {}).filter((r) => r.clan === g.mine && !r.settled).map((r) => ({ id: r.id, accused: r.accused, accuser: r.accuser, claim: r.claim, asked: !!r.asked, answer: r.answer ?? null })),
+    rivals: g.nations.filter((id) => S.clans[id] && !S.clans[id].fallen).map((id) => ({ id, name: name(id), florins: +FL(C.clans.find((c) => c.id === id)?.florins).toFixed(1), at_war: Object.values(S.wars || {}).some((x) => x.status === "on" && (x.a === id || x.b === id)), fair_game: passed(id) })),
+    war: { fair_game: passed(g.mine), at_war: enemy, enemy_name: enemy != null ? name(enemy) : null, offer_from_them: !!(w?.offer && w.offer.by !== g.mine), offer_from_us: w?.offer?.by === g.mine, walls: +(me.walls || 0).toFixed(1), florins: +FL(C.clans.find((c) => c.id === g.mine)?.florins).toFixed(1) },
+    act_of_god: ascendant ? { open: true } : { open: false, why: "Your god unlocks it at Ascendant: 70 reverence held a full day, in a nation with 2 techs." },
+    limits: { whispers: GAME.whispersPerTurn, actions: GAME.actionsPerTurn },
+  };
+}
+
+const bad = (m) => Object.assign(new Error(m), { code: 400 });
+function queue(g, b) {
+  if (g.status !== "playing") throw Object.assign(new Error("Found your nation first."), { code: 409 });
+  if (running.has(g.id)) throw Object.assign(new Error("Your turn is playing out. Plan the next one when it's done."), { code: 409 });
+  const q = (g.queue ||= []), m = menu(g), kind = String(b.kind || "");
+  if (q.length >= GAME.actionsPerTurn) throw bad(`${GAME.actionsPerTurn} moves a turn at most.`);
+  let x;
+  if (kind === "whisper") {
+    const text = String(b.text || "").trim().replace(/\s+/g, " ");
+    if (!text || text.length > 200) throw bad("A whisper is 1 to 200 characters.");
+    if (q.filter((y) => y.kind === "whisper").length >= GAME.whispersPerTurn) throw bad(`${GAME.whispersPerTurn} whispers a turn at most.`);
+    x = { kind, text };
+  } else if (kind === "pitch") {
+    if (!m.frontier.includes(b.point)) throw bad("Pick a point your Scholars can reach.");
+    if (q.some((y) => y.kind === "pitch")) throw bad("One direction for your Scholars a turn.");
+    x = { kind, point: b.point };
+  } else if (kind === "root_out") {
+    if (!m.owned.some((o) => o.point === b.point)) throw bad("Pick a point your nation knows (not its root).");
+    x = { kind, point: b.point };
+  } else if (kind === "rule") {
+    const gift = m.gifts.find((y) => y.id === Number(b.gift));
+    if (!gift) throw bad("That gift isn't waiting for a ruling.");
+    if (q.some((y) => y.kind === "rule" && y.gift === gift.id)) throw bad("You already ruled on that gift.");
+    if (b.reward) x = { kind, gift: gift.id, reward: true };
+    else { if (!m.citizens.some((c) => c.name === b.agent)) throw bad("Name one of your living citizens to punish."); x = { kind, gift: gift.id, reward: false, agent: b.agent }; }
+  } else if (kind === "ask" || kind === "dismiss" || kind === "smite") {
+    const r = m.reports.find((y) => y.id === b.report);
+    if (!r) throw bad("That report isn't open.");
+    if (kind === "ask" && r.asked) throw bad("You already asked.");
+    if (q.some((y) => y.report === r.id)) throw bad("You already answered that report this turn.");
+    x = { kind, report: r.id, agent: r.accused };
+  } else if (kind === "act_of_god") {
+    if (!m.act_of_god.open) throw bad(m.act_of_god.why);
+    if (!m.rivals.some((r) => r.id === Number(b.target))) throw bad("Pick one of the AI nations in your game.");
+    x = { kind, target: Number(b.target) };
+  } else if (kind === "war") {
+    const action = String(b.action || "");
+    if (!["declare", "fortify", "offer_peace", "accept_peace"].includes(action)) throw bad("Declare, build walls, offer peace or accept peace.");
+    if (q.some((y) => y.kind === "war")) throw bad("One war order a turn.");
+    if (action === "declare" && !m.rivals.some((r) => r.id === Number(b.target))) throw bad("Pick the nation to declare war on.");
+    if (action === "fortify" && !(Number(b.florins) > 0 && Number(b.florins) <= m.war.florins)) throw bad(`Walls take 1 to ${Math.floor(m.war.florins)} florins.`);
+    x = { kind, action, ...(action === "declare" ? { target: Number(b.target) } : {}), ...(action === "fortify" ? { florins: +Number(b.florins).toFixed(2) } : {}) };
+  } else throw bad("Unknown move.");
+  if (q.some((y) => JSON.stringify(y) === JSON.stringify(x))) throw bad("That move is already planned.");
+  q.push(x);
+  save(g);
+}
+
+/** Your planned moves, written into the copy before the turn's first engine turn. Returns what was applied. */
+function apply(g) {
+  const dir = gdir(g.id), C = readJ(path.join(dir, "chain.json")), S = stateOf(dir);
+  const cc = C.clans.find((c) => c.id === g.mine), day = S.day + 1, out = [];
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64");
+  const motion = (method, args, description) => {
+    const list = ((C.daos ||= {})[cc.dao] ||= []);
+    const kind = { FunctionCall: { receiver_id: "sim.local", actions: [{ method_name: method, args: b64(args), deposit: "0", gas: "30000000000000" }] } };
+    list.push({ id: list.length, proposer: g.god, status: "Approved", description, kind });
+    execute(C, kind);
+  };
+  const choicesF = path.join(dir, "state", "choices.json"), choices = readOr(choicesF, {});
+  const choose = (kind, payload, days = [day]) => { for (const d of days) choices[`testnet|${d}|${g.mine}|${kind}`] = { day: d, clan: g.mine, kind, account: g.god, payload, net: "testnet", at: Date.now() }; };
+  for (const x of g.queue || []) {
+    if (x.kind === "whisper") motion("whisper", { clan_id: g.mine, text: x.text }, "whisper (play)");
+    else if (x.kind === "root_out") motion("root_out", { clan_id: g.mine, point: x.point }, "root out (play)");
+    else if (x.kind === "act_of_god") motion("root_out", { clan_id: g.mine, point: `act of god: ${x.target}` }, "act of god (play)");
+    else if (x.kind === "rule") motion("rule", x.reward ? { gift_id: x.gift, reward: true } : { gift_id: x.gift, reward: false, verdict: "Stunt", agent: x.agent }, "ruling (play)");
+    else if (x.kind === "smite") motion("smite", { clan_id: g.mine, agent: x.agent, verdict: "Stunt" }, "smite (play)");
+    else if (x.kind === "pitch") choose("pitch", { point: x.point }, Array.from({ length: GAME.perTurn }, (_, i) => day + i)); // the Scholars follow it all day
+    else if (x.kind === "ask" || x.kind === "dismiss") choose(x.kind, { report: x.report });
+    else if (x.kind === "war") (S.playerOrders ||= {})[g.mine] = { action: x.action, target: x.target ?? null, florins: x.florins ?? null };
+    out.push(x);
+  }
+  writeA(path.join(dir, "chain.json"), C);
+  fs.mkdirSync(path.dirname(choicesF), { recursive: true });
+  writeA(choicesF, choices);
+  writeA(path.join(dir, "state", "testnet.json"), S);
+  return out;
+}
+
+/** Records about your own moves this turn, in plain words (what your war order and your rulings came to). */
+function yourRecords(g, recs) {
+  const out = [];
+  for (const r of recs) {
+    if (r.kind === "council" && r.clan === g.mine && r.refused) out.push(`Your war order (${r.action}) was refused: ${r.refused}.`);
+    else if (r.kind === "fortify" && r.clan === g.mine) out.push(`You built walls with ${Math.round(r.spent)} florins (walls now ${Math.round(r.walls)}).`);
+    else if (r.kind === "peace-offer" && r.clan === g.mine) out.push("You offered peace.");
+    else if (r.kind === "rooted" && r.clan === g.mine) out.push(`You rooted out ${r.point}${r.cut?.length > 1 ? ` and ${r.cut.length - 1} point(s) built on it` : ""}.`);
+    else if (r.kind === "report-settled" && r.clan === g.mine) out.push(`The report on ${r.accused} was settled (${r.outcome})${r.outcome === "stunted" ? (r.truth ? ": they were guilty" : ": they were innocent") : ""}.`);
+    else if (r.kind === "fire-refused" && r.clan === g.mine) out.push(`Your Act of God was refused: ${r.why}.`);
+  }
+  return out;
 }
 
 function finish(g, after) {
@@ -242,7 +370,7 @@ function finish(g, after) {
   const result = { gain: +((me?.rev ?? GAME.startRev) - GAME.startRev).toFixed(1), reverence: me?.rev ?? null, fell: !!me?.fallen, turns: g.turn, ai, finished_at: Date.now() };
   g.status = "finished"; g.result = result;
   // A free game is deleted the moment it ends (his call 27 Nov). What the player keeps is the result line.
-  setOwner(g.owner, { current: null, last: { id: g.id, name: g.name, field: g.field, result, nations: ai.map((x) => x.name), reports: g.reports } });
+  setOwner(g.owner, { current: null, last: { id: g.id, name: g.name, field: g.field, result, nations: ai.map((x) => x.name), reports: g.reports, whispers: g.whispers || [] } });
   stopChild(g.id);
   wipe(g.id);
 }
@@ -266,6 +394,7 @@ function view(g) {
     nations: live ? Object.values(live) : null,
     gain: live?.[g.mine]?.rev != null ? +(live[g.mine].rev - GAME.startRev).toFixed(1) : null,
     report: g.reports.at(-1) ?? null, reports: g.reports.length,
+    queue: g.queue || [], whispers: g.whispers || [], limits: { whispers: GAME.whispersPerTurn, actions: GAME.actionsPerTurn },
     result: g.result ?? null,
   };
 }
@@ -299,10 +428,13 @@ export async function handleGame(req, res, url, { verify } = {}) {
     if (!g || g.owner !== owner) return json(res, 404, { error: "No such game for this log-in. A finished free game is deleted when it ends." });
     const act = parts[3];
     if (act === "state") return json(res, 200, view(g));
+    if (act === "menu") return json(res, 200, menu(g));
     if (req.method !== "POST") return json(res, 405, { error: "POST" });
     const b = await body(req);
     if (act === "found") return json(res, 200, view(found(g, b)));
     if (act === "end-turn") { endTurn(g); return json(res, 200, view(g)); }
+    if (act === "queue") { queue(g, b); return json(res, 200, view(g)); }
+    if (act === "unqueue") { if (running.has(g.id)) throw Object.assign(new Error("Your turn is playing out."), { code: 409 }); g.queue = (g.queue || []).filter((_, i) => i !== Number(b.i)); save(g); return json(res, 200, view(g)); }
     if (act === "quit") { quit(g); return json(res, 200, { ok: true }); }
     return json(res, 404, { error: "unknown" });
   } catch (e) { return json(res, e.code || 500, { error: String(e.message || e).slice(0, 300) }); }

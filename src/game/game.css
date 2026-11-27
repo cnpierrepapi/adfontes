@@ -34,3 +34,19 @@ body.play .dial, body.play .dial.sim { background: #e0661f !important; color: #f
   .gm-stat { order: 4; flex-basis: 100%; }
   .gm-report { bottom: 132px !important; max-height: calc(100vh - 260px) !important; }
 }
+
+/* Your moves (step 3): the sandbox's lab panel, on the right. */
+.gm-moves[hidden] { display: none !important; }
+.gm-sec { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.gm-sec small, .gm-planned small { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: #ffd36b; }
+.gm-sec select, .gm-moves textarea { width: 100%; min-width: 0; font: inherit; font-size: 0.86rem; padding: 7px 9px; border-radius: 10px; border: 0; background: #f6f2ff; color: var(--ink); box-sizing: border-box; }
+.gm-planned { display: grid; gap: 4px; }
+.gm-q { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 0.8rem; padding: 5px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); }
+.gm-q span { flex: 1; }
+.gm-qx { border: 0; background: transparent; color: #ffb3b3; font-size: 1rem; cursor: pointer; padding: 0 4px; }
+.gm-num { width: 96px !important; flex: none; }
+.gm-whispers { display: grid; gap: 8px; }
+.gm-w { display: grid; gap: 3px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.07); }
+.gm-w small { font-size: 0.7rem; color: #b9b2d9; }
+.gm-w p { margin: 0; font-size: 0.8rem; line-height: 1.4; color: #d9d3f5; }
+@media (max-width: 700px) { .gm-moves.under { display: none !important; } }

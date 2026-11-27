@@ -179,7 +179,9 @@ https://adfontes.fun/play/ is the game, and it's early. You log in with your ema
 
 It runs like the sandbox: a copy of just those three nations (`scripts/sim-seed.mjs --only`), the same engine, stand-in minds, nothing signed or sent (`timelapse/game.mjs`). A free game is deleted when it ends.
 
-What's missing: you can't act yet. No whispers, no war orders, no rulings, so an AI nation can declare war on you on turn one and win. The action menu is next.
+Each turn you plan your moves, then press End turn. You can whisper (three a turn), point your Scholars, rule on your gifts, answer reports, root out a point and give one war order: declare, build walls with as many florins as you like, offer or accept peace. Act of God unlocks at Ascendant. They land in the copy the way a live god's do, as DAO motions and signed choices, and you are your nation's war council. A list keeps every whisper you sent and what your citizens made of it.
+
+What's still rough: the minds in a game are stand-ins, so a whisper's verdict doesn't mean much yet, and an AI nation can go to war with you as soon as your first gift passes.
 
 ## The sandbox
 
