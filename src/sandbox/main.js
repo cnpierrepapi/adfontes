@@ -169,7 +169,7 @@ function chart(F, who) {
   const lo = Math.min(...a, ...b), hi = Math.max(...a, ...b), pad = (hi - lo) * 0.15 || 5;
   const y0 = Math.max(0, lo - pad), y1 = hi + pad;
   const x = (t) => L + (t / n) * (W - L - R), y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (Hh - T - B);
-  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${Hh}`, class: "sb-chart", role: "img", "aria-label": `${who}'s spendable florins over 12 turns, with and without the shock` });
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${Hh}`, class: "sb-chart", role: "img", "aria-label": `${who}'s florins over 12 turns, with and without the shock` });
   for (const v of [y0, (y0 + y1) / 2, y1]) { svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), class: "grid" })); const t = svgEl("text", { x: L - 6, y: y(v) + 3, class: "ax", "text-anchor": "end" }); t.textContent = r0(v); svg.append(t); }
   for (const t of [0, 6, 12]) { const tx = svgEl("text", { x: x(t), y: Hh - 6, class: "ax", "text-anchor": "middle" }); tx.textContent = t ? `+${t}` : "now"; svg.append(tx); }
   const line = (vals, c, label) => {
@@ -209,7 +209,6 @@ async function showClan(c) {
   if (!n && !w) { p.hidden = true; return; }
   shown = c.id;
   live?.feed?.setFocus(c.id);
-  const fenced = n ? Math.max(0, n.florins - n.spendable) : 0;
   // What the heavens did to this nation in your copy, newest first.
   const hits = st.log.filter((r) => r.kind === "fire" && r.clan === c.id).reverse().map((r) => el("p", { className: "line burnt", textContent: `🔥 Turn +${r.turn}: ${r0(r.florins)} florins burned${r.cause === "god" ? ` by the gods of ${nameOf(r.from)}` : r.cause === "bully" ? " for picking on a weaker nation" : ""}.` }));
   p.replaceChildren(...[
@@ -217,11 +216,10 @@ async function showClan(c) {
     el("h2", { textContent: n?.name ?? w?.name }),
     el("p", { className: "meta", textContent: [w?.field, w?.mbti, w?.mood, n?.at_war ? "at war" : "at peace"].filter(Boolean).join(" · ") }),
     el("div", { className: "nums" },
-      el("div", {}, r0(n?.spendable ?? w?.florins ?? 0), el("small", { textContent: "florins it can spend" })),
+      el("div", {}, r0(n?.spendable ?? w?.florins ?? 0), el("small", { textContent: "florins" })),
       el("div", {}, String(w?.points ?? "–"), el("small", { textContent: "points of knowledge" })),
       el("div", {}, String(w?.clean_gifts ?? "–"), el("small", { textContent: "patents" }))),
     ...hits,
-    fenced > 1 ? el("p", { className: "line", textContent: `Plus ${r0(fenced)} ring-fenced florins: its gods' grant, which it can't spend and fire can't burn.` }) : null,
     el("p", { className: "line", textContent: w?.war?.enemy ? `At war with ${nameOf(w.war.enemy)}, round ${w.war.rounds}.` : "At peace." }),
     el("div", { className: "views" },
       el("button", { type: "button", className: "viewbtn", textContent: "Sky", onclick: () => live.flyTo(c.id) }),

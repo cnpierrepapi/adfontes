@@ -236,9 +236,9 @@ function makeApi(NET) {
               cooldown: CD.shield(s, c.id, (s.day || 0) + 1),
               // What the nation holds: florins, and what they're worth in NEAR at today's florin value.
               florins: florins(c.florins), worth: +(florins(c.florins) * near(totals.florin_value)).toFixed(4),
-              // What it can spend (11 Nov): less its gods' ring-fenced grant (granted NEAR at today's
-              // florin value), the same florins the engine's war, trades and Act of God use.
-              spendable: +Math.max(0, florins(c.florins) - (near(totals.florin_value) > 0 ? (s.grantedNear?.[c.id] || 0) / near(totals.florin_value) : 0)).toFixed(4),
+              // What it can spend: every florin it holds (27 Nov, no more ring-fence). Kept as its own
+              // field so pages that read it keep working.
+              spendable: +Math.max(0, florins(c.florins)).toFixed(4),
               total_in: near(c.total_in), clean_gifts: c.clean_gifts, whisper: c.whisper,
               field: st.field ?? null, mbti: st.mbti ?? null, fortune: st.fortune ?? 1,
               seen: !!s.clans[c.id], tricksters: st.tricksters ?? 0,
@@ -272,7 +272,7 @@ function makeApi(NET) {
         const standing = clans.filter((c) => c.alive && s.clans[c.id] && !s.clans[c.id].fallen);
         const name = (id) => clans.find((c) => c.id === Number(id))?.name ?? `nation ${id}`;
         const fv = near(totals.florin_value);
-        const spend = (c) => Math.max(0, florins(c.florins) - (fv > 0 ? (s.grantedNear?.[c.id] || 0) / fv : 0));
+        const spend = (c) => Math.max(0, florins(c.florins));
         const wars = Object.values(s.wars || {}).filter((w) => w.status === "on");
         const atWar = (id) => wars.some((w) => w.a === id || w.b === id);
         // The heavens (engine/fire.mjs): hoarding = twice an equal share of what nations can spend;

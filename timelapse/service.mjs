@@ -3,7 +3,7 @@
 //
 // How it works:
 // - The base: a copy of the live testnet world (scripts/sim-seed.mjs: nations, florins, citizens,
-//   knowledge, wars, reverence, each god's ring-fenced grant), taken again after each new live turn.
+//   knowledge, wars, reverence, each god's stake), taken again after each new live turn.
 // - A visitor's sandbox: its own copy of the base, plus a child copy of the site's server (server.mjs
 //   with ADF_SIM_CHAIN) that answers the same API the live world answers, from the copy. The page runs
 //   the live world's own 3D code on it.
@@ -111,11 +111,8 @@ function florinsOf(dir) {
   const fl = BigInt(C.totals.florins), backing = BigInt(C.totals.backing);
   const fv = fl > 0n ? (backing * 10n ** 22n) / fl : 0n; // yocto per florin, as the contract
   const out = {};
-  for (const c of C.clans) {
-    let reserve = 0;
-    if (fv > 0n) for (const g of c.gods || []) { const st = C.stakes?.[`${c.id}|${g.account}`]; if (st?.granted && BigInt(st.granted) > 0n) reserve += Number((BigInt(st.granted) * 10n ** 6n) / fv) / 1e6; }
-    out[c.id] = { name: c.name, alive: c.alive, florins: FL(c.florins), spendable: Math.max(0, FL(c.florins) - reserve) };
-  }
+  // Every florin is the nation's to spend (27 Nov, no ring-fence); spendable kept for the page.
+  for (const c of C.clans) out[c.id] = { name: c.name, alive: c.alive, florins: FL(c.florins), spendable: FL(c.florins) };
   return { nations: out, value: Number(fv) / 1e24 };
 }
 const stateOf = (dir) => readJ(path.join(dir, "state", "testnet.json"));

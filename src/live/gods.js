@@ -802,7 +802,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     if (await locked("fire", "Act of God")) return; // milestones gate every way in (13 Nov: the feed's "Call fire on it" skipped the panel's lock)
     const p = await prepDao(clan);
     // Nations at war are never a target: they're already being hit (his rule 10 Nov).
-    // Fire burns what a nation can spend: florins less its gods' ring-fenced grant (as the engine does).
+    // Fire burns from all a nation's florins (27 Nov, no ring-fence; as the engine does).
     const sp = (x) => x.spendable ?? x.florins ?? 0;
     // Nor a nation under the cooldown (16 Nov): out of a war or under fire in the last 21 turns (/api/world clans[].cooldown).
     const targets = W.clans.filter((x) => x.alive && !x.fallen && x.id !== clan.id && x.war?.enemy == null && !x.cooldown && sp(x) > 1);
@@ -810,7 +810,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
     const top = Math.max(...W.clans.filter((x) => x.alive && !x.fallen).map(sp));
     const est = (x) => { const shield = Math.min(0.3, ((x.war?.walls || 0) / 300) * 0.3); const pct = (0.05 + 0.2 * (sp(x) / top)) * (1 - shield); return { pct, fl: sp(x) * pct }; };
     targets.sort((a, b) => sp(b) - sp(a));
-    const sel = el("select", { className: "txin" }, ...targets.map((x) => el("option", { value: String(x.id), textContent: `${x.name}: about ${Math.round(est(x).fl)} of its ${Math.round(sp(x))} spendable florins burn` })));
+    const sel = el("select", { className: "txin" }, ...targets.map((x) => el("option", { value: String(x.id), textContent: `${x.name}: about ${Math.round(est(x).fl)} of its ${Math.round(sp(x))} florins burn` })));
     if (target != null && targets.some((x) => x.id === Number(target))) sel.value = String(target);
     const pick = () => targets.find((x) => String(x.id) === sel.value);
     // Try it in a copy first (11 Nov): the sandbox opens with this fire set up, so you see it land and
@@ -823,8 +823,7 @@ export async function createGods({ live, W, nav, toast, route, replayIntro }) {
       fields: [label("The nation to burn", sel), tryIt],
       words: () => {
         const x = pick(), e = est(x);
-        const fenced = Math.round((x.florins || 0) - sp(x));
-        return `Fire rains on ${x.name}. About ${Math.round(e.pct * 100)}% of the florins it can spend burn (${Math.round(e.fl)}), more the richer it is${sp(x) >= top ? " (it's the richest)" : ""}${x.war?.walls ? ", less for its walls" : ""}.${fenced > 1 ? ` Its gods' ${fenced} ring-fenced florins can't burn.` : ""} Burnt florins are gone, so every other florin in the world is worth a little more. ` +
+        return `Fire rains on ${x.name}. About ${Math.round(e.pct * 100)}% of its florins burn (${Math.round(e.fl)}), more the richer it is${sp(x) >= top ? " (it's the richest)" : ""}${x.war?.walls ? ", less for its walls" : ""}. Burnt florins are gone, so every other florin in the world is worth a little more. ` +
           `${clan.name} pays for it: a tenth of the damage burns from its own florins. You can call fire once a real day, never on your own nation, never on a nation at war, and never on one that came out of a war or took an Act of God in the last 21 turns. ${clan.name}'s council of gods votes on it, and yours is the first vote, and burns on the world's next turn.`;
       },
       calls: () => p.build("root_out", { clan_id: clan.id, point: `act of god: ${sel.value}` }, `AD FONTES: an Act of God. ${clan.name}'s gods rain fire on ${pick().name}`).calls,

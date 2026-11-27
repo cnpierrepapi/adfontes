@@ -18,9 +18,7 @@ const view = (method, args = {}) => rpc.callFunction({ contractId: WORLD, method
 const [config, totals, chainClans] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 })]);
 const agents = {};
 for (const c of chainClans) agents[c.id] = await view("list_agents", { clan_id: c.id, limit: 100 });
-// Each god's stake, for the ring-fence: NEAR the world granted a nation's gods sits in its treasury
-// as florins but isn't the nation's to spend (engine/run.mjs reserve). Without it a copy would let a
-// founder nation spend (and burn) florins the live world keeps out of reach.
+// Each god's stake (put in, shares, what the world granted it), as the chain holds it.
 const stakes = {};
 for (const c of chainClans) for (const g of c.gods || []) stakes[`${c.id}|${g.account}`] = await view("get_stake", { clan_id: c.id, account: g.account }).catch(() => null);
 fs.writeFileSync(`${OUT}/chain.json`, JSON.stringify({ config, totals, clans: chainClans, agents, stakes, gifts: {}, roots: {}, nextGift: 100000 }));
@@ -47,6 +45,8 @@ for (const wc of W.clans) {
     id: wc.id, name: wc.name, field: d.field, mbti: d.mbti, fortune: d.fortune ?? 1, tricksters: wc.tricksters ?? 0,
     owned, frontier, skills: Object.fromEntries((d.agents || []).map((a) => [a.name, {}])), alive: wc.alive !== false,
     teamDone: wc.ready !== false && (agents[wc.id] || []).length > 0, // a nation founded moments ago: the copy's engine makes its people, as live does
+    // A nation that lost a war stays fallen in the copy (26 Nov: the flag was dropped, so fallen nations stood again).
+    ...(wc.fallen ? { fallen: wc.fallen } : {}),
     techs: wc.techs || [], mood: wc.mood, need: wc.need, walls: wc.war?.walls || 0, passedDrafts: passed, firstDraftDone: passed > 0, hasKit: false,
     bornDay: 1, bornAt: T0 - 24 * H, lastDraftDay: W.day - 1, lastDraftAt: T0 - 12 * H, lastUpkeepAt: T0, lastUpkeepDay: W.day,
     lastTechAt: T0 - 12 * H, lastCouncilAt: T0 - 12 * H, lastBrokerAskAt: T0 - 12 * H, lastActAt: T0, lastTotalIn: cc?.total_in ?? "0", blessings: 0,

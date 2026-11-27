@@ -22,14 +22,10 @@ const turn = (k, extra = {}, args = ["--force"]) => {
   return r.stdout.split("\n").filter((l) => /\[(fire|fire-refused)\]|act of god/.test(l));
 };
 const chain = () => JSON.parse(fs.readFileSync(`${DIR}/chain.json`, "utf8"));
-// The florins a nation can spend, as the engine counts them: its florins less its gods' ring-fenced
-// grant (granted NEAR at today's florin value). The copy carries each god's stake (scripts/sim-seed.mjs).
+// The florins a nation can spend, as the engine counts them: all it holds (27 Nov, no ring-fence).
 const fl = (C, id) => {
-  const c = C.clans.find((x) => x.id === id), all = Number(BigInt(c.florins) / 10n ** 16n) / 1e6;
-  const f = BigInt(C.totals.florins), fv = f > 0n ? (BigInt(C.totals.backing) * 10n ** 22n) / f : 0n;
-  let reserve = 0;
-  if (fv > 0n) for (const g of c.gods || []) { const st = C.stakes?.[`${id}|${g.account}`]; if (st?.granted && BigInt(st.granted) > 0n) reserve += Number((BigInt(st.granted) * 10n ** 6n) / fv) / 1e6; }
-  return Math.max(0, all - reserve);
+  const c = C.clans.find((x) => x.id === id);
+  return Math.max(0, Number(BigInt(c.florins) / 10n ** 16n) / 1e6);
 };
 let bad = 0;
 const ok = (c, m) => { console.log(`${c ? "PASS" : "FAIL"} ${m}`); if (!c) bad++; };
@@ -37,12 +33,18 @@ const ok = (c, m) => { console.log(`${c ? "PASS" : "FAIL"} ${m}`); if (!c) bad++
 fs.writeFileSync(`${DIR}/aog.log`, "");
 turn(1);
 let C = chain();
-const standing = C.clans.filter((c) => c.alive);
+// Standing = alive on chain and not fallen in the copy (27 Nov: the seed keeps the fallen flag now).
+const stateP = `${DIR}/state/testnet.json`;
+let S0 = JSON.parse(fs.readFileSync(stateP, "utf8"));
+const standing = C.clans.filter((c) => c.alive && S0.clans[c.id] && !S0.clans[c.id].fallen);
 // Nations at war can't be struck: take the war map from the site (the copy was seeded from it).
 const warOf = Object.fromEntries((await (await fetch("https://adfontes.fun/api/world?net=testnet")).json()).clans.map((c) => [c.id, c.war?.enemy ?? null]));
 const byFl = [...standing].sort((a, b) => fl(C, b.id) - fl(C, a.id));
 const fighting = byFl.find((c) => warOf[c.id] != null);
-const peace = byFl.filter((c) => warOf[c.id] == null);
+// A god's fire can't land on a nation under the cooldown (engine/cooldown.mjs): the warm-up turn's own hoard fire may
+// have just shielded the richest, so the god's targets are picked among the unshielded.
+const { shield } = await import("../engine/cooldown.mjs");
+const peace = byFl.filter((c) => warOf[c.id] == null && !shield(S0, c.id, S0.day + 1));
 const rich = peace[0], poor = peace.at(-1), mid = peace[2];
 const god = poor.gods[0].account;
 console.log(`richest ${rich.name} ${fl(C, rich.id).toFixed(1)} florins; caster ${poor.name} ${fl(C, poor.id).toFixed(1)}, god ${god}`);
@@ -52,9 +54,13 @@ const propose = (point, who = god) => dao.push({ id: dao.length, proposer: who, 
 propose(`act of god: ${rich.id}`); // goes through
 propose(`act of god: ${mid.id}`); // same god, same day: refused
 propose(`act of god: ${poor.id}`, poor.gods.at(-1).account); // own nation: refused
-const other = C.clans.find((c) => c.alive && c.id !== poor.id && c.gods.length && c.gods[0].account !== god && warOf[c.id] == null && c.id !== rich.id);
+const other = standing.find((c) => c.id !== poor.id && c.gods.length && c.gods[0].account !== god && warOf[c.id] == null && c.id !== rich.id);
 if (fighting && other) ((C.daos[other.dao] ||= [])).push({ id: C.daos[other.dao].length, proposer: other.gods[0].account, status: "Approved", description: "act of god (test)", kind: { FunctionCall: { receiver_id: "sim.local", actions: [{ method_name: "root_out", args: b64({ clan_id: other.id, point: `act of god: ${fighting.id}` }), deposit: "0", gas: "30000000000000" }] } } });
 fs.writeFileSync(`${DIR}/chain.json`, JSON.stringify(C));
+// Fire is locked until a god reaches Ascendant (engine/milestones.mjs, after this test was written): the casters have.
+S0 = JSON.parse(fs.readFileSync(stateP, "utf8"));
+for (const g of [...poor.gods, ...(fighting && other ? [other.gods[0]] : [])]) ((S0.milestones ||= {})[g.account] ||= { reached: {} }).reached.ascendant = Date.now();
+fs.writeFileSync(stateP, JSON.stringify(S0));
 const before = { rich: fl(C, rich.id), poor: fl(C, poor.id), mid: fl(C, mid.id) };
 
 // The live engine runs an instant turn for a nation seconds after its gods' vote passes. The vote is

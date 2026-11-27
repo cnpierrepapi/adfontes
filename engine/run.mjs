@@ -517,22 +517,10 @@ for (let n = 0; n < days; n++) {
   const onchain = await chain.clans();
   // For the market's words: a nation's name, its florins as the day began, a short number.
   const nameOfClan = (id) => onchain.find((x) => x.id === Number(id))?.name ?? `nation ${id}`;
-  // Ring-fenced florins (9 Nov): NEAR the world granted a nation's gods (the founders' DAO costs given
-  // back) sits in its treasury as florins, but it's the gods' money, not the nation's to spend.
-  // Each turn: granted NEAR / today's florin value is kept out of what the nation spends, so the
-  // economy plays as it did before the grants. A world without grants (or the sim) reserves nothing.
-  const reserve = {};
-  try {
-    const fv = BigInt((await chain.totals()).florin_value || "0"); // yocto per florin
-    if (fv > 0n && chain.stake) for (const x of onchain) for (const g of x.gods || []) {
-      const st = await chain.stake(x.id, g.account).catch(() => null);
-      if (st?.granted && BigInt(st.granted) > 0n) reserve[x.id] = (reserve[x.id] || 0) + Number((BigInt(st.granted) * 10n ** 6n) / fv) / 1e6;
-    }
-    // The site shows what each nation can spend (/api/world spendable): the granted NEAR, so the
-    // page can convert it at the florin value of the moment.
-    s.grantedNear = Object.fromEntries(Object.entries(reserve).map(([id, f]) => [id, +(f * Number(fv) / 1e24).toFixed(6)]));
-  } catch { /* no reserve this turn: the nation can spend what it holds */ }
-  const spendable = (id, units) => Math.max(0, toFlorins(units || "0") - (reserve[id] || 0));
+  // Every florin a nation holds is its own to spend (his call 27 Nov). The NEAR the world granted the
+  // founders on 9 Nov (their DAO costs given back) used to be ring-fenced out of it; no longer.
+  delete s.grantedNear;
+  const spendable = (id, units) => Math.max(0, toFlorins(units || "0"));
   const florinsOf = (id) => spendable(id, onchain.find((x) => x.id === Number(id))?.florins);
   const n4 = (x) => (Math.round(x * 100) / 100).toString();
   const alive = onchain.filter((c) => c.alive);
@@ -757,7 +745,7 @@ for (let n = 0; n < days; n++) {
       const before = new Set(Object.keys(c.owned));
       // Florins (SPEC §14): what the nation holds now (kept in step with today's trades), and what
       // it earns this turn (minted once at the end of the turn, to save gas).
-      let wallet = spendable(oc.id, oc.florins); // less the gods' ring-fenced grant
+      let wallet = spendable(oc.id, oc.florins);
       let earned = 0, earnedFor = [];
 
       // Broker: once a day, buy a corpus from another clan whose papers are tagged with one of
@@ -897,7 +885,7 @@ for (let n = 0; n < days; n++) {
             earned += FL.corpus; earnedFor.push(id);
             await mintNow(oc.id, `r:${id}`, corpus.title); // the research is a token on NEAR now
           } else {
-            // The fine comes out of the nation's own florins, never the gods' ring-fenced grant.
+            // The fine comes out of the nation's florins, never more than it holds.
             const fine = Math.min(FL.fine, wallet);
             const r = fine > 0 ? await chain.burn(oc.id, fine, `fake citation in ${id}`) : { value: "0", hash: null };
             wallet = Math.max(0, wallet - FL.fine);
@@ -1006,8 +994,7 @@ for (let n = 0; n < days; n++) {
       const upkeepHours = (Date.now() - c.lastUpkeepAt) / 3600e3;
       if (!INSTANT && upkeepHours >= CFG.upkeepEveryHours) {
         const n = agents.filter((a) => a.alive).length;
-        // Out of the nation's own florins only (the gods' ring-fenced grant stays whole): a nation that
-        // can't pay feeds its citizens what it has.
+        // Out of the nation's florins: a nation that can't pay feeds its citizens what it has.
         const amount = Math.min(wallet, +((FL.upkeep / 24) * n * upkeepHours * (W.hasTech(c, "clock") ? 0.7 : 1)).toFixed(4));
         const r = amount > 0 ? await chain.burn(oc.id, amount, `upkeep for ${n} citizens`) : { value: "0", hash: null };
         wallet = Math.max(0, wallet - amount);
@@ -1100,7 +1087,7 @@ for (let n = 0; n < days; n++) {
     s.wars ||= {}; s.peace ||= {};
     const now = Date.now();
     const chainNow = await chain.clans();
-    const fl = Object.fromEntries(chainNow.map((x) => [x.id, spendable(x.id, x.florins)])); // war spends only what's the nation's
+    const fl = Object.fromEntries(chainNow.map((x) => [x.id, spendable(x.id, x.florins)]));
     const nameOf = (id) => chainNow.find((x) => x.id === id)?.name ?? `nation ${id}`;
     const standing = chainNow.filter((x) => x.alive && s.clans[x.id] && !s.clans[x.id].fallen);
     const seed = s.roots[day - 1] ?? s.roots[Math.max(0, ...Object.keys(s.roots).map(Number))] ?? "genesis";

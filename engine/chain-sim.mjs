@@ -100,7 +100,7 @@ export function connectSim(file) {
     aiPay: async (account, yocto) => { S.aiBal ||= {}; S.aiBal[account] = +((S.aiBal[account] ?? 1) - Number(BigInt(yocto) / 10n ** 18n) / 1e6).toFixed(6); save(); return { hash: tx().hash ?? `simpay${Date.now()}` }; },
     tick: async (day) => { S.config.day = day; save(); return tx(); },
     spawn: async (id, name, role) => { (S.agents[id] ||= []).push({ name, role, clan_id: Number(id), alive: true, stunted_until: 0, born_day: S.config.day }); save(); return tx(); },
-    // A god's stake as the copy was taken (scripts/sim-seed.mjs): its granted NEAR keeps the ring-fence.
+    // A god's stake as the copy was taken (scripts/sim-seed.mjs).
     stake: async (id, account) => S.stakes?.[`${id}|${account}`] ?? { florins: "0", near: "0", put_in: "0" },
     trade: async (buyer, seller, florins) => {
       const b = clan(buyer), s = clan(seller), u = units(florins);
