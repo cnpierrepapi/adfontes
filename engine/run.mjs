@@ -1097,17 +1097,12 @@ for (let n = 0; n < days; n++) {
     // 1. War councils: once a real day for every nation that's fair game.
     for (const x of standing) {
       const c = s.clans[x.id];
-      // A game's human player (timelapse/game.mjs, 27 Nov) is their nation's war council: their order, if they gave
-      // one, at the first council of their turn; no AI council ever sits for them. Live nations never carry `player`.
-      const order = c.player ? s.playerOrders?.[x.id] ?? null : null;
-      if (c.player && !order) continue;
-      if (!order && (!WR.eligible(s, x.id) || now - (c.lastCouncilAt || 0) < WR.WAR.councilEveryMs || capped("council"))) continue;
+      if (!WR.eligible(s, x.id) || now - (c.lastCouncilAt || 0) < WR.WAR.councilEveryMs || capped("council")) continue;
       c.lastCouncilAt = now;
       const w = WR.warOf(s, x.id), enemy = w ? (w.a === x.id ? w.b : w.a) : null;
       const rivals = standing.filter((y) => y.id !== x.id).map((y) => ({ ...view(y), atWar: !!WR.warOf(s, y.id), fairGame: WR.eligible(s, y.id), weBought: bought(x.id, y.id), theyBought: bought(y.id, x.id) }));
       let move;
-      if (order) { delete s.playerOrders[x.id]; move = { action: order.action, target: order.target ?? null, florins: order.florins ?? null, reason: "your order" }; }
-      else try {
+      try {
         move = await warCouncil({ me: view(x), rivals, temperament: c.mbti, war: w && { enemy, rounds: w.rounds || 0, enemyHp: WR.hp(s.clans[enemy]), offerFromThem: w.offer && w.offer.by !== x.id, offerFromUs: w.offer?.by === x.id } });
       } catch (e) { log({ kind: "error", clan: x.id, error: `war council: ${String(e.message || e).slice(0, 160)}` }); continue; }
       const reason = String(move.reason || "").slice(0, 200);
@@ -1132,8 +1127,7 @@ for (let n = 0; n < days; n++) {
           } catch (e) { log({ kind: "error", clan: x.id, error: `act of god (bully): ${String(e.message || e).slice(0, 160)}` }); }
         }
       } else if (move.action === "fortify") {
-        // A player says how many florins go into walls (at most what the nation holds); a council spends a tenth.
-        const amt = +(move.florins != null ? Math.min(Math.max(0, Number(move.florins) || 0), fl[x.id] || 0) : (fl[x.id] || 0) * WR.WAR.fortifyFrac).toFixed(4);
+        const amt = +((fl[x.id] || 0) * WR.WAR.fortifyFrac).toFixed(4);
         if (amt > 0.01) {
           const r = await agentSpend(x.id, amt, "walls");
           const spent = toFlorins(r.value);

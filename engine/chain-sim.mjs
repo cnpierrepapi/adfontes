@@ -91,7 +91,6 @@ export function connectSim(file) {
           const list = ((S.daos ||= {})[c.receiver] ||= []);
           last = list.length;
           list.push({ id: last, proposer: account, status: "Approved", description: c.args.proposal.description, kind: c.args.proposal.kind });
-          execute(S, c.args.proposal.kind); // passed at once: the world does what it says, as the contract would
         }
       }
       save();
@@ -177,30 +176,4 @@ export function connectSim(file) {
     },
     getRoot: async (day) => S.roots[day] ?? null,
   };
-}
-
-/** What the world contract does when a nation's DAO executes a passed motion to it (27 Nov), on a stand-in chain's
- *  own state S: a whisper sets the nation's whisper; a smite stuns (3 days) or kills the citizen; a ruling settles a
- *  pending gift (a punishment stuns or kills the named citizen too). Before this a copy recorded the vote and nothing
- *  happened: a ruled gift stayed Pending and its gods paid the unruled penalty a day later. Mirrors
- *  contracts/world/src/lib.rs whisper / smite / rule. Anything else is left to the engine (root out, Act of God). */
-export function execute(S, kind) {
-  const f = kind?.FunctionCall;
-  if (!f || f.receiver_id !== "sim.local") return;
-  const day = S.config?.day ?? 0;
-  const living = (clanId, name) => (S.agents?.[clanId] || []).find((a) => a.name === name && a.alive);
-  const hit = (a, verdict) => { if (verdict === "Kill") a.alive = false; else a.stunted_until = day + 3; };
-  for (const act of f.actions || []) {
-    let args = {};
-    try { args = JSON.parse(Buffer.from(act.args, "base64").toString()); } catch { continue; }
-    if (act.method_name === "whisper") { const c = S.clans.find((x) => x.id === Number(args.clan_id)); if (c && String(args.text || "").length <= 280) c.whisper = String(args.text || ""); }
-    else if (act.method_name === "smite") { const a = living(Number(args.clan_id), args.agent); if (a) hit(a, args.verdict); }
-    else if (act.method_name === "rule") {
-      const g = S.gifts?.[args.gift_id];
-      if (!g || g.status !== "Pending") continue;
-      if (args.reward) g.status = "Rewarded";
-      else { const a = living(g.clan, args.agent); if (!a || !args.verdict) continue; hit(a, args.verdict); g.status = "Punished"; }
-      g.ruled_by = S.clans.find((x) => x.id === g.clan)?.dao ?? null;
-    }
-  }
 }
