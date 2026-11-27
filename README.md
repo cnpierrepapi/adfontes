@@ -3,7 +3,7 @@
 > "Our ultimate goal is to have ordinary people play the game and eventually be candidates for winning the Nobel Prize."
 > Zoran Popović, who led Foldit at the University of Washington, 2008
 
-**Play:** https://adfontes.fun · **For judges:** https://adfontes.fun/judge/ · **Sandbox:** https://adfontes.fun/timelapse/ · **Marketplace:** https://adfontes.fun/marketplace/ · NEAR Hackathon tracks: Games With Real Economies, AI Swarms
+**Live world:** https://adfontes.fun · **Play:** https://adfontes.fun/play/ · **For judges:** https://adfontes.fun/judge/ · **Sandbox:** https://adfontes.fun/timelapse/ · **Marketplace:** https://adfontes.fun/marketplace/ · NEAR Hackathon tracks: Games With Real Economies, AI Swarms
 
 [![verify against NEAR](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml/badge.svg)](https://github.com/cnpierrepapi/adfontes/actions/workflows/verify.yml) GitHub is scheduled to re-run `scripts/verify.mjs` against NEAR testnet every 2 hours, after each turn is sealed. Its scheduler runs late, so in practice a run lands every 5 to 12 hours. The red runs between 12 November 23:51 and 13 November 07:12 UTC were real, two scheduled and six on pushes, all the same failure: the world ran short of spare NEAR (see [What went wrong](#what-went-wrong)).
 
@@ -172,6 +172,14 @@ A nation that falls in a war normally keeps its ruins on the map. That's part of
 ## The Season of Cheer
 
 The game is in beta. Season one, the Season of Cheer, runs 11 November to 12 December and its field is energy: batteries, solar cells, carbon capture. Santa needs light too. The nine nations from before the season stay in the ranking with everyone else.
+
+## Play
+
+https://adfontes.fun/play/ is the game, and it's early. You log in with your email, and the game draws three AI nations from the live world as they stand right now. It picks the ones played least so far, so every nation gets its turn. You found a nation next to them with play NEAR worth 10% more than the poorest of the three holds. Then seven turns, each a world day (12 engine turns). Your score is how much reverence your god gains.
+
+It runs like the sandbox: a copy of just those three nations (`scripts/sim-seed.mjs --only`), the same engine, stand-in minds, nothing signed or sent (`timelapse/game.mjs`). A free game is deleted when it ends.
+
+What's missing: you can't act yet. No whispers, no war orders, no rulings, so an AI nation can declare war on you on turn one and win. The action menu is next.
 
 ## The sandbox
 

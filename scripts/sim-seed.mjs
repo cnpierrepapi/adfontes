@@ -1,11 +1,14 @@
 // Seeds the fast-forward simulation with a copy of the live testnet world, as of now, from public
 // data only: the site's API (each nation's knowledge, drafts, techs, wars, reverence) and NEAR view
 // calls (nations, money, citizens). Nothing is written anywhere but debug/sim/.
-//   node scripts/sim-seed.mjs [dir=debug/sim]
+//   node scripts/sim-seed.mjs [dir=debug/sim] [--only=a,b,c]
+// --only (the game, 27 Nov): copy just those nations, as they stand live; a war with a nation left out stays in
+// the live world, and the kept turns' records are only those naming no other nation. The florin's price stays live.
 import fs from "node:fs";
 import { JsonRpcProvider } from "near-api-js";
 
-const OUT = process.argv[2] || "debug/sim", SITE = "https://adfontes.fun", WORLD = "w6.adf-pool1-hf0w8.testnet";
+const ARGS = process.argv.slice(2);
+const OUT = ARGS.find((a) => !a.startsWith("--")) || "debug/sim", SITE = "https://adfontes.fun", WORLD = "w6.adf-pool1-hf0w8.testnet";
 const api = (p) => fetch(`${SITE}/api/${p}${p.includes("?") ? "&" : "?"}net=testnet`).then((r) => r.json());
 const T0 = Date.now(), H = 3600e3;
 
@@ -15,7 +18,10 @@ fs.mkdirSync(`${OUT}/state/testnet`, { recursive: true });
 // 1. The chain (view calls only).
 const rpc = new JsonRpcProvider({ url: "https://near-testnet.drpc.org" }); // dRPC: the public near.org RPC is rate-limited hard
 const view = (method, args = {}) => rpc.callFunction({ contractId: WORLD, method, args });
-const [config, totals, chainClans] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 })]);
+const ONLY = (() => { const a = ARGS.find((x) => x.startsWith("--only=")); return a ? new Set(a.slice(7).split(",").map(Number).filter((n) => n > 0)) : null; })();
+const keep = (id) => !ONLY || ONLY.has(Number(id));
+const [config, totals, allClans] = await Promise.all([view("get_config"), view("get_totals"), view("list_clans", { limit: 100 })]);
+const chainClans = allClans.filter((c) => keep(c.id));
 const agents = {};
 for (const c of chainClans) agents[c.id] = await view("list_agents", { clan_id: c.id, limit: 100 });
 // Each god's stake (put in, shares, what the world granted it), as the chain holds it.
@@ -24,7 +30,11 @@ for (const c of chainClans) for (const g of c.gods || []) stakes[`${c.id}|${g.ac
 fs.writeFileSync(`${OUT}/chain.json`, JSON.stringify({ config, totals, clans: chainClans, agents, stakes, gifts: {}, roots: {}, nextGift: 100000 }));
 
 // 2. The engine's state, rebuilt from the public API.
-const W = await api("world");
+const W0 = await api("world");
+const W = { ...W0, clans: W0.clans.filter((c) => keep(c.id)), wars: (W0.wars || []).filter((w) => keep(w.a) && keep(w.b)) };
+// A record that names a nation left out of the copy stays out with it.
+const REFS = ["clan", "buyer", "seller", "a", "b", "against", "from", "target", "by", "winner", "loser", "attacker", "defender"];
+const mine = (r) => !ONLY || REFS.every((k) => typeof r[k] !== "number" || r[k] >= 1000 || ONLY.has(r[k]));
 const s = { world: "sim.local", day: W.day, // the stand-in chain's name: the engine's world check must match it
    clans: {}, corpora: {}, drafts: {}, gifts: {}, tools: {}, ruins: {}, roots: {}, rev: {}, wars: {}, peace: {}, reports: {}, nextId: 900000, lastRunAt: T0 - 2 * H };
 for (const wc of W.clans) {
@@ -63,7 +73,8 @@ fs.writeFileSync(`${OUT}/state/testnet.json`, JSON.stringify(s));
 // between islands), its event history and its replays start where the live world's are.
 for (let d = Math.max(1, W.day - 19); d <= W.day; d++) {
   const day = await api(`day?d=${d}`).catch(() => null);
-  if (day?.records?.length) fs.writeFileSync(`${OUT}/state/testnet/day-${d}.json`, JSON.stringify(day.records));
+  const recs = (day?.records || []).filter(mine);
+  if (recs.length) fs.writeFileSync(`${OUT}/state/testnet/day-${d}.json`, JSON.stringify(recs));
 }
 fs.writeFileSync(`${OUT}/before-world.json`, JSON.stringify(W));
 fs.writeFileSync(`${OUT}/seed.json`, JSON.stringify({ seededAt: T0, day: W.day }));

@@ -272,8 +272,10 @@ async function futures(s, shock) {
 const json = (res, code, o) => { res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify(o)); };
 const body = (req) => new Promise((resolve) => { let b = ""; req.on("data", (d) => { b += d; if (b.length > 1e4) req.destroy(); }); req.on("end", () => { try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); } }); });
 
-export async function handleSandbox(req, res, url) {
+export async function handleSandbox(req, res, url, opts = {}) {
   const parts = url.pathname.split("/").filter(Boolean); // ["sbx", id?, action?, ...]
+  // The game (/play, 27 Nov): timelapse/game.mjs, loaded on first use.
+  if (parts[1] === "game") return (await import("./game.mjs")).handleGame(req, res, url, opts);
   try {
     if (parts.length === 1 || parts[1] === "info") return json(res, 200, { base_day: base?.day ?? null, copied_at: base?.seededAt ?? null, in_use: sessions.size, max: MAX, seeding: !!seeding });
     if (parts[1] === "new" && req.method === "POST") { const s = await create(); return json(res, 200, view(s)); }
@@ -322,6 +324,9 @@ export async function handleSandbox(req, res, url) {
     return json(res, 404, { error: "unknown" });
   } catch (e) { return json(res, 500, { error: String(e.message || e).slice(0, 300) }); }
 }
+
+// Shared with the game (timelapse/game.mjs): the same engine runs, the same stand-ins, the same paper cache.
+export { DIR, SITE, PAPERS, PORT0, TURN_MS, cleanEnv, run, readJ, writeJ, turn, stateOf, waitPort, dumpPapers, FL };
 
 /** Start the base copy when the web server starts (the first visitor doesn't wait for it). */
 export function startSandbox() { keepFresh().catch(() => {}); }

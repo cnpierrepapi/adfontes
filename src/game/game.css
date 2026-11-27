@@ -1,0 +1,36 @@
+/* The game (/play): the sandbox's night HUD, a card for log-in, the draw and the result, a bar with End turn,
+   and the turn report in the nation panel's place. */
+body.play .dial, body.play .dial.sim { background: #e0661f !important; color: #fff !important; }
+.gm-bar[hidden], .gm-report[hidden] { display: none !important; }
+.gm-card { max-height: 100vh; overflow: auto; padding-top: 84px !important; }
+.gm-card #card-body { display: grid; gap: 8px; justify-items: stretch; width: min(420px, calc(100vw - 48px)); }
+.gm-in { font: inherit; font-size: 0.95rem; padding: 10px 12px; border-radius: 12px; border: 0; background: #f6f2ff; color: var(--ink); width: 100%; box-sizing: border-box; }
+.gm-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.gm-small { font-size: 0.8rem !important; opacity: 0.75 !important; margin: 2px 0 !important; }
+.gm-drawn { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+.gm-nation { display: grid; gap: 2px; padding: 12px 8px; border-radius: 14px; background: rgba(255, 255, 255, 0.1); }
+.gm-nation b { font-family: var(--display); font-size: 1rem !important; }
+.gm-nation span { font-family: var(--mono); font-size: 0.72rem; color: #ffd36b; }
+.gm-quit { justify-self: center; margin-top: 6px; }
+.gm-result { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.08); text-align: left; }
+.gm-result b { font-size: 1.1rem !important; }
+.gm-result .gm-big { font-family: var(--display); font-size: 2.2rem; color: #ffd36b; margin: 0 !important; }
+.gm-result ul { margin: 4px 0 0; padding-left: 18px; font-size: 0.85rem; }
+.gm-bar { gap: 10px; }
+.gm-stat { font-family: var(--mono); font-size: 0.74rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gm-end { padding: 9px 18px; font-size: 0.95rem; flex: none; }
+.gm-end:disabled { opacity: 0.5; cursor: progress; }
+.gm-report { padding-top: 14px; }
+.gm-report h2 { font-family: var(--display); margin: 0 0 8px; }
+.gm-report h3 { font-size: 0.8rem; font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; margin: 14px 0 4px; opacity: 0.8; }
+.gm-report ul { margin: 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.45; }
+.gm-t { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.gm-t th, .gm-t td { text-align: right; padding: 3px 5px; border-bottom: 1px solid rgba(127, 127, 127, 0.2); white-space: nowrap; }
+.gm-t th:first-child, .gm-t td:first-child { text-align: left; }
+.gm-t tr.me td { font-weight: 700; color: #e0661f; }
+.gm-x { position: absolute; right: 12px; top: 10px; border: 0; background: transparent; font-size: 1.3rem; cursor: pointer; color: inherit; }
+@media (max-width: 700px) {
+  .gm-drawn { grid-template-columns: 1fr; }
+  .gm-stat { order: 4; flex-basis: 100%; }
+  .gm-report { bottom: 132px !important; max-height: calc(100vh - 260px) !important; }
+}

@@ -811,6 +811,26 @@ async function loginPost(req, res, what) {
   return json(200, { account: row.account, iv: row.iv, ct: row.ct });
 }
 
+/** The game's log-in check (27 Nov, /play): the email + token the browser derived from the passphrase, as loginPost
+ *  checks them. Returns the log-in's id (a peppered hash of the email) or null. A right pair is remembered for 10
+ *  minutes so a game page polling its state doesn't hit the database each time; wrong ones count toward the same
+ *  5-an-hour limit as the log-in. */
+const loginOk = new Map();
+async function verifyLogin(email, auth) {
+  email = String(email || "").trim().toLowerCase(); auth = String(auth || "");
+  if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,24}$/.test(email) || !/^[0-9a-f]{64}$/.test(auth)) return null;
+  const id = loginId(email), key = `${id}|${tokenHash(auth)}`, hit = loginOk.get(key);
+  if (hit && Date.now() - hit < 10 * 60e3) return id;
+  const fails = (loginHits.get(`fail|${id}`) || []).filter((t) => Date.now() - t < 3600e3);
+  if (fails.length >= 5) return null;
+  const row = await store.getLogin(id);
+  const good = row && crypto.timingSafeEqual(Buffer.from(row.auth, "hex"), Buffer.from(tokenHash(auth), "hex"));
+  if (!good) { loginHits.set(`fail|${id}`, [...fails, Date.now()]); return null; }
+  if (loginOk.size > 5000) loginOk.clear();
+  loginOk.set(key, Date.now());
+  return id;
+}
+
 async function sponsorPost(req, res) {
   const json = (code, o) => send(res, code, "application/json", JSON.stringify(o));
   const pool = process.env.SPONSOR_ACCOUNT_ID, key = process.env.SPONSOR_PRIVATE_KEY;
@@ -883,7 +903,7 @@ http
     if (req.method === "POST" && url.pathname === "/api/seat/buy") return seatPost(req, res, "buy");
     { const lm = req.method === "POST" && url.pathname.match(/^\/api\/login(?:\/(salt|signup|forget))?$/); if (lm) return loginPost(req, res, lm[1] || "login"); }
     // The sandbox (/timelapse, timelapse/service.mjs): copies of the live world to shock and fast-forward.
-    if (SANDBOX && (url.pathname === "/sbx" || url.pathname.startsWith("/sbx/"))) return (await SANDBOX).handleSandbox(req, res, url);
+    if (SANDBOX && (url.pathname === "/sbx" || url.pathname.startsWith("/sbx/"))) return (await SANDBOX).handleSandbox(req, res, url, { verify: verifyLogin });
     if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "text/plain", "read only");
     const m = url.pathname.match(/^\/api\/([a-z]+)$/);
     // A fresh clone (no database, no engine state on disk) has the chain but none of the engine's
